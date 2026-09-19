@@ -1,0 +1,37 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "echoverge-pipeline"
+version = "0.1.0"
+description = "Continued SSL pre-training pipeline for XLS-R 300m on Sinhala/Tamil"
+requires-python = ">=3.10"
+dependencies = [
+    "torch>=2.0",
+    "torchaudio",
+    "transformers>=4.40",
+    "accelerate",
+    "datasets",
+    "soundfile",
+    "librosa",
+    "pydantic>=2.0",
+    "pyyaml",
+    "mlflow",
+    "rich",
+]
+
+[project.optional-dependencies]
+data = ["lhotse", "gspread", "google-auth"]
+benchmark = ["slsb @ git+https://github.com/EchoVerge-Labs/SLSB-benchmark.git@v0.1.0"]
+dev = ["pytest", "ruff", "mypy"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pipeline"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

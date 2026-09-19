@@ -1,0 +1,39 @@
+# Data (DVC-tracked)
+/data/raw/
+/data/shars/
+/data/catalog/*.csv
+/data/catalog/*.json
+!/data/**/.gitkeep
+
+# Models (DVC-tracked)
+/models/
+
+# Build
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# Env
+.env
+*.local
+
+# Training
+/runs/
+/logs/
+wandb/
+*.pt
+*.bin
+*.safetensors
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
