@@ -1,0 +1,94 @@
+# ── Data Selection ──────────────────────────────────
+select:
+  seed: 1337
+  target_hours: 200.0
+  language_mix:
+    sinhala: 0.60
+    tamil: 0.40
+  min_segment_seconds: 3.0
+  max_segment_seconds: 30.0
+  max_hours_per_channel: 12.0
+  holdout_hours: 2.0
+  catalog_path: data/catalog/catalog_latest.csv
+  exclude_channels_file: data/catalog/eval_contamination_blocklist.txt
+
+# ── Sharding ────────────────────────────────────────
+shard:
+  format: flac               # inside tar
+  shard_size: 1000            # cuts per shard
+  min_cut_seconds: 5.0        # minimum after re-cutting
+  target_cut_seconds: 15.0    # concatenate short segments to this
+  output_dir: data/shars
+
+# ── Pre-training ────────────────────────────────────
+pretrain:
+  base_model: facebook/wav2vec2-xls-r-300m
+  precision: bf16
+  freeze_feature_encoder: true
+
+  max_updates: 50000
+  warmup_updates: 4000
+  peak_lr: 5.0e-5
+  lr_schedule: tri_stage      # warmup / hold / exponential decay
+  hold_ratio: 0.4             # fraction of remaining after warmup to hold
+  optimizer: adamw
+  adam_betas: [0.9, 0.98]
+  adam_eps: 1.0e-6
+  weight_decay: 0.01
+  max_grad_norm: 1.0
+
+  # batch size in AUDIO SECONDS (not examples)
+  target_batch_seconds: 1600
+  per_device_max_seconds: 200
+  num_workers: 4
+
+  # wav2vec2 masking
+  mask_time_prob: 0.65
+  mask_time_length: 10
+
+  # Gumbel quantizer
+  diversity_loss_weight: 0.1
+  max_gumbel_temperature: 1.0
+  min_gumbel_temperature: 0.5
+  gumbel_temperature_decay: 0.999995
+
+  # checkpointing
+  save_every_updates: 2500
+  eval_every_updates: 1000
+  keep_last_n_checkpoints: 5
+  milestone_checkpoints: [10000, 25000, 50000]
+
+  output_dir: models/xlsr300m-si-ta-200h
+
+# ── Checkpoint Selection ────────────────────────────
+checkpoint_selection:
+  proxy_task: asr
+  proxy_data_dir: null        # filled at runtime from SLSB-benchmark data
+  proxy_seed: 0
+  output_dir: models/selected
+
+# ── Benchmark ───────────────────────────────────────
+benchmark:
+  tasks: "asr,sid,er,asv"
+  seeds: "0,1,2"
+  slsb_data_dir: null         # path to SLSB-benchmark/data
+  mlflow_uri: https://dagshub.com/EchoVerge-LABS/Model-Training-Pipeline.mlflow
+  upstreams:
+    xlsr300m_vanilla:
+      path: facebook/wav2vec2-xls-r-300m
+      name: "XLS-R 300M (vanilla)"
+    mhubert147:
+      path: utter-project/mHuBERT-147
+      name: "mHuBERT-147"
+    wavlm_large:
+      path: microsoft/wavlm-large
+      name: "WavLM Large"
+    xlsr300m_adapted:
+      path: models/selected
+      name: "XLS-R 300M (Si/Ta 200h)"
+      is_local: true
+
+# ── MLflow ──────────────────────────────────────────
+mlflow:
+  tracking_uri: https://dagshub.com/EchoVerge-LABS/Model-Training-Pipeline.mlflow
+  experiment_name: ssl-pretraining
