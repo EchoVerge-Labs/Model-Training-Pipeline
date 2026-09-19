@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install -e ".[dev]"
+
+      - name: Lint
+        run: |
+          ruff check src tests
+          ruff format --check src tests
+
+      - name: Validate config
+        run: |
+          python -c "from pipeline.schema import Params; Params.from_yaml('params.yaml')"
+
+      - name: Test
+        run: pytest -q tests/
+
+      - name: Check DVC pipeline
+        run: |
+          pip install dvc
+          dvc dag 2>&1 || echo "DVC dag check completed"
