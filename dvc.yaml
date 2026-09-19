@@ -1,0 +1,108 @@
+stages:
+
+  snapshot_catalog:
+    cmd: python -m pipeline.snapshot_catalog
+         --sheet-id ${GOOGLE_SHEET_ID}
+         --out data/catalog
+    deps:
+      - src/pipeline/snapshot_catalog.py
+    outs:
+      - data/catalog/catalog_latest.csv
+    always_changed: true
+
+  select:
+    cmd: python -m pipeline.select --config params.yaml
+    deps:
+      - src/pipeline/select.py
+      - data/catalog/catalog_latest.csv
+    params:
+      - select
+    outs:
+      - data/manifests/train.jsonl
+      - data/manifests/dev.jsonl
+    metrics:
+      - reports/selection_stats.json:
+          cache: false
+
+  materialise:
+    cmd: bash scripts/rclone_pull.sh
+    deps:
+      - data/manifests/train.jsonl
+      - data/manifests/dev.jsonl
+      - scripts/rclone_pull.sh
+    outs:
+      - data/raw/:
+          persist: true
+
+  shard:
+    cmd: python -m pipeline.shard --config params.yaml
+    deps:
+      - src/pipeline/shard.py
+      - data/raw/
+      - data/manifests/train.jsonl
+    params:
+      - shard
+    outs:
+      - data/shars/
+
+  pretrain:
+    cmd: bash scripts/launch_pretrain.sh
+    deps:
+      - src/pipeline/train.py
+      - src/pipeline/datamodule.py
+      - src/pipeline/callbacks.py
+      - data/shars/
+    params:
+      - pretrain
+    outs:
+      - models/xlsr300m-si-ta-200h/:
+          persist: true
+    metrics:
+      - reports/pretrain_metrics.json:
+          cache: false
+    plots:
+      - reports/pretrain_curves.csv:
+          cache: false
+
+  select_checkpoint:
+    cmd: python -m pipeline.select_checkpoint --config params.yaml
+    deps:
+      - src/pipeline/select_checkpoint.py
+      - models/xlsr300m-si-ta-200h/
+    params:
+      - checkpoint_selection
+    outs:
+      - models/selected/:
+          persist: true
+    metrics:
+      - reports/checkpoint_selection.json:
+          cache: false
+
+  benchmark:
+    cmd: >
+      bash scripts/run_benchmark.sh
+      models/selected
+      ${benchmark.tasks}
+      ${benchmark.seeds}
+      reports/bench/xlsr300m_adapted
+      ${benchmark.mlflow_uri}
+    deps:
+      - models/selected/
+      - scripts/run_benchmark.sh
+    params:
+      - benchmark.tasks
+      - benchmark.seeds
+    metrics:
+      - reports/bench/xlsr300m_adapted/metrics.json:
+          cache: false
+
+  report:
+    cmd: python -m pipeline.report --config params.yaml
+    deps:
+      - src/pipeline/report.py
+      - reports/bench/
+    outs:
+      - reports/results.md:
+          cache: false
+      - reports/results_table.csv:
+          cache: false
