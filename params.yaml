@@ -3,8 +3,8 @@ select:
   seed: 1337
   target_hours: 200.0
   language_mix:
-    sinhala: 0.60
-    tamil: 0.40
+    sinhala: 0.50
+    tamil: 0.50
   min_segment_seconds: 3.0
   max_segment_seconds: 30.0
   max_hours_per_channel: 12.0
