@@ -6,7 +6,8 @@
 !/data/**/.gitkeep
 
 # Models (DVC-tracked)
-/models/
+/models/*
+!/models/.gitkeep
 
 # Build
 __pycache__/
@@ -24,7 +25,8 @@ venv/
 
 # Training
 /runs/
-/logs/
+/logs/*
+!/logs/.gitkeep
 wandb/
 *.pt
 *.bin
