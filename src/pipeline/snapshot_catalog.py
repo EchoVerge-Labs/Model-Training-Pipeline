@@ -3,7 +3,9 @@ import argparse
 import csv
 import json
 import os
+import re
 import sys
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -16,9 +18,9 @@ except ImportError:
 
 
 # Columns of the actual "Sinhala X Tamil Voice Dataset" sheet tabs, minus
-# `language`: every row gets `language` set from its tab name (see
-# snapshot_with_gspread), overriding whatever the sheet's own `language`
-# column says, so it can't be meaningfully required of the sheet itself.
+# `language`: every row's `language` is set from its tab/file (see
+# _prepare_rows), so it isn't required of the sheet itself -- but if the sheet
+# does carry one, _prepare_rows refuses rows that contradict it.
 REQUIRED_COLUMNS = [
     "source_id", "source_url", "title", "genre", "speaking_style",
     "speaker_count", "speaker_gender", "acoustic_condition",
@@ -59,11 +61,7 @@ def snapshot_with_gspread(sheet_id: str, out_dir: Path) -> Path:
     for tab_name in TABS:
         ws = spreadsheet.worksheet(tab_name)
         records = ws.get_all_records()
-        lang = "sinhala" if "sinhala" in tab_name.lower() else "tamil"
-        for row in records:
-            row["language"] = lang
-            row["source_tab"] = tab_name
-            all_rows.append(row)
+        all_rows.extend(_prepare_rows(records, _language_from_name(tab_name), tab_name))
 
     return _write_csv(all_rows, out_dir)
 
@@ -72,14 +70,43 @@ def snapshot_from_local_csv(csv_paths: list[str], out_dir: Path) -> Path:
     """Fallback: merge manually exported CSVs."""
     all_rows = []
     for csv_path in csv_paths:
-        lang = "sinhala" if "sinhala" in csv_path.lower() else "tamil"
         with open(csv_path, newline="", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                row["language"] = lang
-                row["source_tab"] = csv_path
-                all_rows.append(row)
+            records = list(csv.DictReader(f))
+        all_rows.extend(_prepare_rows(records, _language_from_name(Path(csv_path).stem), csv_path))
     return _write_csv(all_rows, out_dir)
+
+
+def _language_from_name(name: str) -> str:
+    """Language of a tab name or exported-CSV filename stem: the LAST of
+    "sinhala"/"tamil" in it. Exports are named like
+    "Sinhala X Tamil Voice Dataset - Pre-Processed-Tamil", which contains both
+    -- the tab it came from is the final one."""
+    found = re.findall(r"sinhala|tamil", name.lower())
+    if not found:
+        raise ValueError(f"cannot tell the language of {name!r}: no 'sinhala' or 'tamil' in it")
+    return found[-1]
+
+
+def _prepare_rows(records: list[dict], lang: str, source: str) -> list[dict]:
+    """Normalise one tab's rows: drop blank-named columns (the Tamil export has
+    a trailing headerless one, which would make the merged CSV writer crash),
+    set `language`/`source_tab`, and refuse rows whose own `language` column
+    disagrees with the language we derived for the tab."""
+    out, contradicted = [], Counter()
+    for row in records:
+        row = {k: v for k, v in row.items() if k}
+        sheet_lang = str(row.get("language", "")).strip().lower()
+        if sheet_lang and sheet_lang != lang:
+            contradicted[sheet_lang] += 1
+        row["language"] = lang
+        row["source_tab"] = source
+        out.append(row)
+    if contradicted:
+        raise ValueError(
+            f"{source}: derived language {lang!r} but {sum(contradicted.values())} rows say "
+            f"{dict(contradicted)} in their own `language` column"
+        )
+    return out
 
 
 def _write_csv(rows: list[dict], out_dir: Path) -> Path:
