@@ -1,7 +1,6 @@
 """Deterministic, stratified, channel-disjoint selection of training data."""
 import argparse
 import csv
-import hashlib
 import json
 import random
 import sys
@@ -20,33 +19,36 @@ class Segment:
     duration_seconds: float
     genre: str
     speaking_style: str
-    channel_id: str
+    language_formality: str
+    code_switching: str
+    channel_id: str  # the catalog's source_id (one YouTube source, many files)
+    title: str
+    source_url: str
     size_bytes: int
     row_index: int
 
 
-def extract_channel_id(filename: str) -> str:
-    """Extract channel identifier from filename.
-
-    Expected convention: {lang}_{source}_{channel_slug}_{video_id}.wav
-    Falls back to a hash of the filename if pattern doesn't match.
-    """
-    parts = filename.rsplit(".", 1)[0].split("_")
-    if len(parts) >= 3:
-        # channel slug is the third component
-        return parts[2]
-    # fallback: group by first 3 chars as a crude cluster
-    return f"unknown_{parts[0][:3]}" if parts else f"hash_{hashlib.md5(filename.encode()).hexdigest()[:8]}"
-
-
 def load_catalog(catalog_path: str) -> list[Segment]:
-    """Load and validate the frozen catalog CSV."""
+    """Load the frozen catalog CSV, keeping only rows marked to_train=yes.
+
+    source_id is required and used directly as the channel/source identifier
+    (channel-disjoint train/holdout splitting depends on it); a to_train row
+    with a blank source_id raises rather than silently lumping every such row
+    into one giant "channel".
+    """
     segments = []
     with open(catalog_path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for i, row in enumerate(reader):
             if row.get("to_train", "").strip().lower() != "yes":
                 continue
+
+            source_id = row["source_id"].strip()
+            if not source_id:
+                raise ValueError(
+                    f"{catalog_path}: row {i} ({row.get('name_in_drive')!r}) is marked "
+                    f"to_train=yes but has an empty source_id"
+                )
 
             duration_min = float(row.get("duration_minutes", 0))
             duration_sec = duration_min * 60.0
@@ -57,7 +59,11 @@ def load_catalog(catalog_path: str) -> list[Segment]:
                 duration_seconds=duration_sec,
                 genre=row.get("genre", "unknown"),
                 speaking_style=row.get("speaking_style", "unknown"),
-                channel_id=extract_channel_id(row["name_in_drive"]),
+                language_formality=row.get("language_formality", "unknown"),
+                code_switching=row.get("code_switching", "unknown"),
+                channel_id=source_id,
+                title=row.get("title", ""),
+                source_url=row.get("source_url", ""),
                 size_bytes=int(row.get("size", 0)),
                 row_index=i,
             ))
@@ -168,9 +174,33 @@ def write_manifest(segments: list[Segment], path: Path):
                 "duration": s.duration_seconds,
                 "genre": s.genre,
                 "speaking_style": s.speaking_style,
+                "language_formality": s.language_formality,
+                "code_switching": s.code_switching,
                 "channel_id": s.channel_id,
             }
             f.write(json.dumps(entry) + "\n")
+
+
+def _top_sources(segments: list[Segment], n: int) -> list[dict]:
+    """Group segments by source_id; return the n sources with the most hours.
+
+    A source's title is its first non-empty title in catalog order (stable, so
+    the report is reproducible)."""
+    by_source: dict[str, dict] = {}
+    for s in segments:
+        entry = by_source.setdefault(
+            s.channel_id, {"source_id": s.channel_id, "hours": 0.0, "segments": 0, "title": ""}
+        )
+        entry["hours"] += s.duration_seconds / 3600
+        entry["segments"] += 1
+        if not entry["title"] and s.title:
+            entry["title"] = s.title
+    return sorted(by_source.values(), key=lambda e: (-e["hours"], e["source_id"]))[:n]
+
+
+def _md_cell(text: str) -> str:
+    """Make free text (YouTube titles) safe inside a markdown table cell."""
+    return " ".join(text.split()).replace("|", "\\|")
 
 
 def write_report(
@@ -235,6 +265,14 @@ def write_report(
         f.write("\n## By Genre (top 10)\n\n")
         for genre, hours in sorted(train_by_genre.items(), key=lambda x: -x[1])[:10]:
             f.write(f"- {genre}: {hours:.1f}h\n")
+        f.write("\n## Top 10 sources by hours\n\n")
+        f.write("Check for a single source dominating the training set.\n\n")
+        f.write("| Rank | source_id | Hours | % of train | Segments | Title |\n")
+        f.write("|---|---|---|---|---|---|\n")
+        for rank, src in enumerate(_top_sources(train, 10), start=1):
+            pct = 100 * src["hours"] / train_hours if train_hours > 0 else 0.0
+            f.write(f"| {rank} | {src['source_id']} | {src['hours']:.2f} | {pct:.1f}% | "
+                    f"{src['segments']} | {_md_cell(src['title'])} |\n")
         f.write(f"\n## Channels: {len(train_channels)} train, {len(holdout_channels)} holdout, "
                 f"{stats['channel_overlap']} overlap\n")
 

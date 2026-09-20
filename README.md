@@ -20,7 +20,7 @@ training straight into evaluation automatically.
 - NVIDIA DGX Spark (GB10, ARM64) with the NGC PyTorch container (`nvcr.io/nvidia/pytorch:25.11-py3`)
 - Google Drive with pre-processed audio, mounted via `rclone` (remote name `gdrive`, folder `Pre Processed Data/{Sinhala,Tamil}`)
 - A DagsHub account (DVC remote + MLflow tracking) — see `.env.example`
-- A Google service-account JSON with read access to the "Sinhala X Tamil Voice Dataset" sheet
+- A Google OAuth client-secret JSON (Desktop-app type) for an account that can read the "Sinhala X Tamil Voice Dataset" sheet. The first `make snapshot` opens a browser sign-in and caches the token at `~/.config/gspread/authorized_user.json`
 - [SLSB-benchmark](https://github.com/EchoVerge-Labs/SLSB-benchmark) v0.1.0 installed (`pip install -e ".[benchmark]"`, or already in the Docker image)
 
 ## Quick start
@@ -28,7 +28,7 @@ training straight into evaluation automatically.
 ```bash
 # 1. Install (inside the NGC container, or a matching ARM64 CUDA environment)
 pip install -e ".[data,benchmark,dev]"
-cp .env.example .env   # fill in DAGSHUB_TOKEN, GOOGLE_SHEET_ID, GOOGLE_SERVICE_ACCOUNT_JSON, HF_TOKEN
+cp .env.example .env   # fill in DAGSHUB_TOKEN, GOOGLE_SHEET_ID, GOOGLE_CLIENT_SECRET_JSON, HF_TOKEN
 
 # 2. Measure real throughput BEFORE scoping max_updates / timelines.
 #    This loads the real 300M model and does real GPU compute -- treat it

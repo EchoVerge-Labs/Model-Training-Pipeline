@@ -7,34 +7,52 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-# Optional: use gspread if available, otherwise fall back to CSV export URL
+# Optional: use gspread if available, otherwise fall back to --local-csv
 try:
     import gspread
-    from google.oauth2.service_account import Credentials
     HAS_GSPREAD = True
 except ImportError:
     HAS_GSPREAD = False
 
 
+# Columns of the actual "Sinhala X Tamil Voice Dataset" sheet tabs, minus
+# `language`: every row gets `language` set from its tab name (see
+# snapshot_with_gspread), overriding whatever the sheet's own `language`
+# column says, so it can't be meaningfully required of the sheet itself.
 REQUIRED_COLUMNS = [
-    "genre", "speaking_style", "language_form", "accent_or_region",
-    "code_switch", "duration_minutes", "name_in_drive", "size",
-    "to_train", "tagged",
+    "source_id", "source_url", "title", "genre", "speaking_style",
+    "speaker_count", "speaker_gender", "acoustic_condition",
+    "language_formality", "accent_or_region", "code_switching",
+    "duration_minutes", "uploaded_date", "name_in_drive", "size",
+    "stored_date", "to_train", "tagged",
 ]
 
 TABS = ["Pre-Processed-Sinhala", "Pre-Processed-Tamil"]
 
+DEFAULT_AUTHORIZED_USER_JSON = "~/.config/gspread/authorized_user.json"
+
 
 def snapshot_with_gspread(sheet_id: str, out_dir: Path) -> Path:
-    """Pull both tabs via gspread and merge into one CSV."""
-    creds_path = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON")
-    if not creds_path:
-        print("ERROR: Set GOOGLE_SERVICE_ACCOUNT_JSON env var to the service account key path")
-        sys.exit(1)
+    """Pull both tabs via gspread (OAuth installed-app flow) and merge into one CSV.
 
-    scopes = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
-    creds = Credentials.from_service_account_file(creds_path, scopes=scopes)
-    gc = gspread.authorize(creds)
+    GOOGLE_CLIENT_SECRET_JSON: the OAuth client_secret file downloaded from the
+    Google Cloud console (required).
+    GOOGLE_AUTH_USER_JSON: where the authorized-user token is cached after the
+    first interactive sign-in (default: ~/.config/gspread/authorized_user.json).
+    """
+    client_secret = os.environ.get("GOOGLE_CLIENT_SECRET_JSON")
+    if not client_secret:
+        print("ERROR: Set GOOGLE_CLIENT_SECRET_JSON env var to the OAuth client_secret file path")
+        sys.exit(1)
+    authorized_user = os.path.expanduser(
+        os.environ.get("GOOGLE_AUTH_USER_JSON", DEFAULT_AUTHORIZED_USER_JSON)
+    )
+
+    gc = gspread.oauth(
+        scopes=gspread.auth.READONLY_SCOPES,
+        credentials_filename=os.path.expanduser(client_secret),
+        authorized_user_filename=authorized_user,
+    )
     spreadsheet = gc.open_by_key(sheet_id)
 
     all_rows = []
