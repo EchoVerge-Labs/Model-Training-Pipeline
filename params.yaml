@@ -26,8 +26,8 @@ pretrain:
   precision: bf16
   freeze_feature_encoder: true
 
-  max_updates: 50000
-  warmup_updates: 4000
+  max_updates: 13500          # ~30 passes over 200h (was 50000 / 111 passes)
+  warmup_updates: 1000        # ~8% (was 4000)
   peak_lr: 5.0e-5
   lr_schedule: tri_stage      # warmup / hold / exponential decay
   hold_ratio: 0.4             # fraction of remaining after warmup to hold
@@ -53,10 +53,10 @@ pretrain:
   gumbel_temperature_decay: 0.999995
 
   # checkpointing
-  save_every_updates: 2500
-  eval_every_updates: 1000
+  save_every_updates: 1500
+  eval_every_updates: 500
   keep_last_n_checkpoints: 5
-  milestone_checkpoints: [10000, 25000, 50000]
+  milestone_checkpoints: [4500, 9000, 13500]   # 10, 20, 30 passes
 
   output_dir: models/xlsr300m-si-ta-200h
 
