@@ -4,7 +4,10 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from pipeline.select import Segment, load_catalog, select, write_report
+from pipeline.select import (
+    Segment, build_path_lookup, dedupe_segments, load_catalog, resolve_paths, select,
+    write_manifest, write_report, write_unresolved,
+)
 
 # The actual catalog schema (Google Sheet tabs, plus `language` as set by
 # snapshot_catalog.py from the tab name).
@@ -199,3 +202,108 @@ def test_report_top_sources_capped_at_ten(tmp_path):
                   if ln.startswith("| ") and ln.split("|")[1].strip().isdigit()]
     assert len(table_rows) == 10
     assert "src00" in table_rows[0] and "src14" not in "".join(table_rows)
+
+
+# ── catalog cleaning: repeats, path resolution, unique ids ───────────────────
+
+def _clip(name, size, genre="drama", source="src", language="sinhala", row_index=0) -> Segment:
+    return Segment(
+        filename=name, language=language, duration_seconds=10.0, genre=genre,
+        speaking_style="read", language_formality="spoken", code_switching="no_code",
+        channel_id=source, title="t", source_url="", size_bytes=size, row_index=row_index,
+    )
+
+
+def test_dedupe_drops_repeated_rows_and_keeps_the_first():
+    a = _clip("x.wav", 100, row_index=1)
+    a_again = _clip("x.wav", 100, row_index=2)         # same clip logged twice
+    other_size = _clip("x.wav", 200, row_index=3)      # same name, different file
+    other_source = _clip("x.wav", 100, source="other", row_index=4)
+    kept, removed = dedupe_segments([a, a_again, other_size, other_source])
+    assert removed == 1
+    assert [s.row_index for s in kept] == [1, 3, 4]
+
+
+def test_resolve_paths_disambiguates_by_genre_and_size_and_sets_aside_the_rest():
+    lookup = build_path_lookup([
+        ("Sinhala/drama/vidA/x_000.wav", 100),
+        ("Sinhala/drama/vidB/x_000.wav", 200),     # same name as vidA: size tells them apart
+        ("Sinhala/news/vidC/y_000.wav", 300),
+        ("Sinhala/drama/vidD/y_000.wav", 300),     # same name+size as vidC: genre tells them apart
+        ("Sinhala/drama/vidE/w_000.wav", 400),
+        ("Sinhala/drama/vidF/w_000.wav", 400),     # same genre+name+size: genuinely ambiguous
+        ("Tamil/drama/vidG/x_000.wav", 100),       # other language: never a candidate for a Sinhala row
+    ])
+    segs = [
+        _clip("x_000.wav", 100, source="a"),
+        _clip("x_000.wav", 200, source="b"),
+        _clip("y_000.wav", 300, genre="news", source="c"),
+        _clip("z_000.wav", 5, source="d"),                    # not on the Drive
+        _clip("w_000.wav", 400, source="e"),                  # two candidates
+        _clip("x_000.wav", 100, source="f"),                  # resolves to vidA's file again
+    ]
+    resolved, unresolved = resolve_paths(segs, lookup)
+    assert [s.relpath for s in resolved] == [
+        "Sinhala/drama/vidA/x_000.wav", "Sinhala/drama/vidB/x_000.wav", "Sinhala/news/vidC/y_000.wav",
+    ]
+    assert [(s.channel_id, why) for s, why in unresolved] == [
+        ("d", "no_match"), ("e", "ambiguous"), ("f", "duplicate_path"),
+    ]
+
+
+def test_clip_id_is_unique_even_when_sheet_names_collide():
+    a = _clip("h_000.wav", 1); a.relpath = "Sinhala/drama/vidA/h_000.wav"
+    b = _clip("h_000.wav", 1); b.relpath = "Sinhala/drama/vidB/h_000.wav"
+    a_same = _clip("h_000.wav", 1); a_same.relpath = a.relpath
+    assert a.clip_id != b.clip_id
+    assert a.clip_id == a_same.clip_id                 # stable
+    assert a.clip_id.startswith("h_000-")
+
+
+def test_manifest_carries_the_drive_path_and_unique_ids(tmp_path):
+    a = _clip("h_000.wav", 1); a.relpath = "Sinhala/drama/vidA/h_000.wav"
+    b = _clip("h_000.wav", 1); b.relpath = "Sinhala/drama/vidB/h_000.wav"
+    path = tmp_path / "train.jsonl"
+    write_manifest([a, b], path)
+    entries = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+    assert [e["filename"] for e in entries] == [a.relpath, b.relpath]
+    assert [e["name_in_drive"] for e in entries] == ["h_000.wav", "h_000.wav"]
+    assert len({e["id"] for e in entries}) == 2
+
+
+def test_manifest_refuses_unresolved_or_duplicate_clips(tmp_path):
+    unresolved = _clip("h_000.wav", 1)                        # relpath never set
+    for bad in ([unresolved],):
+        try:
+            write_manifest(bad, tmp_path / "m.jsonl")
+        except ValueError as e:
+            assert "no resolved Drive path" in str(e)
+        else:
+            raise AssertionError("expected ValueError")
+    a = _clip("h_000.wav", 1); a.relpath = "Sinhala/drama/vidA/h_000.wav"
+    try:
+        write_manifest([a, a], tmp_path / "m.jsonl")
+    except ValueError as e:
+        assert "duplicate clip id" in str(e)
+    else:
+        raise AssertionError("expected ValueError")
+
+
+def test_unresolved_clips_are_written_with_reasons(tmp_path):
+    out = tmp_path / "unresolved.csv"
+    write_unresolved([(_clip("z.wav", 5, source="d"), "no_match")], out)
+    rows = list(csv.DictReader(open(out, newline="", encoding="utf-8")))
+    assert rows[0]["reason"] == "no_match" and rows[0]["name_in_drive"] == "z.wav"
+
+
+def test_report_includes_cleaning_summary(tmp_path):
+    train = [_seg("a", "A", 3600, "a.wav")]
+    cleaning = {"to_train_rows": 10, "exact_duplicates_removed": 2,
+                "unresolved": {"ambiguous": 1, "no_match": 1, "duplicate_path": 0}}
+    write_report(train, [], train, _cfg(target_hours=1.0), tmp_path / "r.md", tmp_path / "s.json",
+                 cleaning=cleaning)
+    report = (tmp_path / "r.md").read_text()
+    assert "## Catalog cleaning" in report
+    assert "exact repeats removed: 2" in report and "ambiguous 1, no_match 1" in report
+    stats = json.loads((tmp_path / "s.json").read_text())
+    assert stats["cleaning"] == cleaning and stats["longest_train_segment_seconds"] == 3600.0

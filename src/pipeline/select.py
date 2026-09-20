@@ -1,6 +1,7 @@
 """Deterministic, stratified, channel-disjoint selection of training data."""
 import argparse
 import csv
+import hashlib
 import json
 import random
 import sys
@@ -9,6 +10,7 @@ from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Optional
 
+from pipeline.drive_index import load_index
 from pipeline.schema import Params
 
 
@@ -26,6 +28,14 @@ class Segment:
     source_url: str
     size_bytes: int
     row_index: int
+    relpath: str = ""  # <Lang>/<genre>/<source-dir>/<file> on the Drive; set by resolve_paths
+
+    @property
+    def clip_id(self) -> str:
+        """Unique per clip. The sheet's name_in_drive repeats across different
+        source videos, so the id also carries a hash of the (unique) relative path."""
+        digest = hashlib.sha1(self.relpath.encode("utf-8")).hexdigest()[:10]
+        return f"{Path(self.filename).stem}-{digest}"
 
 
 def load_catalog(catalog_path: str) -> list[Segment]:
@@ -69,6 +79,66 @@ def load_catalog(catalog_path: str) -> list[Segment]:
             ))
 
     return segments
+
+
+def dedupe_segments(segments: list[Segment]) -> tuple[list[Segment], int]:
+    """Drop repeated rows for the same clip. The sheet logs some clips twice
+    (same language / source_id / name / size, differing only in stored_date);
+    counting both would double-weight them. Keeps the first occurrence."""
+    seen, kept = set(), []
+    for s in segments:
+        key = (s.language.lower(), s.channel_id, s.filename, s.size_bytes)
+        if key in seen:
+            continue
+        seen.add(key)
+        kept.append(s)
+    return kept, len(segments) - len(kept)
+
+
+def build_path_lookup(index: list[tuple[str, int]]) -> dict[tuple, list[str]]:
+    """(language, genre, filename, size) -> Drive relpaths. name_in_drive alone
+    isn't unique on the Drive; adding genre folder and byte size is."""
+    lookup: dict[tuple, list[str]] = defaultdict(list)
+    for rel, size in index:
+        parts = rel.split("/")
+        if len(parts) < 4:  # <Lang>/<genre>/<source-dir>/<file>
+            continue
+        lookup[(parts[0].lower(), parts[1], parts[-1], size)].append(rel)
+    return lookup
+
+
+def resolve_paths(
+    segments: list[Segment], lookup: dict[tuple, list[str]]
+) -> tuple[list[Segment], list[tuple[Segment, str]]]:
+    """Attach each segment's Drive relpath. Rows that can't be pinned to exactly
+    one file are set aside with a reason -- never guessed:
+      no_match        no file with that (language, genre, name, size)
+      ambiguous       several files match (same name+size in different videos)
+      duplicate_path  another row already resolved to this same file
+    """
+    resolved, unresolved, used = [], [], set()
+    for s in segments:
+        candidates = lookup.get((s.language.lower(), s.genre, s.filename, s.size_bytes), [])
+        if not candidates:
+            unresolved.append((s, "no_match"))
+        elif len(candidates) > 1:
+            unresolved.append((s, "ambiguous"))
+        elif candidates[0] in used:
+            unresolved.append((s, "duplicate_path"))
+        else:
+            s.relpath = candidates[0]
+            used.add(candidates[0])
+            resolved.append(s)
+    return resolved, unresolved
+
+
+def write_unresolved(unresolved: list[tuple[Segment, str]], path: Path):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(["reason", "language", "genre", "name_in_drive", "size", "source_id", "title"])
+        for s, reason in unresolved:
+            w.writerow([reason, s.language, s.genre, s.filename, s.size_bytes, s.channel_id, s.title])
 
 
 def select(
@@ -165,11 +235,18 @@ def select(
 def write_manifest(segments: list[Segment], path: Path):
     """Write a simple JSONL manifest (Lhotse-compatible structure)."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w") as f:
+    ids: set[str] = set()
+    with open(path, "w", encoding="utf-8") as f:
         for s in segments:
+            if not s.relpath:
+                raise ValueError(f"{s.filename}: no resolved Drive path -- run resolve_paths first")
+            if s.clip_id in ids:
+                raise ValueError(f"duplicate clip id {s.clip_id} for {s.relpath}")
+            ids.add(s.clip_id)
             entry = {
-                "id": Path(s.filename).stem,
-                "filename": s.filename,
+                "id": s.clip_id,
+                "filename": s.relpath,  # path under drive_root and under data/raw
+                "name_in_drive": s.filename,
                 "language": s.language,
                 "duration": s.duration_seconds,
                 "genre": s.genre,
@@ -178,7 +255,7 @@ def write_manifest(segments: list[Segment], path: Path):
                 "code_switching": s.code_switching,
                 "channel_id": s.channel_id,
             }
-            f.write(json.dumps(entry) + "\n")
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
 
 def _top_sources(segments: list[Segment], n: int) -> list[dict]:
@@ -210,8 +287,10 @@ def write_report(
     cfg,
     report_path: Path,
     stats_path: Path,
+    cleaning: Optional[dict] = None,
 ):
-    """Write selection report and machine-readable stats."""
+    """Write selection report and machine-readable stats. `cleaning` (from main)
+    describes what was dropped before selection: repeats and unresolvable rows."""
     train_hours = sum(s.duration_seconds for s in train) / 3600
     holdout_hours = sum(s.duration_seconds for s in holdout) / 3600
 
@@ -233,7 +312,9 @@ def write_report(
         "shortfall_pct": round((1 - train_hours / cfg.target_hours) * 100, 1) if cfg.target_hours > 0 else 0,
         "train_segments": len(train),
         "holdout_segments": len(holdout),
-        "total_to_train_segments": len(all_segments),
+        "candidate_segments": len(all_segments),
+        "longest_train_segment_seconds": round(max((s.duration_seconds for s in train), default=0.0), 1),
+        "cleaning": cleaning or {},
         "train_channels": len(train_channels),
         "holdout_channels": len(holdout_channels),
         "channel_overlap": len(train_channels & holdout_channels),  # should be 0
@@ -258,7 +339,17 @@ def write_report(
     with open(report_path, "w") as f:
         f.write("# Data Selection Report\n\n")
         f.write(f"Target: {cfg.target_hours}h | Realised: {train_hours:.1f}h\n")
-        f.write(f"Holdout: {holdout_hours:.1f}h\n\n")
+        f.write(f"Holdout: {holdout_hours:.1f}h\n")
+        f.write(f"Longest training clip: {stats['longest_train_segment_seconds']}s\n\n")
+        if cleaning:
+            u = cleaning["unresolved"]
+            f.write("## Catalog cleaning\n\n")
+            f.write(f"- to_train=yes rows: {cleaning['to_train_rows']:,}\n")
+            f.write(f"- exact repeats removed: {cleaning['exact_duplicates_removed']:,}\n")
+            f.write(f"- unresolvable, set aside (see reports/unresolved_clips.csv): "
+                    f"{sum(u.values())} (ambiguous {u['ambiguous']}, no_match {u['no_match']}, "
+                    f"duplicate_path {u['duplicate_path']})\n")
+            f.write(f"- candidates for selection: {len(all_segments):,}\n\n")
         f.write("## By Language\n\n")
         for lang, hours in sorted(train_by_lang.items()):
             f.write(f"- {lang}: {hours:.1f}h\n")
@@ -293,6 +384,29 @@ def main():
     if not segments:
         print("ERROR: No segments with to_train=yes found in catalog")
         sys.exit(1)
+    n_rows = len(segments)
+
+    # Clean before selecting: collapse repeated rows, then pin every clip to
+    # exactly one file on the Drive (see drive_index.py for why the sheet's
+    # name_in_drive alone can't).
+    segments, n_repeats = dedupe_segments(segments)
+    index_path = Path(cfg.drive_index_path)
+    if not index_path.exists():
+        print(f"ERROR: {index_path} not found -- run `python -m pipeline.drive_index` first")
+        sys.exit(1)
+    segments, unresolved = resolve_paths(segments, build_path_lookup(load_index(index_path)))
+    write_unresolved(unresolved, Path("reports/unresolved_clips.csv"))
+    reasons = [reason for _, reason in unresolved]
+    cleaning = {
+        "to_train_rows": n_rows,
+        "exact_duplicates_removed": n_repeats,
+        "unresolved": {r: reasons.count(r) for r in ("ambiguous", "no_match", "duplicate_path")},
+    }
+    print(f"Catalog: {n_rows:,} to_train rows -> {n_repeats:,} repeats removed, "
+          f"{len(unresolved)} unresolvable -> {len(segments):,} candidates")
+    if not segments:
+        print("ERROR: no clip could be resolved to a file on the Drive")
+        sys.exit(1)
 
     # Load blocklist if it exists
     blocklist = set()
@@ -308,6 +422,7 @@ def main():
         train, holdout, segments, cfg,
         report_path=Path("reports/selection_report.md"),
         stats_path=Path("reports/selection_stats.json"),
+        cleaning=cleaning,
     )
 
 

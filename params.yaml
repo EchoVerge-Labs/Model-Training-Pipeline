@@ -6,11 +6,13 @@ select:
     sinhala: 0.50
     tamil: 0.50
   min_segment_seconds: 3.0
-  max_segment_seconds: 30.0
+  max_segment_seconds: 900
   max_hours_per_channel: 12.0
   holdout_hours: 2.0
   catalog_path: data/catalog/catalog_latest.csv
   exclude_channels_file: data/catalog/eval_contamination_blocklist.txt
+  drive_root: ~/google-drive/Pre Processed Data   # mount holding <Lang>/<genre>/<source-dir>/<clip>.wav
+  drive_index_path: data/catalog/drive_index.tsv  # relpath + size of every wav under drive_root
 
 # ── Sharding ────────────────────────────────────────
 shard:
@@ -18,6 +20,7 @@ shard:
   shard_size: 1000            # cuts per shard
   min_cut_seconds: 5.0        # minimum after re-cutting
   target_cut_seconds: 15.0    # concatenate short segments to this
+  max_cut_seconds: 30.0       # split longer clips into equal windows of at most this
   output_dir: data/shars
 
 # ── Pre-training ────────────────────────────────────

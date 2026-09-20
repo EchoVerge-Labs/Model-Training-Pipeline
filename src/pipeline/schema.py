@@ -1,5 +1,5 @@
 """Pydantic schema for params.yaml validation."""
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import Dict, List, Optional, Literal
 
 
@@ -13,6 +13,8 @@ class SelectConfig(BaseModel):
     holdout_hours: float = Field(gt=0)
     catalog_path: str
     exclude_channels_file: str
+    drive_root: str
+    drive_index_path: str
 
     @field_validator("language_mix")
     @classmethod
@@ -28,7 +30,24 @@ class ShardConfig(BaseModel):
     shard_size: int = Field(gt=0)
     min_cut_seconds: float = Field(gt=0)
     target_cut_seconds: float = Field(gt=0)
+    max_cut_seconds: float = Field(gt=0)
     output_dir: str
+
+    @model_validator(mode="after")
+    def cut_lengths_are_consistent(self):
+        # Long clips are split into equal windows, each longer than max/2, so
+        # max >= 2*min keeps every window above the minimum. Short clips are
+        # merged until they reach target, overshooting it by less than min, so
+        # max >= target + min keeps merged cuts within the cap.
+        if self.max_cut_seconds < 2 * self.min_cut_seconds:
+            raise ValueError(
+                f"max_cut_seconds ({self.max_cut_seconds}) must be >= 2 * min_cut_seconds "
+                f"({self.min_cut_seconds}) or split windows can fall below the minimum")
+        if self.max_cut_seconds < self.target_cut_seconds + self.min_cut_seconds:
+            raise ValueError(
+                f"max_cut_seconds ({self.max_cut_seconds}) must be >= target_cut_seconds + "
+                f"min_cut_seconds ({self.target_cut_seconds + self.min_cut_seconds})")
+        return self
 
 
 class PretrainConfig(BaseModel):
