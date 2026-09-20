@@ -124,9 +124,12 @@ def measure_throughput(steps: int = 100, batch_seconds: float = 200.0, precision
     throughput = total_audio_sec / wall
     peak_mem = torch.cuda.max_memory_allocated() / 1e9
 
-    # Estimate real pre-training time
-    target_batch = 1600.0  # seconds of audio per optimizer step
-    max_updates = 50000
+    # Estimate real pre-training time from the configured schedule, so this
+    # can't drift from what train.py will actually run.
+    from pipeline.schema import Params
+    pretrain_cfg = Params.from_yaml(str(Path(__file__).resolve().parent.parent / "params.yaml")).pretrain
+    target_batch = float(pretrain_cfg.target_batch_seconds)  # seconds of audio per optimizer step
+    max_updates = pretrain_cfg.max_updates
     # With grad accumulation: each update processes target_batch seconds
     total_audio_for_training = max_updates * target_batch
     est_hours = total_audio_for_training / throughput / 3600
