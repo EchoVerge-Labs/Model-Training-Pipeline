@@ -20,6 +20,11 @@ from pathlib import Path
 
 import torch
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+
+MASK_TIME_PROB = 0.65
+MASK_TIME_LENGTH = 10
+
 
 def measure_throughput(steps: int = 100, batch_seconds: float = 200.0, precision: str = "bf16"):
     """Measure pre-training throughput with synthetic data on real model."""
@@ -61,23 +66,37 @@ def measure_throughput(steps: int = 100, batch_seconds: float = 200.0, precision
 
     amp_dtype = torch.bfloat16 if precision == "bf16" else torch.float16
 
+    # A real pre-training step, using the same helpers as train.py: mask +
+    # negative sampling (required -- forward() returns loss=None without them),
+    # forward under autocast, backward, per-mask-count gradient rescale, clip,
+    # optimizer step. Synthetic audio only; no real data IO or DDP sync.
+    from pipeline.train import compute_mask_and_negatives, multiply_grads
+
+    trainable = [p for p in model.parameters() if p.requires_grad]
+    model.set_gumbel_temperature(1.0)
+
+    def train_step():
+        x = torch.randn(batch_size, seq_len, device=device)
+        m = torch.ones(batch_size, seq_len, dtype=torch.long, device=device)
+        mask_time_indices, sampled_negatives, _ = compute_mask_and_negatives(
+            model, x, m, MASK_TIME_PROB, MASK_TIME_LENGTH, device,
+        )
+        with torch.autocast("cuda", dtype=amp_dtype):
+            out = model(x, attention_mask=m, mask_time_indices=mask_time_indices,
+                        sampled_negative_indices=sampled_negatives)
+        out.loss.backward()
+        num_losses = mask_time_indices.sum().float().clamp(min=1)
+        multiply_grads(trainable, 1.0 / num_losses)
+        torch.nn.utils.clip_grad_norm_(trainable, 1.0)
+        optimizer.step()
+        optimizer.zero_grad()
+        return out
+
     # Warmup (not timed)
     print("Warming up (5 steps) ...")
     model.train()
     for _ in range(5):
-        x = torch.randn(batch_size, seq_len, device=device)
-        m = torch.ones(batch_size, seq_len, dtype=torch.long, device=device)
-        with torch.autocast("cuda", dtype=amp_dtype):
-            out = model(x, attention_mask=m)
-        # NOTE: this warmup/timing loop skips mask_time_indices/sampled_negative_indices
-        # on purpose -- Wav2Vec2ForPreTraining.forward() returns loss=None without them,
-        # so there is nothing to .backward() here. This measures pure forward-pass
-        # throughput on synthetic data as an upper bound; the real train.py training
-        # loop (which does supply both) is the source of truth for actual step time.
-        if out.loss is not None:
-            out.loss.backward()
-            optimizer.step()
-            optimizer.zero_grad()
+        train_step()
 
     # Reset peak memory after warmup
     torch.cuda.reset_peak_memory_stats()
@@ -89,17 +108,7 @@ def measure_throughput(steps: int = 100, batch_seconds: float = 200.0, precision
     total_audio_sec = 0.0
 
     for i in range(steps):
-        x = torch.randn(batch_size, seq_len, device=device)
-        m = torch.ones(batch_size, seq_len, dtype=torch.long, device=device)
-        with torch.autocast("cuda", dtype=amp_dtype):
-            out = model(x, attention_mask=m)
-        if out.loss is not None:
-            out.loss.backward()
-            torch.nn.utils.clip_grad_norm_(
-                [p for p in model.parameters() if p.requires_grad], 1.0
-            )
-            optimizer.step()
-            optimizer.zero_grad()
+        out = train_step()
         total_audio_sec += actual_batch_sec
 
         if (i + 1) % 20 == 0:
@@ -107,8 +116,7 @@ def measure_throughput(steps: int = 100, batch_seconds: float = 200.0, precision
             elapsed = time.perf_counter() - t0
             rate = total_audio_sec / elapsed
             peak_mem = torch.cuda.max_memory_allocated() / 1e9
-            loss_str = f"{out.loss.item():.4f}" if out.loss is not None else "n/a"
-            print(f"  {i+1}/{steps}  {rate:.1f} aud-s/s  loss={loss_str}  "
+            print(f"  {i+1}/{steps}  {rate:.1f} aud-s/s  loss={out.loss.item():.4f}  "
                   f"peak_mem={peak_mem:.1f}GB")
 
     torch.cuda.synchronize()
@@ -159,11 +167,9 @@ def measure_throughput(steps: int = 100, batch_seconds: float = 200.0, precision
           f"for {max_updates} updates × {target_batch:.0f}s/update")
     print(f"{'='*60}")
     print()
-    print("  ⚠  This is a SINGLE-NODE estimate with SYNTHETIC data, and (unlike")
-    print("  train.py) skips mask/negative-sampling -- it measures a forward-pass-only")
-    print("  upper bound, not the real per-step time.")
+    print("  ⚠  This is a SINGLE-NODE estimate with SYNTHETIC data (full train step:")
+    print("  mask/negative sampling + forward + backward + optimizer).")
     print("  Real throughput may differ due to:")
-    print("    - mask_time_indices / sampled_negative_indices generation (CPU-side)")
     print("    - Real audio IO (measure with real shards next)")
     print("    - 2-node DDP sync overhead")
     print("    - Dynamic batching variance")
