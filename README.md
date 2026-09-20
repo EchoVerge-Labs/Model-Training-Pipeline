@@ -7,7 +7,7 @@ encoder from `facebook/wav2vec2-xls-r-300m`.
 ## Pipeline DAG
 
 ```
-snapshot_catalog → select → materialise → shard → pretrain → select_checkpoint → benchmark → report
+snapshot_catalog → index_drive → select → materialise → shard → pretrain → select_checkpoint → benchmark → report
 ```
 
 Each stage is a `dvc.yaml` target; `dvc repro` runs whatever is stale given
@@ -18,7 +18,7 @@ training straight into evaluation automatically.
 ## Prerequisites
 
 - NVIDIA DGX Spark (GB10, ARM64) with the NGC PyTorch container (`nvcr.io/nvidia/pytorch:25.11-py3`)
-- Google Drive with pre-processed audio, mounted via `rclone` (remote name `gdrive`, folder `Pre Processed Data/{Sinhala,Tamil}`)
+- Google Drive with the pre-processed audio, mounted locally with `rclone mount` (default `~/google-drive`; set `select.drive_root` in `params.yaml` to the `Pre Processed Data` folder). Clips are laid out `<Lang>/<genre>/<source-dir>/<hash>_NNN.wav`
 - A DagsHub account (DVC remote + MLflow tracking) — see `.env.example`
 - A Google OAuth client-secret JSON (Desktop-app type) for an account that can read the "Sinhala X Tamil Voice Dataset" sheet. The first `make snapshot` opens a browser sign-in and caches the token at `~/.config/gspread/authorized_user.json`
 - [SLSB-benchmark](https://github.com/EchoVerge-Labs/SLSB-benchmark) v0.1.0 installed (`pip install -e ".[benchmark]"`, or already in the Docker image)
@@ -37,14 +37,25 @@ make phase0
 
 # 3. Run the pipeline stage by stage (or `make all` / `dvc repro` for the whole DAG)
 make snapshot   # freeze the Google Sheet catalog to data/catalog/catalog_latest.csv
-make select     # deterministic 200h train/holdout selection -> data/manifests/
-make pull       # rclone the selected files from Drive -> data/raw/
+                # (or: python -m pipeline.snapshot_catalog --local-csv <sinhala.csv> <tamil.csv>)
+make index      # list every wav on the Drive mount (path + size) -> data/catalog/drive_index.tsv
+make select     # dedupe, pin each clip to its Drive file, select train/holdout -> data/manifests/
+make pull       # copy the selected clips from the mount -> data/raw/ (same <Lang>/<genre>/... layout)
 make shard      # pack into Lhotse Shar tarballs -> data/shars/
 make train      # continued pre-training -> models/xlsr300m-si-ta-200h/
 make ckpt       # proxy-eval milestone checkpoints, copy the best -> models/selected/
 make bench      # slsb run on the selected checkpoint -> reports/bench/xlsr300m_adapted/
 make report     # aggregate into reports/results.md + results_table.csv
 ```
+
+### Why `make index` exists
+
+The sheet's `name_in_drive` (`<hash>_NNN.wav`) is **not unique** on the Drive: the same
+name recurs across different source videos with different audio. `select` therefore pins
+each catalog row to a real file by `(language, genre, name, size)` against the index,
+records that path (not the bare name) in the manifests, and gives every clip a unique id.
+Rows repeated in the sheet are collapsed, and rows that don't resolve to exactly one file
+are set aside in `reports/unresolved_clips.csv` rather than guessed.
 
 ### Running training
 

@@ -1,4 +1,4 @@
-.PHONY: setup lint test phase0 snapshot select pull shard train ckpt bench report all clean help
+.PHONY: setup lint test phase0 snapshot index select pull shard train ckpt bench report all clean help
 
 help:  ## show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | \
@@ -22,11 +22,14 @@ snapshot:  ## pull catalog from Google Sheet
 	python -m pipeline.snapshot_catalog \
 	  --sheet-id $${GOOGLE_SHEET_ID} --out data/catalog
 
-select:  ## select 200h training subset
+index:  ## index every wav on the Drive mount (relpath + size)
+	python -m pipeline.drive_index --config params.yaml
+
+select:  ## select the training subset (needs `make index` first)
 	python -m pipeline.select --config params.yaml
 
-pull:  ## materialise selected files from Drive
-	bash scripts/rclone_pull.sh
+pull:  ## copy the selected clips from the Drive mount to data/raw/
+	python -m pipeline.materialise --config params.yaml
 
 shard:  ## shard WAVs into Lhotse Shar tarballs
 	python -m pipeline.shard --config params.yaml

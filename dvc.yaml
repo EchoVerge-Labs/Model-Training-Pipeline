@@ -2,7 +2,7 @@ stages:
 
   snapshot_catalog:
     cmd: python -m pipeline.snapshot_catalog
-         --sheet-id ${GOOGLE_SHEET_ID}
+         --sheet-id $GOOGLE_SHEET_ID
          --out data/catalog
     deps:
       - src/pipeline/snapshot_catalog.py
@@ -10,29 +10,57 @@ stages:
       - data/catalog/catalog_latest.csv
     always_changed: true
 
+  # name_in_drive isn't unique on the Drive, so clips are pinned to a real file
+  # via (language, genre, name, size) against this index -- see drive_index.py.
+  # Re-indexes whenever a new catalog snapshot changes.
+  index_drive:
+    cmd: python -m pipeline.drive_index --config params.yaml
+    deps:
+      - src/pipeline/drive_index.py
+      - data/catalog/catalog_latest.csv
+    params:
+      - select.drive_root
+      - select.drive_index_path
+    outs:
+      - data/catalog/drive_index.tsv
+
+  # Manifests and selection reports are small and worth diffing, so they live
+  # in git (cache: false) rather than in the DVC cache.
   select:
     cmd: python -m pipeline.select --config params.yaml
     deps:
       - src/pipeline/select.py
+      - src/pipeline/drive_index.py
       - data/catalog/catalog_latest.csv
+      - data/catalog/drive_index.tsv
     params:
       - select
     outs:
-      - data/manifests/train.jsonl
-      - data/manifests/dev.jsonl
+      - data/manifests/train.jsonl:
+          cache: false
+      - data/manifests/dev.jsonl:
+          cache: false
+      - reports/selection_report.md:
+          cache: false
+      - reports/unresolved_clips.csv:
+          cache: false
     metrics:
       - reports/selection_stats.json:
           cache: false
 
   materialise:
-    cmd: bash scripts/rclone_pull.sh
+    cmd: python -m pipeline.materialise --config params.yaml
     deps:
+      - src/pipeline/materialise.py
       - data/manifests/train.jsonl
       - data/manifests/dev.jsonl
-      - scripts/rclone_pull.sh
+    params:
+      - select.drive_root
     outs:
       - data/raw/:
           persist: true
+      - reports/materialise.json:
+          cache: false
 
   shard:
     cmd: python -m pipeline.shard --config params.yaml
