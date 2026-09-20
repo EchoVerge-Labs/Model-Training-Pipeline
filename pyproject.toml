@@ -26,6 +26,10 @@ data = ["lhotse", "gspread", "google-auth"]
 benchmark = ["slsb @ git+https://github.com/EchoVerge-Labs/SLSB-benchmark.git@v0.1.0"]
 dev = ["pytest", "ruff", "mypy"]
 
+[tool.hatch.metadata]
+# needed for the `slsb @ git+https://...` reference in the benchmark extra
+allow-direct-references = true
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/pipeline"]
 
