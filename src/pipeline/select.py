@@ -1,4 +1,5 @@
 """Deterministic, stratified, channel-disjoint selection of training data."""
+
 import argparse
 import csv
 import hashlib
@@ -6,9 +7,8 @@ import json
 import random
 import sys
 from collections import defaultdict
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 from pipeline.drive_index import load_index
 from pipeline.schema import Params
@@ -63,20 +63,22 @@ def load_catalog(catalog_path: str) -> list[Segment]:
             duration_min = float(row.get("duration_minutes", 0))
             duration_sec = duration_min * 60.0
 
-            segments.append(Segment(
-                filename=row["name_in_drive"],
-                language=row.get("language", "unknown"),
-                duration_seconds=duration_sec,
-                genre=row.get("genre", "unknown"),
-                speaking_style=row.get("speaking_style", "unknown"),
-                language_formality=row.get("language_formality", "unknown"),
-                code_switching=row.get("code_switching", "unknown"),
-                channel_id=source_id,
-                title=row.get("title", ""),
-                source_url=row.get("source_url", ""),
-                size_bytes=int(row.get("size", 0)),
-                row_index=i,
-            ))
+            segments.append(
+                Segment(
+                    filename=row["name_in_drive"],
+                    language=row.get("language", "unknown"),
+                    duration_seconds=duration_sec,
+                    genre=row.get("genre", "unknown"),
+                    speaking_style=row.get("speaking_style", "unknown"),
+                    language_formality=row.get("language_formality", "unknown"),
+                    code_switching=row.get("code_switching", "unknown"),
+                    channel_id=source_id,
+                    title=row.get("title", ""),
+                    source_url=row.get("source_url", ""),
+                    size_bytes=int(row.get("size", 0)),
+                    row_index=i,
+                )
+            )
 
     return segments
 
@@ -138,13 +140,15 @@ def write_unresolved(unresolved: list[tuple[Segment, str]], path: Path):
         w = csv.writer(f)
         w.writerow(["reason", "language", "genre", "name_in_drive", "size", "source_id", "title"])
         for s, reason in unresolved:
-            w.writerow([reason, s.language, s.genre, s.filename, s.size_bytes, s.channel_id, s.title])
+            w.writerow(
+                [reason, s.language, s.genre, s.filename, s.size_bytes, s.channel_id, s.title]
+            )
 
 
 def select(
     segments: list[Segment],
     cfg,
-    blocklist: Optional[set[str]] = None,
+    blocklist: set[str] | None = None,
 ) -> tuple[list[Segment], list[Segment]]:
     """Select training and holdout sets.
 
@@ -155,7 +159,8 @@ def select(
 
     # 1. Filter by duration
     filtered = [
-        s for s in segments
+        s
+        for s in segments
         if cfg.min_segment_seconds <= s.duration_seconds <= cfg.max_segment_seconds
     ]
 
@@ -196,14 +201,13 @@ def select(
             by_lang[lang].append((ch_id, ch_segs))
 
     # Shuffle within each language
-    for lang in by_lang:
-        rng.shuffle(by_lang[lang])
+    for lang_channels in by_lang.values():
+        rng.shuffle(lang_channels)
 
     train_segments = []
     train_seconds_by_lang: dict[str, float] = defaultdict(float)
     target_seconds_by_lang = {
-        lang: cfg.target_hours * 3600 * ratio
-        for lang, ratio in cfg.language_mix.items()
+        lang: cfg.target_hours * 3600 * ratio for lang, ratio in cfg.language_mix.items()
     }
 
     for lang, target_sec in target_seconds_by_lang.items():
@@ -287,7 +291,7 @@ def write_report(
     cfg,
     report_path: Path,
     stats_path: Path,
-    cleaning: Optional[dict] = None,
+    cleaning: dict | None = None,
 ):
     """Write selection report and machine-readable stats. `cleaning` (from main)
     describes what was dropped before selection: repeats and unresolvable rows."""
@@ -302,18 +306,22 @@ def write_report(
     for s in train:
         train_by_genre[s.genre] += s.duration_seconds / 3600
 
-    train_channels = set(s.channel_id for s in train)
-    holdout_channels = set(s.channel_id for s in holdout)
+    train_channels = {s.channel_id for s in train}
+    holdout_channels = {s.channel_id for s in holdout}
 
     stats = {
         "target_hours": cfg.target_hours,
         "realised_train_hours": round(train_hours, 2),
         "realised_holdout_hours": round(holdout_hours, 2),
-        "shortfall_pct": round((1 - train_hours / cfg.target_hours) * 100, 1) if cfg.target_hours > 0 else 0,
+        "shortfall_pct": round((1 - train_hours / cfg.target_hours) * 100, 1)
+        if cfg.target_hours > 0
+        else 0,
         "train_segments": len(train),
         "holdout_segments": len(holdout),
         "candidate_segments": len(all_segments),
-        "longest_train_segment_seconds": round(max((s.duration_seconds for s in train), default=0.0), 1),
+        "longest_train_segment_seconds": round(
+            max((s.duration_seconds for s in train), default=0.0), 1
+        ),
         "cleaning": cleaning or {},
         "train_channels": len(train_channels),
         "holdout_channels": len(holdout_channels),
@@ -324,12 +332,15 @@ def write_report(
 
     # Hard fail if severely under target
     if train_hours < cfg.target_hours * 0.95:
-        print(f"WARNING: Realised {train_hours:.1f}h vs target {cfg.target_hours}h "
-              f"({stats['shortfall_pct']:.1f}% short)")
+        print(
+            f"WARNING: Realised {train_hours:.1f}h vs target {cfg.target_hours}h "
+            f"({stats['shortfall_pct']:.1f}% short)"
+        )
 
     # Assert no channel overlap
-    assert stats["channel_overlap"] == 0, \
+    assert stats["channel_overlap"] == 0, (
         f"BUG: {stats['channel_overlap']} channels appear in both train and holdout"
+    )
 
     stats_path.parent.mkdir(parents=True, exist_ok=True)
     with open(stats_path, "w") as f:
@@ -346,29 +357,38 @@ def write_report(
             f.write("## Catalog cleaning\n\n")
             f.write(f"- to_train=yes rows: {cleaning['to_train_rows']:,}\n")
             f.write(f"- exact repeats removed: {cleaning['exact_duplicates_removed']:,}\n")
-            f.write(f"- unresolvable, set aside (see reports/unresolved_clips.csv): "
-                    f"{sum(u.values())} (ambiguous {u['ambiguous']}, no_match {u['no_match']}, "
-                    f"duplicate_path {u['duplicate_path']})\n")
+            f.write(
+                f"- unresolvable, set aside (see reports/unresolved_clips.csv): "
+                f"{sum(u.values())} (ambiguous {u['ambiguous']}, no_match {u['no_match']}, "
+                f"duplicate_path {u['duplicate_path']})\n"
+            )
             f.write(f"- candidates for selection: {len(all_segments):,}\n\n")
         f.write("## By Language\n\n")
-        for lang, hours in sorted(train_by_lang.items()):
-            f.write(f"- {lang}: {hours:.1f}h\n")
+        f.writelines(f"- {lang}: {hours:.1f}h\n" for lang, hours in sorted(train_by_lang.items()))
         f.write("\n## By Genre (top 10)\n\n")
-        for genre, hours in sorted(train_by_genre.items(), key=lambda x: -x[1])[:10]:
-            f.write(f"- {genre}: {hours:.1f}h\n")
+        f.writelines(
+            f"- {genre}: {hours:.1f}h\n"
+            for genre, hours in sorted(train_by_genre.items(), key=lambda x: -x[1])[:10]
+        )
         f.write("\n## Top 10 sources by hours\n\n")
         f.write("Check for a single source dominating the training set.\n\n")
         f.write("| Rank | source_id | Hours | % of train | Segments | Title |\n")
         f.write("|---|---|---|---|---|---|\n")
         for rank, src in enumerate(_top_sources(train, 10), start=1):
             pct = 100 * src["hours"] / train_hours if train_hours > 0 else 0.0
-            f.write(f"| {rank} | {src['source_id']} | {src['hours']:.2f} | {pct:.1f}% | "
-                    f"{src['segments']} | {_md_cell(src['title'])} |\n")
-        f.write(f"\n## Channels: {len(train_channels)} train, {len(holdout_channels)} holdout, "
-                f"{stats['channel_overlap']} overlap\n")
+            f.write(
+                f"| {rank} | {src['source_id']} | {src['hours']:.2f} | {pct:.1f}% | "
+                f"{src['segments']} | {_md_cell(src['title'])} |\n"
+            )
+        f.write(
+            f"\n## Channels: {len(train_channels)} train, {len(holdout_channels)} holdout, "
+            f"{stats['channel_overlap']} overlap\n"
+        )
 
-    print(f"Selected {train_hours:.1f}h train + {holdout_hours:.1f}h holdout "
-          f"from {len(all_segments)} candidates")
+    print(
+        f"Selected {train_hours:.1f}h train + {holdout_hours:.1f}h holdout "
+        f"from {len(all_segments)} candidates"
+    )
     return stats
 
 
@@ -402,8 +422,10 @@ def main():
         "exact_duplicates_removed": n_repeats,
         "unresolved": {r: reasons.count(r) for r in ("ambiguous", "no_match", "duplicate_path")},
     }
-    print(f"Catalog: {n_rows:,} to_train rows -> {n_repeats:,} repeats removed, "
-          f"{len(unresolved)} unresolvable -> {len(segments):,} candidates")
+    print(
+        f"Catalog: {n_rows:,} to_train rows -> {n_repeats:,} repeats removed, "
+        f"{len(unresolved)} unresolvable -> {len(segments):,} candidates"
+    )
     if not segments:
         print("ERROR: no clip could be resolved to a file on the Drive")
         sys.exit(1)
@@ -419,7 +441,10 @@ def main():
     write_manifest(train, Path("data/manifests/train.jsonl"))
     write_manifest(holdout, Path("data/manifests/dev.jsonl"))
     write_report(
-        train, holdout, segments, cfg,
+        train,
+        holdout,
+        segments,
+        cfg,
         report_path=Path("reports/selection_report.md"),
         stats_path=Path("reports/selection_stats.json"),
         cleaning=cleaning,

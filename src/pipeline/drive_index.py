@@ -8,6 +8,7 @@ filesystem enforces it), so select.py joins catalog rows to this index to get
 each clip's real path. Indexing is a separate, slow, mount-dependent step so
 that selection itself stays pure and testable.
 """
+
 import argparse
 import os
 from pathlib import Path
@@ -35,7 +36,9 @@ def build_index(root: Path) -> list[tuple[str, int]]:
                 for entry in it:
                     if entry.is_dir(follow_symlinks=False):
                         stack.append(Path(entry.path))
-                    elif entry.name.lower().endswith(".wav") and entry.is_file(follow_symlinks=False):
+                    elif entry.name.lower().endswith(".wav") and entry.is_file(
+                        follow_symlinks=False
+                    ):
                         rel = os.path.relpath(entry.path, root).replace(os.sep, "/")
                         if "\t" in rel or "\n" in rel:
                             raise ValueError(f"tab/newline in path, can't index as TSV: {rel!r}")
@@ -49,8 +52,7 @@ def write_index(entries: list[tuple[str, int]], out_path: Path):
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with open(out_path, "w", encoding="utf-8", newline="\n") as f:
         f.write(HEADER + "\n")
-        for rel, size in entries:
-            f.write(f"{rel}\t{size}\n")
+        f.writelines(f"{rel}\t{size}\n" for rel, size in entries)
 
 
 def load_index(path: Path) -> list[tuple[str, int]]:

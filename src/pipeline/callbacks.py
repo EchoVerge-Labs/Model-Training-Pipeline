@@ -1,9 +1,11 @@
 """Training callbacks: MLflow logging, codebook collapse detection."""
+
 import os
 import warnings
 
 try:
     import mlflow
+
     HAS_MLFLOW = True
 except ImportError:
     HAS_MLFLOW = False
@@ -12,7 +14,7 @@ except ImportError:
 class MLflowLogger:
     """Log training metrics to MLflow."""
 
-    def __init__(self, tracking_uri: str, experiment_name: str, run_name: str = None):
+    def __init__(self, tracking_uri: str, experiment_name: str, run_name: str | None = None):
         if not HAS_MLFLOW:
             warnings.warn("mlflow not installed, logging disabled")
             return
@@ -57,13 +59,15 @@ class CodebookCollapseDetector:
         if perplexity < self.alert_threshold:
             self.consecutive_low += 1
             if self.consecutive_low >= self.max_consecutive_before_kill:
-                print(f"\n{'='*60}")
+                print(f"\n{'=' * 60}")
                 print(f"CODEBOOK COLLAPSE DETECTED at step {step}")
-                print(f"Perplexity {perplexity:.2f} has been below {self.alert_threshold} "
-                      f"for {self.consecutive_low} consecutive steps.")
-                print(f"The codebook is not being used effectively.")
-                print(f"Recommended: lower the learning rate or check masking config.")
-                print(f"{'='*60}\n")
+                print(
+                    f"Perplexity {perplexity:.2f} has been below {self.alert_threshold} "
+                    f"for {self.consecutive_low} consecutive steps."
+                )
+                print("The codebook is not being used effectively.")
+                print("Recommended: lower the learning rate or check masking config.")
+                print(f"{'=' * 60}\n")
                 return False
             elif self.consecutive_low % 100 == 0:
                 warnings.warn(

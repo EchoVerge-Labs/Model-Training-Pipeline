@@ -26,6 +26,7 @@ Usage:
            --rdzv_backend=c10d --rdzv_endpoint=10.0.0.1:29500 \
            -m pipeline.train --config params.yaml
 """
+
 import argparse
 import json
 import os
@@ -36,7 +37,6 @@ from pathlib import Path
 import torch
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
-
 from transformers import (
     Wav2Vec2FeatureExtractor,
     Wav2Vec2ForPreTraining,
@@ -46,10 +46,9 @@ from transformers.models.wav2vec2.modeling_wav2vec2 import (
     _sample_negative_indices,
 )
 
-from pipeline.schema import Params
-from pipeline.callbacks import MLflowLogger, CodebookCollapseDetector
+from pipeline.callbacks import CodebookCollapseDetector, MLflowLogger
 from pipeline.datamodule import create_dataloader
-
+from pipeline.schema import Params
 
 # ─── Tri-stage LR schedule ──────────────────────────────────────────────
 #
@@ -60,6 +59,7 @@ from pipeline.datamodule import create_dataloader
 # hold_end = warmup_updates + hold_ratio * (max_updates - warmup_updates)
 #
 # This is the schedule fairseq uses for wav2vec2 pre-training, not a cosine.
+
 
 def get_tri_stage_lr(
     step: int,
@@ -91,7 +91,7 @@ def get_tri_stage_lr(
         # Exponential decay to ~0 at max_updates
         # lr = peak_lr * gamma^decay_step, where gamma chosen so final lr ≈ peak_lr * 0.01
         gamma = (0.01) ** (1.0 / max(decay_updates, 1))
-        return peak_lr * (gamma ** decay_step)
+        return peak_lr * (gamma**decay_step)
 
 
 # ─── Mask generation + negative sampling ────────────────────────────────
@@ -101,6 +101,7 @@ def get_tri_stage_lr(
 # does. Both are computed against the *feature-extractor output* length (the
 # transformer's input length after the CNN downsamples), using the reduced
 # attention mask so padded frames are never masked/sampled.
+
 
 def compute_mask_and_negatives(
     model,
@@ -132,11 +133,14 @@ def compute_mask_and_negatives(
     )
 
     mask_time_indices = torch.tensor(mask_time_indices, dtype=torch.long, device=device)
-    sampled_negative_indices = torch.tensor(sampled_negative_indices, dtype=torch.long, device=device)
+    sampled_negative_indices = torch.tensor(
+        sampled_negative_indices, dtype=torch.long, device=device
+    )
     return mask_time_indices, sampled_negative_indices, sub_attention_mask
 
 
 # ─── Gumbel temperature ────────────────────────────────────────────────
+
 
 def get_gumbel_temperature(
     step: int,
@@ -150,7 +154,7 @@ def get_gumbel_temperature(
     start at a LOWER max_temp (1.0 vs 2.0) because the codebook is already
     meaningful — high temperature would noise out the existing structure.
     """
-    return max(min_temp, max_temp * (decay ** step))
+    return max(min_temp, max_temp * (decay**step))
 
 
 # ─── Gradient rescaling by mask count ───────────────────────────────────
@@ -165,6 +169,7 @@ def get_gumbel_temperature(
 # DDP's backward-time all-reduce, so the multiplier becomes
 # world_size/total_num_losses instead of 1/num_losses to compensate.
 
+
 def multiply_grads(params, c):
     """Multiplies grads by a constant *c*."""
     for p in params:
@@ -176,13 +181,14 @@ def multiply_grads(params, c):
 
 # ─── Training ──────────────────────────────────────────────────────────
 
+
 def train(params: Params):
     cfg = params.pretrain
 
     # ── Distributed setup ──
-    local_rank = int(os.environ.get("LOCAL_RANK", 0))
-    world_size = int(os.environ.get("WORLD_SIZE", 1))
-    rank = int(os.environ.get("RANK", 0))
+    local_rank = int(os.environ.get("LOCAL_RANK", "0"))
+    world_size = int(os.environ.get("WORLD_SIZE", "1"))
+    rank = int(os.environ.get("RANK", "0"))
     is_main = rank == 0
 
     if world_size > 1:
@@ -227,8 +233,10 @@ def train(params: Params):
         if is_main:
             trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
             total = sum(p.numel() for p in model.parameters())
-            print(f"Parameters: {total/1e6:.1f}M total, {trainable/1e6:.1f}M trainable "
-                  f"(CNN frozen)")
+            print(
+                f"Parameters: {total / 1e6:.1f}M total, {trainable / 1e6:.1f}M trainable "
+                f"(CNN frozen)"
+            )
 
     model.to(device)
 
@@ -262,13 +270,15 @@ def train(params: Params):
 
     # ── Gradient accumulation ──
     # target_batch_seconds / (per_device_max_seconds * world_size)
-    grad_accum_steps = max(1, int(
-        cfg.target_batch_seconds / (cfg.per_device_max_seconds * world_size)
-    ))
+    grad_accum_steps = max(
+        1, int(cfg.target_batch_seconds / (cfg.per_device_max_seconds * world_size))
+    )
     if is_main:
         print(f"Gradient accumulation steps: {grad_accum_steps}")
-        print(f"Effective batch: ~{cfg.per_device_max_seconds * world_size * grad_accum_steps:.0f}s "
-              f"audio per update")
+        print(
+            f"Effective batch: ~{cfg.per_device_max_seconds * world_size * grad_accum_steps:.0f}s "
+            f"audio per update"
+        )
 
     # ── Output dir ──
     output_dir = Path(cfg.output_dir)
@@ -280,6 +290,7 @@ def train(params: Params):
     if is_main:
         try:
             import yaml
+
             with open("params.yaml") as f:
                 raw_params = yaml.safe_load(f)
             mlflow_cfg = raw_params.get("mlflow", {})
@@ -310,7 +321,7 @@ def train(params: Params):
                 "freeze_feature_encoder": cfg.freeze_feature_encoder,
             }
             mlflow_logger.log_params(flat_params)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- experiment tracking must never kill a training run
             print(f"WARNING: MLflow setup failed: {e}")
             mlflow_logger = None
 
@@ -339,13 +350,15 @@ def train(params: Params):
     curves_path.parent.mkdir(parents=True, exist_ok=True)
     if is_main:
         with open(curves_path, "w") as f:
-            f.write("step,loss,contrastive_loss,diversity_loss,codebook_perplexity,"
-                    "grad_norm,lr,gumbel_temp,audio_sec_per_wall_sec\n")
+            f.write(
+                "step,loss,contrastive_loss,diversity_loss,codebook_perplexity,"
+                "grad_norm,lr,gumbel_temp,audio_sec_per_wall_sec\n"
+            )
 
     if is_main:
-        print(f"\n{'='*60}")
-        print(f"Starting continued pre-training")
-        print(f"{'='*60}\n")
+        print(f"\n{'=' * 60}")
+        print("Starting continued pre-training")
+        print(f"{'=' * 60}\n")
 
     # Rank-0-only decision (codebook collapse) that every rank must agree to
     # act on before the next collective op (DDP's backward all-reduce) --
@@ -377,9 +390,15 @@ def train(params: Params):
             raw_model.set_gumbel_temperature(gumbel_temp)
 
             # Mask + negatives (required -- forward() returns loss=None without them)
-            mask_time_indices, sampled_negative_indices, _sub_attention_mask = compute_mask_and_negatives(
-                raw_model, input_values, attention_mask,
-                cfg.mask_time_prob, cfg.mask_time_length, device,
+            mask_time_indices, sampled_negative_indices, _sub_attention_mask = (
+                compute_mask_and_negatives(
+                    raw_model,
+                    input_values,
+                    attention_mask,
+                    cfg.mask_time_prob,
+                    cfg.mask_time_length,
+                    device,
+                )
             )
 
             # Forward pass
@@ -419,8 +438,16 @@ def train(params: Params):
             with torch.no_grad():
                 num_losses_safe = num_losses.clamp(min=1)
                 accum_loss += loss.item()
-                accum_contrastive_loss += (outputs.contrastive_loss / num_losses_safe).item() if outputs.contrastive_loss is not None else 0.0
-                accum_diversity_loss += (outputs.diversity_loss / num_losses_safe).item() if outputs.diversity_loss is not None else 0.0
+                accum_contrastive_loss += (
+                    (outputs.contrastive_loss / num_losses_safe).item()
+                    if outputs.contrastive_loss is not None
+                    else 0.0
+                )
+                accum_diversity_loss += (
+                    (outputs.diversity_loss / num_losses_safe).item()
+                    if outputs.diversity_loss is not None
+                    else 0.0
+                )
                 accum_num_losses += 1
                 accum_audio_seconds += attention_mask.sum().item() / 16000.0  # 16kHz
 
@@ -438,8 +465,11 @@ def train(params: Params):
 
         # LR schedule
         lr = get_tri_stage_lr(
-            global_step, cfg.peak_lr, cfg.warmup_updates,
-            cfg.hold_ratio, cfg.max_updates,
+            global_step,
+            cfg.peak_lr,
+            cfg.warmup_updates,
+            cfg.hold_ratio,
+            cfg.max_updates,
         )
         for param_group in optimizer.param_groups:
             param_group["lr"] = lr
@@ -460,7 +490,10 @@ def train(params: Params):
             # Codebook perplexity from the model
             # wav2vec2 computes this as exp(entropy) over the codebook usage
             codebook_perplexity = 0.0
-            if hasattr(outputs, "codevector_perplexity") and outputs.codevector_perplexity is not None:
+            if (
+                hasattr(outputs, "codevector_perplexity")
+                and outputs.codevector_perplexity is not None
+            ):
                 codebook_perplexity = outputs.codevector_perplexity.item()
 
             metrics = {
@@ -475,23 +508,27 @@ def train(params: Params):
                 "train/global_step": global_step,
             }
 
-            print(f"Step {global_step}/{cfg.max_updates} | "
-                  f"loss={avg_loss:.4f} (contr={avg_contrastive:.4f} div={avg_diversity:.4f}) | "
-                  f"ppl={codebook_perplexity:.1f} | "
-                  f"gnorm={avg_grad_norm:.3f} | "
-                  f"lr={lr:.2e} | "
-                  f"temp={gumbel_temp:.4f} | "
-                  f"{audio_throughput:.0f} aud-s/wall-s")
+            print(
+                f"Step {global_step}/{cfg.max_updates} | "
+                f"loss={avg_loss:.4f} (contr={avg_contrastive:.4f} div={avg_diversity:.4f}) | "
+                f"ppl={codebook_perplexity:.1f} | "
+                f"gnorm={avg_grad_norm:.3f} | "
+                f"lr={lr:.2e} | "
+                f"temp={gumbel_temp:.4f} | "
+                f"{audio_throughput:.0f} aud-s/wall-s"
+            )
 
             if mlflow_logger:
                 mlflow_logger.log_metrics(metrics, step=global_step)
 
             # Write to CSV
             with open(curves_path, "a") as f:
-                f.write(f"{global_step},{avg_loss:.6f},{avg_contrastive:.6f},"
-                        f"{avg_diversity:.6f},{codebook_perplexity:.2f},"
-                        f"{avg_grad_norm:.4f},{lr:.8f},{gumbel_temp:.6f},"
-                        f"{audio_throughput:.1f}\n")
+                f.write(
+                    f"{global_step},{avg_loss:.6f},{avg_contrastive:.6f},"
+                    f"{avg_diversity:.6f},{codebook_perplexity:.2f},"
+                    f"{avg_grad_norm:.4f},{lr:.8f},{gumbel_temp:.6f},"
+                    f"{audio_throughput:.1f}\n"
+                )
 
             # Codebook collapse check
             if collapse_detector:
@@ -500,9 +537,7 @@ def train(params: Params):
                     print("KILLING TRAINING DUE TO CODEBOOK COLLAPSE")
                     stop_signal[0] = 1.0
                     if mlflow_logger:
-                        mlflow_logger.log_metrics(
-                            {"train/killed_collapse": 1}, step=global_step
-                        )
+                        mlflow_logger.log_metrics({"train/killed_collapse": 1}, step=global_step)
 
             # Reset accumulators
             accum_loss = 0.0
@@ -531,11 +566,14 @@ def train(params: Params):
             feature_extractor.save_pretrained(ckpt_dir)
 
             # Save optimizer and scheduler state for resumption
-            torch.save({
-                "optimizer": optimizer.state_dict(),
-                "global_step": global_step,
-                "gumbel_temperature": gumbel_temp,
-            }, ckpt_dir / "training_state.pt")
+            torch.save(
+                {
+                    "optimizer": optimizer.state_dict(),
+                    "global_step": global_step,
+                    "gumbel_temperature": gumbel_temp,
+                },
+                ckpt_dir / "training_state.pt",
+            )
 
             print(f"  Saved checkpoint: {ckpt_dir}")
 
@@ -543,10 +581,12 @@ def train(params: Params):
             is_milestone = global_step in cfg.milestone_checkpoints
             if not is_milestone:
                 # Remove old non-milestone checkpoints beyond keep_last_n
-                all_ckpts = sorted(output_dir.glob("checkpoint-*"),
-                                   key=lambda p: int(p.name.split("-")[1]))
+                all_ckpts = sorted(
+                    output_dir.glob("checkpoint-*"), key=lambda p: int(p.name.split("-")[1])
+                )
                 non_milestones = [
-                    c for c in all_ckpts
+                    c
+                    for c in all_ckpts
                     if int(c.name.split("-")[1]) not in cfg.milestone_checkpoints
                 ]
                 while len(non_milestones) > cfg.keep_last_n_checkpoints:
@@ -562,15 +602,19 @@ def train(params: Params):
         # Final metrics
         final_metrics = {
             "final_step": global_step,
-            "final_loss": round(accum_loss / max(accum_num_losses, 1), 4) if accum_num_losses else None,
+            "final_loss": round(accum_loss / max(accum_num_losses, 1), 4)
+            if accum_num_losses
+            else None,
             "completed": global_step >= cfg.max_updates,
         }
         with open("reports/pretrain_metrics.json", "w") as f:
             json.dump(final_metrics, f, indent=2)
 
         if mlflow_logger:
-            mlflow_logger.log_metrics({k: v for k, v in final_metrics.items() if isinstance(v, (int, float))},
-                                       step=global_step)
+            mlflow_logger.log_metrics(
+                {k: v for k, v in final_metrics.items() if isinstance(v, (int, float))},
+                step=global_step,
+            )
             mlflow_logger.end()
 
         print(f"\nPre-training complete. {global_step} updates.")

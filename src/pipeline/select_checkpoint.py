@@ -1,9 +1,9 @@
 """Select the best pre-training checkpoint using a fast proxy evaluation."""
+
 import argparse
 import json
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 
 from pipeline.schema import Params
@@ -21,7 +21,9 @@ def find_milestone_checkpoints(model_dir: str) -> list[Path]:
     return checkpoints
 
 
-def evaluate_checkpoint(ckpt_path: Path, task: str, seed: int, data_dir: str = None) -> float:
+def evaluate_checkpoint(
+    ckpt_path: Path, task: str, seed: int, data_dir: str | None = None
+) -> float:
     """Run a fast proxy evaluation using slsb.
 
     slsb writes its results to <out>/results_<upstream-with-/-as-__>.json, a
@@ -32,16 +34,21 @@ def evaluate_checkpoint(ckpt_path: Path, task: str, seed: int, data_dir: str = N
     upstream = str(ckpt_path)
     out_dir = Path(f"/tmp/ckpt_eval/{ckpt_path.name}")
     cmd = [
-        "slsb", "run",
-        "--upstream", upstream,
-        "--tasks", task,
-        "--seeds", str(seed),
-        "--out", str(out_dir),
+        "slsb",
+        "run",
+        "--upstream",
+        upstream,
+        "--tasks",
+        task,
+        "--seeds",
+        str(seed),
+        "--out",
+        str(out_dir),
     ]
     if data_dir:
         cmd.extend(["--data-dir", data_dir])
 
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode != 0:
         print(f"WARNING: Eval failed for {ckpt_path.name}: {result.stderr[:200]}")
         return float("inf")
@@ -86,6 +93,7 @@ def main():
     params = Params.from_yaml(args.config)
     cfg = params.pretrain
     import yaml
+
     with open(args.config) as f:
         raw = yaml.safe_load(f)
     sel_cfg = raw.get("checkpoint_selection", {})

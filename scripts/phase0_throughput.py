@@ -14,8 +14,8 @@ Output:
 """
 import argparse
 import json
-import time
 import sys
+import time
 from pathlib import Path
 
 import torch
@@ -43,7 +43,7 @@ def measure_throughput(steps: int = 100, batch_seconds: float = 200.0, precision
     model.to(device)
 
     # Verify quantizer
-    quantizer_keys = [k for k in model.state_dict().keys() if "quantizer" in k]
+    quantizer_keys = [k for k in model.state_dict() if "quantizer" in k]
     assert len(quantizer_keys) > 0, "No quantizer weights — wrong checkpoint?"
     print(f"Quantizer keys present: {len(quantizer_keys)} ✓")
 
@@ -162,7 +162,7 @@ def measure_throughput(steps: int = 100, batch_seconds: float = 200.0, precision
     }
 
     print(f"\n{'='*60}")
-    print(f"  PHASE 0 RESULTS — single node")
+    print("  PHASE 0 RESULTS — single node")
     print(f"{'='*60}")
     print(f"  Throughput:    {throughput:.1f} audio-sec / wall-sec")
     print(f"  Peak memory:   {peak_mem:.1f} GB")

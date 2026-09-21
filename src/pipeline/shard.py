@@ -1,4 +1,5 @@
 """Shard WAV files into Lhotse Shar tarballs for efficient training IO."""
+
 import argparse
 import json
 import math
@@ -10,10 +11,10 @@ from pathlib import Path
 from pipeline.schema import Params
 
 try:
-    import lhotse
-    from lhotse import CutSet, Recording, MonoCut
+    from lhotse import CutSet, MonoCut, Recording
     from lhotse.cut import MixedCut
     from lhotse.shar import SharWriter
+
     HAS_LHOTSE = True
 except ImportError:
     HAS_LHOTSE = False
@@ -102,7 +103,7 @@ def _merge_buffer(buffer: list, min_sec: float) -> list:
         for c in buffer[1:]:
             merged = merged.append(c)
         return [merged.with_id(f"concat-{buffer[0].id}-x{len(buffer)}")]
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 -- Lhotse's append can raise assorted errors; fall back and warn
         print(f"WARNING: could not merge {len(buffer)} cuts starting at {buffer[0].id}: {e}")
         return [c for c in buffer if c.duration >= min_sec]
 
@@ -111,6 +112,7 @@ def concatenate_short_cuts(cuts: "CutSet", min_sec: float, target_sec: float) ->
     """Concatenate short cuts from the same channel into longer windows."""
     # Group by channel
     from collections import defaultdict
+
     by_channel = defaultdict(list)
     long_enough = []
 
@@ -122,7 +124,7 @@ def concatenate_short_cuts(cuts: "CutSet", min_sec: float, target_sec: float) ->
             by_channel[ch].append(cut)
 
     # Concatenate shorts within each channel
-    for ch_id, short_cuts in by_channel.items():
+    for short_cuts in by_channel.values():
         buffer = []
         buffer_dur = 0.0
         for cut in short_cuts:
@@ -150,20 +152,25 @@ def shard_cuts(cuts: "CutSet", output_dir: str, shard_size: int, audio_format: s
     # Merged cuts are MixedCuts, which SharWriter can't write (they have no single
     # `recording`). Render each to a temp audio file, giving a plain single-recording
     # cut; the temp dir only has to outlive the writes.
-    with tempfile.TemporaryDirectory(prefix="shar-concat-") as scratch, SharWriter(
-        output_dir=str(output_path),
-        shard_size=shard_size,
-        fields={"recording": audio_format},
-    ) as writer:
+    with (
+        tempfile.TemporaryDirectory(prefix="shar-concat-") as scratch,
+        SharWriter(
+            output_dir=str(output_path),
+            shard_size=shard_size,
+            fields={"recording": audio_format},
+        ) as writer,
+    ):
         for cut in cuts:
             if isinstance(cut, MixedCut):
-                cut = cut.save_audio(Path(scratch) / f"{cut.id}.{audio_format}", format=audio_format)
+                cut = cut.save_audio(
+                    Path(scratch) / f"{cut.id}.{audio_format}", format=audio_format
+                )
             writer.write(cut)
 
     # Count shards
     n_shards = len(list(output_path.glob("*.tar")))
     total_dur = sum(c.duration for c in cuts)
-    print(f"Wrote {n_shards} shards, {len(cuts)} cuts, {total_dur/3600:.1f}h total")
+    print(f"Wrote {n_shards} shards, {len(cuts)} cuts, {total_dur / 3600:.1f}h total")
 
 
 def main():
@@ -193,7 +200,9 @@ def main():
 
     longest = max(c.duration for c in cuts)
     if longest > cfg.max_cut_seconds + 0.01:
-        raise RuntimeError(f"a {longest:.1f}s cut survived splitting (max_cut_seconds={cfg.max_cut_seconds})")
+        raise RuntimeError(
+            f"a {longest:.1f}s cut survived splitting (max_cut_seconds={cfg.max_cut_seconds})"
+        )
     print(f"Longest cut: {longest:.1f}s")
 
     shard_cuts(cuts, cfg.output_dir, cfg.shard_size, cfg.format)

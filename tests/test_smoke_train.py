@@ -1,11 +1,12 @@
 """Smoke test: 3 training steps with a tiny random model on CPU."""
+
 import torch
 from transformers import Wav2Vec2Config, Wav2Vec2ForPreTraining
 
 from pipeline.train import (
-    get_tri_stage_lr,
     compute_mask_and_negatives,
     get_gumbel_temperature,
+    get_tri_stage_lr,
     multiply_grads,
 )
 
@@ -60,8 +61,12 @@ def test_mask_and_negatives_shape():
     attention_mask = torch.ones(batch_size, 16000, dtype=torch.long)
 
     mask_time_indices, sampled_negative_indices, sub_attention_mask = compute_mask_and_negatives(
-        model, input_values, attention_mask,
-        mask_prob=0.65, mask_length=10, device=torch.device("cpu"),
+        model,
+        input_values,
+        attention_mask,
+        mask_prob=0.65,
+        mask_length=10,
+        device=torch.device("cpu"),
     )
 
     seq_length = int(model._get_feat_extract_output_lengths(input_values.shape[-1]))
@@ -106,11 +111,17 @@ def test_smoke_forward():
 
         model.set_gumbel_temperature(get_gumbel_temperature(step, 1.0, 0.5, 0.999))
         mask_time_indices, sampled_negative_indices, _ = compute_mask_and_negatives(
-            model, x, mask, mask_prob=0.65, mask_length=10, device=torch.device("cpu"),
+            model,
+            x,
+            mask,
+            mask_prob=0.65,
+            mask_length=10,
+            device=torch.device("cpu"),
         )
 
         out = model(
-            x, attention_mask=mask,
+            x,
+            attention_mask=mask,
             mask_time_indices=mask_time_indices,
             sampled_negative_indices=sampled_negative_indices,
         )

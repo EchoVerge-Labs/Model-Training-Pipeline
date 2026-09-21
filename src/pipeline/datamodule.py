@@ -5,6 +5,7 @@ by *seconds of padded audio*, not by clip count, so per-step memory is bounded
 whatever the clip lengths. Every clip that is read ends up in a batch -- nothing
 is dropped to fit a budget.
 """
+
 import random
 from pathlib import Path
 
@@ -14,6 +15,7 @@ from torch.utils.data import DataLoader, IterableDataset
 
 try:
     from lhotse import CutSet
+
     HAS_LHOTSE = True
 except ImportError:
     HAS_LHOTSE = False
@@ -32,7 +34,9 @@ def pad_batch(waveforms: list[torch.Tensor]) -> dict:
     return {"input_values": padded, "attention_mask": attention_mask}
 
 
-def pack_batches(waveforms: list[torch.Tensor], max_padded_seconds: float, rng: random.Random) -> list[list[torch.Tensor]]:
+def pack_batches(
+    waveforms: list[torch.Tensor], max_padded_seconds: float, rng: random.Random
+) -> list[list[torch.Tensor]]:
     """Group waveforms into batches whose padded size (n_items * longest item) is
     at most max_padded_seconds, then shuffle the batches.
 
@@ -64,8 +68,14 @@ class SharPretrainingDataset(IterableDataset):
     `buffer_size` window and packed into batches within it.
     """
 
-    def __init__(self, shar_dir: str, max_batch_seconds: float, shuffle: bool = True,
-                 seed: int = 0, buffer_size: int = 256):
+    def __init__(
+        self,
+        shar_dir: str,
+        max_batch_seconds: float,
+        shuffle: bool = True,
+        seed: int = 0,
+        buffer_size: int = 256,
+    ):
         super().__init__()
         if not HAS_LHOTSE:
             raise ImportError("lhotse is required: pip install lhotse")
@@ -96,7 +106,9 @@ class SharPretrainingDataset(IterableDataset):
         buffer: list[torch.Tensor] = []
         for cut in cuts:
             if cut.sampling_rate != SAMPLE_RATE:
-                raise ValueError(f"{cut.id}: expected {SAMPLE_RATE} Hz audio, got {cut.sampling_rate}")
+                raise ValueError(
+                    f"{cut.id}: expected {SAMPLE_RATE} Hz audio, got {cut.sampling_rate}"
+                )
             buffer.append(torch.from_numpy(cut.load_audio()[0]).float())
             if len(buffer) >= self.buffer_size:
                 yield from self._flush(buffer, rng)
@@ -126,7 +138,9 @@ def create_dataloader(
             f"worker(s) need at least {needed} (each gets its own subset) -- "
             f"lower num_workers or shard with a smaller shard_size"
         )
-    dataset = SharPretrainingDataset(str(shar_dir), max_batch_seconds=per_device_max_seconds, seed=seed)
+    dataset = SharPretrainingDataset(
+        str(shar_dir), max_batch_seconds=per_device_max_seconds, seed=seed
+    )
     return DataLoader(
         dataset,
         batch_size=None,  # the dataset already yields whole batches

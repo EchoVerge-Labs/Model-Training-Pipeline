@@ -1,12 +1,14 @@
 """Pydantic schema for params.yaml validation."""
+
+from typing import Literal
+
 from pydantic import BaseModel, Field, field_validator, model_validator
-from typing import Dict, List, Optional, Literal
 
 
 class SelectConfig(BaseModel):
     seed: int
     target_hours: float = Field(gt=0)
-    language_mix: Dict[str, float]
+    language_mix: dict[str, float]
     min_segment_seconds: float = Field(gt=0)
     max_segment_seconds: float = Field(gt=0)
     max_hours_per_channel: float = Field(gt=0)
@@ -42,11 +44,13 @@ class ShardConfig(BaseModel):
         if self.max_cut_seconds < 2 * self.min_cut_seconds:
             raise ValueError(
                 f"max_cut_seconds ({self.max_cut_seconds}) must be >= 2 * min_cut_seconds "
-                f"({self.min_cut_seconds}) or split windows can fall below the minimum")
+                f"({self.min_cut_seconds}) or split windows can fall below the minimum"
+            )
         if self.max_cut_seconds < self.target_cut_seconds + self.min_cut_seconds:
             raise ValueError(
                 f"max_cut_seconds ({self.max_cut_seconds}) must be >= target_cut_seconds + "
-                f"min_cut_seconds ({self.target_cut_seconds + self.min_cut_seconds})")
+                f"min_cut_seconds ({self.target_cut_seconds + self.min_cut_seconds})"
+            )
         return self
 
 
@@ -61,7 +65,7 @@ class PretrainConfig(BaseModel):
     lr_schedule: str = "tri_stage"
     hold_ratio: float = Field(ge=0, le=1)
     optimizer: str = "adamw"
-    adam_betas: List[float]
+    adam_betas: list[float]
     adam_eps: float = Field(gt=0)
     weight_decay: float = Field(ge=0)
     max_grad_norm: float = Field(gt=0)
@@ -81,7 +85,7 @@ class PretrainConfig(BaseModel):
     save_every_updates: int = Field(gt=0)
     eval_every_updates: int = Field(gt=0)
     keep_last_n_checkpoints: int = Field(gt=0)
-    milestone_checkpoints: List[int]
+    milestone_checkpoints: list[int]
 
     output_dir: str
 
@@ -90,6 +94,7 @@ class PretrainConfig(BaseModel):
     def no_fp16_on_blackwell(cls, v):
         if v == "fp16":
             import warnings
+
             warnings.warn(
                 "fp16 is not recommended on GB10 Blackwell — use bf16 instead. "
                 "Continuing, but you may see instability."
@@ -105,6 +110,7 @@ class Params(BaseModel):
     @classmethod
     def from_yaml(cls, path: str = "params.yaml") -> "Params":
         import yaml
+
         with open(path) as f:
             raw = yaml.safe_load(f)
         return cls(**raw)

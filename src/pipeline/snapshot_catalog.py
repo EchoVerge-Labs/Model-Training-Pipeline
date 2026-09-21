@@ -1,4 +1,5 @@
 """Snapshot the Google Sheet catalog to an immutable CSV."""
+
 import argparse
 import csv
 import json
@@ -12,6 +13,7 @@ from pathlib import Path
 # Optional: use gspread if available, otherwise fall back to --local-csv
 try:
     import gspread
+
     HAS_GSPREAD = True
 except ImportError:
     HAS_GSPREAD = False
@@ -22,11 +24,24 @@ except ImportError:
 # _prepare_rows), so it isn't required of the sheet itself -- but if the sheet
 # does carry one, _prepare_rows refuses rows that contradict it.
 REQUIRED_COLUMNS = [
-    "source_id", "source_url", "title", "genre", "speaking_style",
-    "speaker_count", "speaker_gender", "acoustic_condition",
-    "language_formality", "accent_or_region", "code_switching",
-    "duration_minutes", "uploaded_date", "name_in_drive", "size",
-    "stored_date", "to_train", "tagged",
+    "source_id",
+    "source_url",
+    "title",
+    "genre",
+    "speaking_style",
+    "speaker_count",
+    "speaker_gender",
+    "acoustic_condition",
+    "language_formality",
+    "accent_or_region",
+    "code_switching",
+    "duration_minutes",
+    "uploaded_date",
+    "name_in_drive",
+    "size",
+    "stored_date",
+    "to_train",
+    "tagged",
 ]
 
 TABS = ["Pre-Processed-Sinhala", "Pre-Processed-Tamil"]
@@ -133,6 +148,7 @@ def _write_csv(rows: list[dict], out_dir: Path) -> Path:
 
     # Atomic-ish overwrite for the latest pointer
     import shutil
+
     shutil.copy2(dated_path, latest_path)
 
     # Write metadata
@@ -156,8 +172,9 @@ def main():
     parser = argparse.ArgumentParser(description="Snapshot Google Sheet catalog to CSV")
     parser.add_argument("--sheet-id", help="Google Sheet ID")
     parser.add_argument("--out", default="data/catalog", help="Output directory")
-    parser.add_argument("--local-csv", nargs="*",
-                        help="Fallback: paths to manually exported CSVs instead of API")
+    parser.add_argument(
+        "--local-csv", nargs="*", help="Fallback: paths to manually exported CSVs instead of API"
+    )
     args = parser.parse_args()
 
     out_dir = Path(args.out)
@@ -169,7 +186,9 @@ def main():
     else:
         print("ERROR: Provide --sheet-id (with gspread installed) or --local-csv paths")
         print("Quickest path: export both tabs as CSV from Google Sheets, then:")
-        print("  python -m pipeline.snapshot_catalog --local-csv sinhala.csv tamil.csv --out data/catalog")
+        print(
+            "  python -m pipeline.snapshot_catalog --local-csv sinhala.csv tamil.csv --out data/catalog"
+        )
         sys.exit(1)
 
 

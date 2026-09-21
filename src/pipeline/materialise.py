@@ -11,6 +11,7 @@ is skipped, and copies land via a .part file so a crash never leaves a
 truncated file that looks complete. Exits non-zero if any file is missing or
 fails, since the paths come from an index of this same mount.
 """
+
 import argparse
 import json
 import os
@@ -59,7 +60,7 @@ def materialise(filenames: list[str], drive_root: Path, raw_dir: Path, workers: 
     def work(name: str):
         try:
             return name, *copy_one(drive_root / name, raw_dir / name)
-        except Exception as e:  # keep going; every failure is reported at the end
+        except OSError as e:  # keep going; every failure is reported at the end
             return name, "failed", 0, str(e)
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
@@ -104,9 +105,11 @@ def main():
     with open(args.report, "w", encoding="utf-8") as f:
         json.dump(report, f, indent=2, ensure_ascii=False)
 
-    print(f"Copied {report['copied']:,} ({report['copied_gb']} GB), skipped {report['skipped']:,} "
-          f"already-present, missing {report['missing']}, failed {report['failed']}. "
-          f"{report['total_gb_on_disk']} GB now under {args.raw_dir}/. Report: {args.report}")
+    print(
+        f"Copied {report['copied']:,} ({report['copied_gb']} GB), skipped {report['skipped']:,} "
+        f"already-present, missing {report['missing']}, failed {report['failed']}. "
+        f"{report['total_gb_on_disk']} GB now under {args.raw_dir}/. Report: {args.report}"
+    )
     if report["missing"] or report["failed"]:
         print("ERROR: some files were not copied -- see the report; re-run to resume.")
         sys.exit(1)
