@@ -1,0 +1,137 @@
+schema: '2.0'
+stages:
+  materialise:
+    cmd: python -m pipeline.materialise --config params.yaml
+    deps:
+    - path: data/manifests/dev.jsonl
+      hash: md5
+      md5: 7a9a59bdad32f78d872d144a2009362b
+      size: 169340
+    - path: data/manifests/train.jsonl
+      hash: md5
+      md5: 065c4390352abe42258757420531944f
+      size: 14332780
+    - path: src/pipeline/materialise.py
+      hash: md5
+      md5: ff5c793a59f1671dba4f9537a4e58556
+      size: 4640
+    params:
+      params.yaml:
+        select.drive_root: ~/google-drive/Pre Processed Data
+    outs:
+    - path: data/raw/
+      hash: md5
+      md5: 13e8deeb3eb9b1c73002a705943fb1d2.dir
+      size: 22547079700
+      nfiles: 31356
+    - path: reports/materialise.json
+      hash: md5
+      md5: 1ae3db3b0d6084ed4482882bdefd0db5
+      size: 191
+  shard:
+    cmd: python -m pipeline.shard --config params.yaml
+    deps:
+    - path: data/manifests/train.jsonl
+      hash: md5
+      md5: 065c4390352abe42258757420531944f
+      size: 14332780
+    - path: data/raw/
+      hash: md5
+      md5: 13e8deeb3eb9b1c73002a705943fb1d2.dir
+      size: 22547079700
+      nfiles: 31356
+    - path: src/pipeline/shard.py
+      hash: md5
+      md5: 3b96a9d776a2eb4e3745cbb1ee1fa5b1
+      size: 7747
+    params:
+      params.yaml:
+        shard:
+          format: flac
+          shard_size: 1000
+          min_cut_seconds: 5.0
+          target_cut_seconds: 15.0
+          max_cut_seconds: 30.0
+          output_dir: data/shars
+    outs:
+    - path: data/shars/
+      hash: md5
+      md5: 342a4a3a07d947c9bb186e683f053fa5.dir
+      size: 12666291234
+      nfiles: 74
+  index_drive:
+    cmd: python -m pipeline.drive_index --config params.yaml
+    deps:
+    - path: data/catalog/catalog_latest.csv
+      hash: md5
+      md5: c4a9926fdd1f20100726d0a85e9e5090
+      size: 141067082
+    - path: src/pipeline/drive_index.py
+      hash: md5
+      md5: 9da18bb40e5e94ffc3ba0d7ee1ce157f
+      size: 3350
+    params:
+      params.yaml:
+        select.drive_index_path: data/catalog/drive_index.tsv
+        select.drive_root: ~/google-drive/Pre Processed Data
+    outs:
+    - path: data/catalog/drive_index.tsv
+      hash: md5
+      md5: 8f0da4efecb151e3356ce5b9eaf50456
+      size: 50427110
+  select:
+    cmd: python -m pipeline.select --config params.yaml
+    deps:
+    - path: data/catalog/catalog_latest.csv
+      hash: md5
+      md5: c4a9926fdd1f20100726d0a85e9e5090
+      size: 141067082
+    - path: data/catalog/drive_index.tsv
+      hash: md5
+      md5: 8f0da4efecb151e3356ce5b9eaf50456
+      size: 50427110
+    - path: src/pipeline/drive_index.py
+      hash: md5
+      md5: 9da18bb40e5e94ffc3ba0d7ee1ce157f
+      size: 3350
+    - path: src/pipeline/select.py
+      hash: md5
+      md5: 8d32d27ba3d58e5871d69a1f8988af4f
+      size: 17148
+    params:
+      params.yaml:
+        select:
+          seed: 1337
+          target_hours: 200.0
+          language_mix:
+            sinhala: 0.5
+            tamil: 0.5
+          min_segment_seconds: 3.0
+          max_segment_seconds: 900
+          max_hours_per_channel: 12.0
+          holdout_hours: 2.0
+          catalog_path: data/catalog/catalog_latest.csv
+          exclude_channels_file: data/catalog/eval_contamination_blocklist.txt
+          drive_root: ~/google-drive/Pre Processed Data
+          drive_index_path: data/catalog/drive_index.tsv
+    outs:
+    - path: data/manifests/dev.jsonl
+      hash: md5
+      md5: 7a9a59bdad32f78d872d144a2009362b
+      size: 169340
+    - path: data/manifests/train.jsonl
+      hash: md5
+      md5: 065c4390352abe42258757420531944f
+      size: 14332780
+    - path: reports/selection_report.md
+      hash: md5
+      md5: d37a081c3b8a4ee8cb57b8a00d9bdfba
+      size: 2457
+    - path: reports/selection_stats.json
+      hash: md5
+      md5: 34e1adedbac93e199888378f833f7fe9
+      size: 774
+    - path: reports/unresolved_clips.csv
+      hash: md5
+      md5: 2a39f8c8d6424d04a43b31e0160bc0b7
+      size: 4872
