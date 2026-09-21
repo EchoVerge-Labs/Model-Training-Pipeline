@@ -1,0 +1,35 @@
+{
+  "target_hours": 200.0,
+  "realised_train_hours": 193.63,
+  "realised_holdout_hours": 2.09,
+  "shortfall_pct": 3.2,
+  "train_segments": 30965,
+  "holdout_segments": 391,
+  "candidate_segments": 32288,
+  "longest_train_segment_seconds": 811.8,
+  "cleaning": {
+    "to_train_rows": 33307,
+    "exact_duplicates_removed": 996,
+    "unresolved": {
+      "ambiguous": 19,
+      "no_match": 4,
+      "duplicate_path": 0
+    }
+  },
+  "train_channels": 4974,
+  "holdout_channels": 52,
+  "channel_overlap": 0,
+  "hours_by_language": {
+    "sinhala": 94.48,
+    "tamil": 99.16
+  },
+  "hours_by_genre": {
+    "drama": 26.33,
+    "education": 39.62,
+    "interview": 29.59,
+    "news": 34.68,
+    "podcast_or_discussion": 27.96,
+    "political_speech": 23.75,
+    "vlog": 11.71
+  }
+}
