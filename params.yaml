@@ -63,6 +63,12 @@ pretrain:
 
   output_dir: models/xlsr300m-si-ta-200h
 
+# ── Monitoring ──────────────────────────────────────
+monitoring:
+  perplexity_floor: 10.0     # a codebook-perplexity reading below this counts as "low"
+  consecutive_alerts: 5      # this many low readings in a row stops training; one reading
+                             # per pretrain.eval_every_updates, so 5 x 500 = 2,500 updates
+
 # ── Checkpoint Selection ────────────────────────────
 checkpoint_selection:
   proxy_task: asr

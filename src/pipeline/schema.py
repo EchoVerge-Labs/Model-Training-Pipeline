@@ -102,10 +102,21 @@ class PretrainConfig(BaseModel):
         return v
 
 
+class MonitoringConfig(BaseModel):
+    """Training-health checks. Optional in params.yaml (defaults apply)."""
+
+    # A codebook-perplexity reading below this counts as "low".
+    perplexity_floor: float = Field(default=10.0, gt=0)
+    # This many low readings in a row stop training. One reading is taken every
+    # pretrain.eval_every_updates updates, so the default is 5 x 500 = 2,500 updates.
+    consecutive_alerts: int = Field(default=5, gt=0)
+
+
 class Params(BaseModel):
     select: SelectConfig
     shard: ShardConfig
     pretrain: PretrainConfig
+    monitoring: MonitoringConfig = Field(default_factory=MonitoringConfig)
 
     @classmethod
     def from_yaml(cls, path: str = "params.yaml") -> "Params":

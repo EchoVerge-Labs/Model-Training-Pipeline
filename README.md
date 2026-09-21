@@ -67,6 +67,27 @@ nodes first to confirm the ConnectX-7 link is actually being used (see
 `configs/nccl-env.sh` — `NCCL_SOCKET_IFNAME` in particular needs to match
 your actual interface name).
 
+### Resuming after a crash
+
+Checkpoints (model + optimizer state + step) are written every
+`pretrain.save_every_updates`, atomically, so a crash mid-save can't leave a checkpoint
+that looks valid. **Relaunching the same command resumes automatically** from the newest
+complete checkpoint in `pretrain.output_dir` (falling back to the previous one if the
+newest is unreadable), and the loss-curve CSV keeps its history. To choose explicitly:
+
+```bash
+bash scripts/launch_pretrain.sh --resume-from models/xlsr300m-si-ta-200h/checkpoint-3000
+bash scripts/launch_pretrain.sh --no-resume     # ignore existing checkpoints, start over
+```
+
+Relaunching a run that already reached `max_updates` does nothing.
+
+### Collapse detection
+
+Codebook perplexity is checked once per `pretrain.eval_every_updates` updates. Training
+stops when it stays below `monitoring.perplexity_floor` for `monitoring.consecutive_alerts`
+readings in a row (defaults: 10.0 and 5, i.e. 2,500 updates at the default interval).
+
 ### Baseline comparisons
 
 `dvc.yaml`'s `benchmark` stage only benchmarks the adapted checkpoint
@@ -95,12 +116,11 @@ wastes GPU hours).
 
 ## Known gaps
 
-- **Checkpoint resumption** isn't implemented — `train.py` saves
-  `training_state.pt` (optimizer state, step, Gumbel temperature) alongside
-  each checkpoint, but there's no `--resume-from` flag yet to load it back.
-  If a run crashes, restart manually by pointing `pretrain.base_model` at the
-  last checkpoint dir (note: this restarts the LR/Gumbel schedule from step 0
-  relative to the new run, which is not the same as a true resume).
+- **Resume restores the model, optimizer and step, not the exact data position.** The
+  data loader is re-seeded with the resume step, so a resumed run re-sees some clips —
+  fine for self-supervised pre-training, but not a bit-for-bit continuation.
+  Multi-node resume needs the checkpoint directory on every node (a mismatch is detected
+  and stops all ranks rather than letting their optimizers diverge).
 - **`scripts/run_benchmark.sh`** exists to bridge slsb's real output filename
   (`results_<upstream-with-/-as-__>.json`) to the fixed `metrics.json` path
   `dvc.yaml` and `report.py` expect — see that script's header comment.

@@ -25,6 +25,7 @@ torchrun \
     --rdzv_backend=c10d \
     --rdzv_endpoint=$MASTER_ADDR:$MASTER_PORT \
     $SCRIPT \
-    --config $CONFIG
+    --config $CONFIG \
+    "$@"
 
 echo "Pre-training complete."

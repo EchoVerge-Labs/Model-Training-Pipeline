@@ -82,6 +82,7 @@ stages:
       - data/shars/
     params:
       - pretrain
+      - monitoring
     outs:
       - models/xlsr300m-si-ta-200h/:
           persist: true

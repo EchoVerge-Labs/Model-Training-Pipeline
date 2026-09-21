@@ -17,6 +17,11 @@ reference script's DataCollator uses) rather than a hand-rolled version:
 `sampled_negative_indices` is supplied (see its forward() docstring --
 "Required input for pre-training"), so negative sampling isn't optional.
 
+Resuming: checkpoints (model + optimizer + step) are written every
+pretrain.save_every_updates. Relaunching the SAME command after a crash resumes
+automatically from the newest complete checkpoint in pretrain.output_dir; pass
+--resume-from CKPT_DIR to pick a specific one, or --no-resume to start over.
+
 Usage:
   # Single node
   torchrun --nproc_per_node=1 -m pipeline.train --config params.yaml
@@ -30,12 +35,14 @@ Usage:
 import argparse
 import json
 import os
+import re
 import shutil
 import time
 from pathlib import Path
 
 import torch
 import torch.distributed as dist
+import yaml
 from torch.nn.parallel import DistributedDataParallel as DDP
 from transformers import (
     Wav2Vec2FeatureExtractor,
@@ -179,11 +186,186 @@ def multiply_grads(params, c):
             p.grad.data.mul_(c)
 
 
+# ─── Checkpointing and resume ──────────────────────────────────────────
+#
+# A checkpoint is a directory checkpoint-<step>/ holding the model
+# (save_pretrained), the feature extractor, and training_state.pt (optimizer
+# state, global_step, Gumbel temperature). Everything else the loop needs -- the
+# LR, the Gumbel temperature, the data-loader seed -- is a pure function of
+# global_step, so restoring the optimizer and the step is all a resume takes.
+
+CHECKPOINT_RE = re.compile(r"^checkpoint-(\d+)$")
+TRAINING_STATE_FILE = "training_state.pt"
+CURVES_HEADER = (
+    "step,loss,contrastive_loss,diversity_loss,codebook_perplexity,"
+    "grad_norm,lr,gumbel_temp,audio_sec_per_wall_sec"
+)
+
+
+def checkpoint_step(path: Path) -> int | None:
+    """The step in a checkpoint-<step> directory name, or None if it isn't one."""
+    match = CHECKPOINT_RE.match(path.name)
+    return int(match.group(1)) if match else None
+
+
+def _is_complete_checkpoint(path: Path) -> bool:
+    has_weights = any(path.glob("*.safetensors")) or any(path.glob("pytorch_model*.bin"))
+    return (
+        path.is_dir()
+        and (path / "config.json").exists()
+        and has_weights
+        and (path / TRAINING_STATE_FILE).exists()
+    )
+
+
+def list_checkpoints(output_dir: Path) -> list[Path]:
+    """Complete checkpoint directories under output_dir, newest (highest step) first."""
+    found = [
+        (step, path)
+        for path in Path(output_dir).glob("checkpoint-*")
+        if (step := checkpoint_step(path)) is not None and _is_complete_checkpoint(path)
+    ]
+    return [path for _, path in sorted(found, reverse=True)]
+
+
+def save_checkpoint(
+    raw_model, feature_extractor, optimizer, global_step: int, gumbel_temp: float, output_dir: Path
+) -> Path:
+    """Write checkpoint-<global_step>/ atomically.
+
+    Everything is built under a hidden temp name and renamed into place only
+    when complete, so a crash mid-save (a checkpoint is several GB) can never
+    leave a directory that looks like a valid checkpoint.
+    """
+    output_dir = Path(output_dir)
+    final = output_dir / f"checkpoint-{global_step}"
+    tmp = output_dir / f".tmp-checkpoint-{global_step}"
+    if tmp.exists():
+        shutil.rmtree(tmp)
+    tmp.mkdir(parents=True)
+
+    raw_model.save_pretrained(tmp)
+    feature_extractor.save_pretrained(tmp)
+    torch.save(
+        {
+            "optimizer": optimizer.state_dict(),
+            "global_step": global_step,
+            "gumbel_temperature": gumbel_temp,
+        },
+        tmp / TRAINING_STATE_FILE,
+    )
+
+    if final.exists():
+        shutil.rmtree(final)
+    os.rename(tmp, final)
+    return final
+
+
+def load_training_state(ckpt_dir: Path, device) -> dict:
+    """Read training_state.pt. weights_only: it holds tensors and plain numbers, so
+    nothing needs to be unpickled as code."""
+    state = torch.load(Path(ckpt_dir) / TRAINING_STATE_FILE, map_location=device, weights_only=True)
+    missing = {"optimizer", "global_step"} - set(state)
+    if missing:
+        raise ValueError(f"{ckpt_dir / TRAINING_STATE_FILE} is missing {sorted(missing)}")
+    return state
+
+
+def find_resume(
+    resume_from: str | Path | None, output_dir: Path, device, auto_resume: bool = True
+) -> tuple[Path, dict] | None:
+    """Decide what to resume from. Returns (checkpoint dir, training state) or None.
+
+    An explicit resume_from must be a complete, readable checkpoint (error
+    otherwise). Otherwise, with auto_resume, the newest complete checkpoint in
+    output_dir is used -- and if it turns out to be unreadable (e.g. a crash
+    truncated it) the next-newest is tried, so one bad file can't block a relaunch.
+    """
+    if resume_from is not None:
+        path = Path(resume_from)
+        if not _is_complete_checkpoint(path):
+            raise FileNotFoundError(
+                f"--resume-from {path}: not a complete checkpoint "
+                f"(needs config.json, model weights and {TRAINING_STATE_FILE})"
+            )
+        return path, load_training_state(path, device)
+    if not auto_resume:
+        return None
+    for path in list_checkpoints(output_dir):
+        try:
+            return path, load_training_state(path, device)
+        except Exception as e:  # noqa: BLE001 -- any unreadable file just means "try the previous one"
+            print(f"WARNING: skipping unreadable checkpoint {path}: {e}")
+    return None
+
+
+def prune_checkpoints(output_dir: Path, milestones: list[int], keep_last_n: int) -> None:
+    """Keep every milestone checkpoint, plus the newest keep_last_n of the others."""
+    numbered = sorted(
+        (step, path)
+        for path in Path(output_dir).glob("checkpoint-*")
+        if (step := checkpoint_step(path)) is not None
+    )
+    rotating = [path for step, path in numbered if step not in milestones]
+    for old in rotating[: max(0, len(rotating) - keep_last_n)]:
+        print(f"  Removing old checkpoint: {old.name}")
+        shutil.rmtree(old)
+
+
+def prepare_curves(path: Path, resume_step: int) -> None:
+    """Fresh run: start the loss-curve CSV. Resume: keep the rows up to the step
+    being resumed from and drop later ones, which get re-logged when those steps
+    re-run -- so the history has no gaps and no duplicates."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lines = path.read_text().splitlines() if resume_step > 0 and path.exists() else []
+    if not lines:
+        path.write_text(CURVES_HEADER + "\n")
+        return
+    kept = [row for row in lines[1:] if row and int(row.split(",", 1)[0]) <= resume_step]
+    path.write_text("\n".join([lines[0], *kept]) + "\n")
+
+
+def _assert_ranks_agree_on_resume(local_step: int, device) -> None:
+    """A checkpoint only exists on the node that saved it. If ranks resumed from
+    different steps their optimizer states would silently diverge, so fail every
+    rank together (a one-sided error would leave the others hanging)."""
+    reference = torch.tensor([local_step], device=device)
+    dist.broadcast(reference, src=0)
+    disagree = torch.tensor([int(local_step != int(reference.item()))], device=device)
+    dist.all_reduce(disagree, op=dist.ReduceOp.MAX)
+    if disagree.item():
+        raise RuntimeError(
+            f"ranks disagree on the resume checkpoint (this rank: step {local_step}, rank 0: "
+            f"step {int(reference.item())}). Copy the checkpoint directory to every node, or "
+            f"pass --no-resume to start fresh."
+        )
+
+
 # ─── Training ──────────────────────────────────────────────────────────
 
 
-def train(params: Params):
+def train(
+    params: Params,
+    *,
+    config_path: str = "params.yaml",
+    resume_from: str | Path | None = None,
+    auto_resume: bool = True,
+    dataloader=None,
+    reports_dir: str | Path = "reports",
+    use_mlflow: bool = True,
+    device: str | None = None,
+) -> int:
+    """Run (or resume) pre-training. Returns the global step reached.
+
+    resume_from: restart from this checkpoint directory.
+    auto_resume: with no resume_from, restart from the newest complete
+        checkpoint in pretrain.output_dir if there is one (so a crash followed by
+        the same launch command just continues).
+    dataloader / device / reports_dir / use_mlflow: seams for tests; in a real run
+        they default to the shard loader, CUDA if present, ./reports, and MLflow.
+    """
     cfg = params.pretrain
+    reports_dir = Path(reports_dir)
 
     # ── Distributed setup ──
     local_rank = int(os.environ.get("LOCAL_RANK", "0"))
@@ -195,18 +377,48 @@ def train(params: Params):
         dist.init_process_group("nccl")
         torch.cuda.set_device(local_rank)
 
-    device = torch.device(f"cuda:{local_rank}" if torch.cuda.is_available() else "cpu")
+    device = torch.device(device or (f"cuda:{local_rank}" if torch.cuda.is_available() else "cpu"))
+
+    # ── Output dir + resume ──
+    output_dir = Path(cfg.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    if is_main:
+        for stale in output_dir.glob(".tmp-checkpoint-*"):  # a save that never finished
+            shutil.rmtree(stale, ignore_errors=True)
+
+    resume = find_resume(resume_from, output_dir, device, auto_resume)
+    resume_step = int(resume[1]["global_step"]) if resume else 0
+    if world_size > 1:
+        _assert_ranks_agree_on_resume(resume_step if resume else -1, device)
+
+    if resume and resume_step >= cfg.max_updates:
+        if is_main:
+            print(
+                f"{resume[0].name} is at step {resume_step}, which already reaches "
+                f"max_updates ({cfg.max_updates}): nothing to train. "
+                f"(Pass --no-resume to start over.)"
+            )
+        if world_size > 1:
+            dist.destroy_process_group()
+        return resume_step
+
+    model_source = str(resume[0]) if resume else cfg.base_model
 
     if is_main:
         print(f"World size: {world_size}, device: {device}")
         print(f"Base model: {cfg.base_model}")
+        if resume:
+            how = "explicitly" if resume_from is not None else "automatically"
+            print(f"Resuming {how} from {resume[0]} at step {resume_step}")
+        else:
+            print("Starting from the base model (no checkpoint resumed)")
         print(f"Precision: {cfg.precision}")
         print(f"Max updates: {cfg.max_updates}")
         print(f"Peak LR: {cfg.peak_lr}")
         print(f"Target batch seconds: {cfg.target_batch_seconds}")
 
     # ── Load model ──
-    model = Wav2Vec2ForPreTraining.from_pretrained(cfg.base_model)
+    model = Wav2Vec2ForPreTraining.from_pretrained(model_source)
 
     # CRITICAL: verify quantizer weights are present
     state_keys = set(model.state_dict().keys())
@@ -224,7 +436,7 @@ def train(params: Params):
             "FATAL: No quantizer weights found in checkpoint. "
             "This checkpoint cannot be used for continued pre-training. "
             "Make sure you are loading Wav2Vec2ForPreTraining, not Wav2Vec2Model. "
-            f"Loaded from: {cfg.base_model}"
+            f"Loaded from: {model_source}"
         )
 
     # Freeze CNN feature encoder — standard for continued pre-training
@@ -258,14 +470,28 @@ def train(params: Params):
         eps=cfg.adam_eps,
         weight_decay=cfg.weight_decay,
     )
+    if resume:
+        try:
+            optimizer.load_state_dict(resume[1]["optimizer"])
+        except ValueError as e:
+            raise RuntimeError(
+                f"cannot restore the optimizer from {resume[0]}: {e} -- do "
+                f"freeze_feature_encoder or the model differ from when it was saved?"
+            ) from e
+        if is_main:
+            saved_temp = resume[1].get("gumbel_temperature")
+            print(f"Restored optimizer state (saved Gumbel temperature: {saved_temp})")
 
     # ── Data ──
-    dataloader = create_dataloader(
-        shar_dir="data/shars",
-        per_device_max_seconds=cfg.per_device_max_seconds,
-        num_workers=cfg.num_workers,
-        seed=0,
-    )
+    # Seeded with the resume step, so a resumed run doesn't replay the exact
+    # shard order of the first epoch (a fresh run has step 0, i.e. seed 0 as before).
+    if dataloader is None:
+        dataloader = create_dataloader(
+            shar_dir="data/shars",
+            per_device_max_seconds=cfg.per_device_max_seconds,
+            num_workers=cfg.num_workers,
+            seed=resume_step,
+        )
     data_iter = iter(dataloader)
 
     # ── Gradient accumulation ──
@@ -280,54 +506,53 @@ def train(params: Params):
             f"audio per update"
         )
 
-    # ── Output dir ──
-    output_dir = Path(cfg.output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
-
     # ── Logging ──
     mlflow_logger = None
     collapse_detector = None
     if is_main:
-        try:
-            import yaml
-
-            with open("params.yaml") as f:
-                raw_params = yaml.safe_load(f)
-            mlflow_cfg = raw_params.get("mlflow", {})
-            mlflow_logger = MLflowLogger(
-                tracking_uri=mlflow_cfg.get("tracking_uri", ""),
-                experiment_name=mlflow_cfg.get("experiment_name", "ssl-pretraining"),
-                run_name=f"xlsr300m-si-ta-{cfg.target_batch_seconds}s",
-            )
-            # Log all params
-            flat_params = {
-                "base_model": cfg.base_model,
-                "precision": cfg.precision,
-                "max_updates": cfg.max_updates,
-                "warmup_updates": cfg.warmup_updates,
-                "peak_lr": cfg.peak_lr,
-                "lr_schedule": cfg.lr_schedule,
-                "hold_ratio": cfg.hold_ratio,
-                "target_batch_seconds": cfg.target_batch_seconds,
-                "per_device_max_seconds": cfg.per_device_max_seconds,
-                "grad_accum_steps": grad_accum_steps,
-                "world_size": world_size,
-                "mask_time_prob": cfg.mask_time_prob,
-                "mask_time_length": cfg.mask_time_length,
-                "diversity_loss_weight": cfg.diversity_loss_weight,
-                "max_gumbel_temperature": cfg.max_gumbel_temperature,
-                "min_gumbel_temperature": cfg.min_gumbel_temperature,
-                "gumbel_temperature_decay": cfg.gumbel_temperature_decay,
-                "freeze_feature_encoder": cfg.freeze_feature_encoder,
-            }
-            mlflow_logger.log_params(flat_params)
-        except Exception as e:  # noqa: BLE001 -- experiment tracking must never kill a training run
-            print(f"WARNING: MLflow setup failed: {e}")
-            mlflow_logger = None
+        if use_mlflow:
+            try:
+                with open(config_path) as f:
+                    mlflow_cfg = yaml.safe_load(f).get("mlflow", {})
+                run_name = f"xlsr300m-si-ta-{cfg.target_batch_seconds}s"
+                if resume:
+                    run_name += f"-resume{resume_step}"
+                mlflow_logger = MLflowLogger(
+                    tracking_uri=mlflow_cfg.get("tracking_uri", ""),
+                    experiment_name=mlflow_cfg.get("experiment_name", "ssl-pretraining"),
+                    run_name=run_name,
+                )
+                # Log all params
+                flat_params = {
+                    "base_model": cfg.base_model,
+                    "precision": cfg.precision,
+                    "max_updates": cfg.max_updates,
+                    "warmup_updates": cfg.warmup_updates,
+                    "peak_lr": cfg.peak_lr,
+                    "lr_schedule": cfg.lr_schedule,
+                    "hold_ratio": cfg.hold_ratio,
+                    "target_batch_seconds": cfg.target_batch_seconds,
+                    "per_device_max_seconds": cfg.per_device_max_seconds,
+                    "grad_accum_steps": grad_accum_steps,
+                    "world_size": world_size,
+                    "mask_time_prob": cfg.mask_time_prob,
+                    "mask_time_length": cfg.mask_time_length,
+                    "diversity_loss_weight": cfg.diversity_loss_weight,
+                    "max_gumbel_temperature": cfg.max_gumbel_temperature,
+                    "min_gumbel_temperature": cfg.min_gumbel_temperature,
+                    "gumbel_temperature_decay": cfg.gumbel_temperature_decay,
+                    "freeze_feature_encoder": cfg.freeze_feature_encoder,
+                    "resumed_from_step": resume_step,
+                }
+                mlflow_logger.log_params(flat_params)
+            except Exception as e:  # noqa: BLE001 -- experiment tracking must never kill a training run
+                print(f"WARNING: MLflow setup failed: {e}")
+                mlflow_logger = None
 
         collapse_detector = CodebookCollapseDetector(
             num_codebooks=raw_model.config.num_codevector_groups,
-            alert_threshold=10.0,
+            alert_threshold=params.monitoring.perplexity_floor,
+            consecutive_alerts=params.monitoring.consecutive_alerts,
         )
 
     # ── Precision ──
@@ -336,7 +561,7 @@ def train(params: Params):
 
     # ── Training loop ──
     model.train()
-    global_step = 0
+    global_step = resume_step
     accum_loss = 0.0
     accum_contrastive_loss = 0.0
     accum_diversity_loss = 0.0
@@ -345,19 +570,16 @@ def train(params: Params):
     accum_audio_seconds = 0.0
     log_start_time = time.perf_counter()
 
-    # CSV for loss curves
-    curves_path = Path("reports/pretrain_curves.csv")
-    curves_path.parent.mkdir(parents=True, exist_ok=True)
+    # CSV for loss curves (kept across a resume, see prepare_curves)
+    curves_path = reports_dir / "pretrain_curves.csv"
     if is_main:
-        with open(curves_path, "w") as f:
-            f.write(
-                "step,loss,contrastive_loss,diversity_loss,codebook_perplexity,"
-                "grad_norm,lr,gumbel_temp,audio_sec_per_wall_sec\n"
-            )
+        prepare_curves(curves_path, resume_step)
 
     if is_main:
         print(f"\n{'=' * 60}")
-        print("Starting continued pre-training")
+        print(
+            "Starting continued pre-training" if not resume else f"Resuming at step {resume_step}"
+        )
         print(f"{'=' * 60}\n")
 
     # Rank-0-only decision (codebook collapse) that every rank must agree to
@@ -402,7 +624,7 @@ def train(params: Params):
             )
 
             # Forward pass
-            with torch.autocast(device_type="cuda", dtype=amp_dtype, enabled=use_amp):
+            with torch.autocast(device_type=device.type, dtype=amp_dtype, enabled=use_amp):
                 outputs = model(
                     input_values,
                     attention_mask=attention_mask,
@@ -558,41 +780,11 @@ def train(params: Params):
 
         # ── Checkpointing ──
         if is_main and global_step % cfg.save_every_updates == 0:
-            ckpt_dir = output_dir / f"checkpoint-{global_step}"
-            ckpt_dir.mkdir(parents=True, exist_ok=True)
-
-            # Save model
-            raw_model.save_pretrained(ckpt_dir)
-            feature_extractor.save_pretrained(ckpt_dir)
-
-            # Save optimizer and scheduler state for resumption
-            torch.save(
-                {
-                    "optimizer": optimizer.state_dict(),
-                    "global_step": global_step,
-                    "gumbel_temperature": gumbel_temp,
-                },
-                ckpt_dir / "training_state.pt",
+            ckpt_dir = save_checkpoint(
+                raw_model, feature_extractor, optimizer, global_step, gumbel_temp, output_dir
             )
-
             print(f"  Saved checkpoint: {ckpt_dir}")
-
-            # Manage checkpoint retention
-            is_milestone = global_step in cfg.milestone_checkpoints
-            if not is_milestone:
-                # Remove old non-milestone checkpoints beyond keep_last_n
-                all_ckpts = sorted(
-                    output_dir.glob("checkpoint-*"), key=lambda p: int(p.name.split("-")[1])
-                )
-                non_milestones = [
-                    c
-                    for c in all_ckpts
-                    if int(c.name.split("-")[1]) not in cfg.milestone_checkpoints
-                ]
-                while len(non_milestones) > cfg.keep_last_n_checkpoints:
-                    oldest = non_milestones.pop(0)
-                    print(f"  Removing old checkpoint: {oldest.name}")
-                    shutil.rmtree(oldest)
+            prune_checkpoints(output_dir, cfg.milestone_checkpoints, cfg.keep_last_n_checkpoints)
 
     # ── Final save ──
     if is_main:
@@ -607,7 +799,8 @@ def train(params: Params):
             else None,
             "completed": global_step >= cfg.max_updates,
         }
-        with open("reports/pretrain_metrics.json", "w") as f:
+        reports_dir.mkdir(parents=True, exist_ok=True)
+        with open(reports_dir / "pretrain_metrics.json", "w") as f:
             json.dump(final_metrics, f, indent=2)
 
         if mlflow_logger:
@@ -622,15 +815,34 @@ def train(params: Params):
 
     if world_size > 1:
         dist.destroy_process_group()
+    return global_step
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="params.yaml")
+    resume = parser.add_mutually_exclusive_group()
+    resume.add_argument(
+        "--resume-from",
+        metavar="CKPT_DIR",
+        default=None,
+        help="resume from this checkpoint directory (e.g. models/.../checkpoint-3000)",
+    )
+    resume.add_argument(
+        "--no-resume",
+        action="store_true",
+        help="ignore checkpoints already in pretrain.output_dir and start from the base model "
+        "(by default the newest complete checkpoint there is resumed automatically)",
+    )
     args = parser.parse_args()
 
     params = Params.from_yaml(args.config)
-    train(params)
+    train(
+        params,
+        config_path=args.config,
+        resume_from=args.resume_from,
+        auto_resume=not args.no_resume,
+    )
 
 
 if __name__ == "__main__":
