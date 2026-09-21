@@ -13,8 +13,8 @@ stages:
       size: 14332780
     - path: src/pipeline/materialise.py
       hash: md5
-      md5: ff5c793a59f1671dba4f9537a4e58556
-      size: 4640
+      md5: c2dbdbb6a9d9b087b522733ee540077d
+      size: 4649
     params:
       params.yaml:
         select.drive_root: ~/google-drive/Pre Processed Data
@@ -42,8 +42,8 @@ stages:
       nfiles: 31356
     - path: src/pipeline/shard.py
       hash: md5
-      md5: 3b96a9d776a2eb4e3745cbb1ee1fa5b1
-      size: 7747
+      md5: 6b9d42e608e0b39df2eddb05196cd378
+      size: 7910
     params:
       params.yaml:
         shard:
@@ -68,8 +68,8 @@ stages:
       size: 141067082
     - path: src/pipeline/drive_index.py
       hash: md5
-      md5: 9da18bb40e5e94ffc3ba0d7ee1ce157f
-      size: 3350
+      md5: 2cfee51caf330975504c9ea31b9f791f
+      size: 3389
     params:
       params.yaml:
         select.drive_index_path: data/catalog/drive_index.tsv
@@ -92,12 +92,12 @@ stages:
       size: 50427110
     - path: src/pipeline/drive_index.py
       hash: md5
-      md5: 9da18bb40e5e94ffc3ba0d7ee1ce157f
-      size: 3350
+      md5: 2cfee51caf330975504c9ea31b9f791f
+      size: 3389
     - path: src/pipeline/select.py
       hash: md5
-      md5: 8d32d27ba3d58e5871d69a1f8988af4f
-      size: 17148
+      md5: ebb84168eff80dfd195f977cf6464ae8
+      size: 17427
     params:
       params.yaml:
         select:
