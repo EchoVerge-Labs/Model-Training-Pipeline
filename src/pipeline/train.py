@@ -1,6 +1,6 @@
-"""Continued pre-training of wav2vec2-xls-r-300m on Sinhala/Tamil.
+"""Continued pre-training of HuBERT Large on Sinhala/Tamil.
 
-Adapted from HuggingFace's run_wav2vec2_pretraining_no_trainer.py.
+Adapted from HuggingFace's wav2vec2/HuBERT pretraining example.
 Key changes from the HF example:
   - Loads from Lhotse Shar tarballs (not HF datasets)
   - Uses raw DDP + torch.amp (not HF Accelerator)
@@ -13,7 +13,7 @@ Key changes from the HF example:
 Mask generation and negative sampling reuse transformers' own
 `_compute_mask_indices` / `_sample_negative_indices` (the same helpers the HF
 reference script's DataCollator uses) rather than a hand-rolled version:
-`Wav2Vec2ForPreTraining.forward()` returns `loss=None` unless
+`HubertForPreTraining.forward()` returns `loss=None` unless
 `sampled_negative_indices` is supplied (see its forward() docstring --
 "Required input for pre-training"), so negative sampling isn't optional.
 
@@ -38,10 +38,10 @@ import torch
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 from transformers import (
-    Wav2Vec2FeatureExtractor,
-    Wav2Vec2ForPreTraining,
+    HubertFeatureExtractor,
+    HubertForPreTraining,
 )
-from transformers.models.wav2vec2.modeling_wav2vec2 import (
+from transformers.models.hubert.modeling_hubert import (
     _compute_mask_indices,
     _sample_negative_indices,
 )
@@ -58,7 +58,7 @@ from pipeline.schema import Params
 #
 # hold_end = warmup_updates + hold_ratio * (max_updates - warmup_updates)
 #
-# This is the schedule fairseq uses for wav2vec2 pre-training, not a cosine.
+# This is the schedule fairseq uses for HuBERT/Wav2Vec2 pre-training, not a cosine.
 
 
 def get_tri_stage_lr(
@@ -97,7 +97,7 @@ def get_tri_stage_lr(
 # ─── Mask generation + negative sampling ────────────────────────────────
 #
 # Reuses transformers' own `_compute_mask_indices` / `_sample_negative_indices`
-# (numpy-based) exactly as HuggingFace's DataCollatorForWav2Vec2Pretraining
+# (numpy-based) exactly as HuggingFace's HuBERT pretraining data collator
 # does. Both are computed against the *feature-extractor output* length (the
 # transformer's input length after the CNN downsamples), using the reduced
 # attention mask so padded frames are never masked/sampled.
@@ -159,7 +159,7 @@ def get_gumbel_temperature(
 
 # ─── Gradient rescaling by mask count ───────────────────────────────────
 #
-# Wav2Vec2ForPreTraining's contrastive_loss (reduction="sum") and
+# HubertForPreTraining's contrastive_loss (reduction="sum") and
 # diversity_loss (scaled by mask_time_indices.sum()) are UNNORMALIZED sums
 # over masked positions -- dividing only by grad_accum_steps would let
 # gradient magnitude swing with batch size / mask density between steps.
@@ -206,7 +206,7 @@ def train(params: Params):
         print(f"Target batch seconds: {cfg.target_batch_seconds}")
 
     # ── Load model ──
-    model = Wav2Vec2ForPreTraining.from_pretrained(cfg.base_model)
+    model = HubertForPreTraining.from_pretrained(cfg.base_model)
 
     # CRITICAL: verify quantizer weights are present
     state_keys = set(model.state_dict().keys())
@@ -223,7 +223,7 @@ def train(params: Params):
         raise RuntimeError(
             "FATAL: No quantizer weights found in checkpoint. "
             "This checkpoint cannot be used for continued pre-training. "
-            "Make sure you are loading Wav2Vec2ForPreTraining, not Wav2Vec2Model. "
+            "Make sure you are loading HubertForPreTraining, not HubertModel. "
             f"Loaded from: {cfg.base_model}"
         )
 
@@ -248,7 +248,7 @@ def train(params: Params):
     raw_model = model.module if hasattr(model, "module") else model
 
     # ── Feature extractor (for computing output lengths) ──
-    feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(cfg.base_model)
+    feature_extractor = HubertFeatureExtractor.from_pretrained(cfg.base_model)
 
     # ── Optimizer ──
     optimizer = torch.optim.AdamW(
@@ -297,7 +297,7 @@ def train(params: Params):
             mlflow_logger = MLflowLogger(
                 tracking_uri=mlflow_cfg.get("tracking_uri", ""),
                 experiment_name=mlflow_cfg.get("experiment_name", "ssl-pretraining"),
-                run_name=f"xlsr300m-si-ta-{cfg.target_batch_seconds}s",
+                run_name=f"hubert-large-si-ta-{cfg.target_batch_seconds}s",
             )
             # Log all params
             flat_params = {
@@ -411,7 +411,7 @@ def train(params: Params):
                 )
 
             # Loss = contrastive + diversity_weight * diversity (computed internally
-            # by Wav2Vec2ForPreTraining -- do not add diversity loss a second time).
+            # by HubertForPreTraining -- do not add diversity loss a second time).
             # Both components use reduction="sum" over masked positions, so the raw
             # loss/gradient scales with mask count -- normalized below via
             # multiply_grads(), not by dividing the loss itself (matches the HF

@@ -1,8 +1,8 @@
-# Model Training Pipeline — Continued Pre-training of XLS-R 300m on Sinhala/Tamil
+# Model Training Pipeline — Continued Pre-training of HuBERT Large on Sinhala/Tamil
 
-DVC-orchestrated pipeline for continued self-supervised wav2vec2 pre-training, automatic
+DVC-orchestrated pipeline for continued self-supervised HuBERT pre-training, automatic
 checkpoint selection, and benchmarking. Produces a Sinhala/Tamil-specialised speech
-encoder from `facebook/wav2vec2-xls-r-300m`.
+encoder from `facebook/hubert-large-ll60k`.
 
 ## Pipeline DAG
 
@@ -42,7 +42,7 @@ make index      # list every wav on the Drive mount (path + size) -> data/catalo
 make select     # dedupe, pin each clip to its Drive file, select train/holdout -> data/manifests/
 make pull       # copy the selected clips from the mount -> data/raw/ (same <Lang>/<genre>/... layout)
 make shard      # pack into Lhotse Shar tarballs -> data/shars/
-make train      # continued pre-training -> models/xlsr300m-si-ta-200h/
+make train      # continued pre-training -> models/hubert-large-si-ta-200h/
 make ckpt       # proxy-eval milestone checkpoints, copy the best -> models/selected/
 make bench      # slsb run on the selected checkpoint -> reports/bench/xlsr300m_adapted/
 make report     # aggregate into reports/results.md + results_table.csv

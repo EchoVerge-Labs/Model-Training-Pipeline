@@ -25,7 +25,7 @@ shard:
 
 # ── Pre-training ────────────────────────────────────
 pretrain:
-  base_model: facebook/wav2vec2-xls-r-300m
+  base_model: facebook/hubert-large-ll60k
   precision: bf16
   freeze_feature_encoder: true
 
@@ -61,7 +61,7 @@ pretrain:
   keep_last_n_checkpoints: 5
   milestone_checkpoints: [4500, 9000, 13500]   # 10, 20, 30 passes
 
-  output_dir: models/xlsr300m-si-ta-200h
+  output_dir: models/hubert-large-si-ta-200h
 
 # ── Checkpoint Selection ────────────────────────────
 checkpoint_selection:

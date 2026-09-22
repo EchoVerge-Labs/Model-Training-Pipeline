@@ -83,7 +83,7 @@ stages:
     params:
       - pretrain
     outs:
-      - models/xlsr300m-si-ta-200h/:
+      - models/hubert-large-si-ta-200h/:
           persist: true
     metrics:
       - reports/pretrain_metrics.json:
@@ -96,7 +96,7 @@ stages:
     cmd: python -m pipeline.select_checkpoint --config params.yaml
     deps:
       - src/pipeline/select_checkpoint.py
-      - models/xlsr300m-si-ta-200h/
+      - models/hubert-large-si-ta-200h/
     params:
       - checkpoint_selection
     outs:

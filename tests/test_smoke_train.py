@@ -1,7 +1,7 @@
 """Smoke test: 3 training steps with a tiny random model on CPU."""
 
 import torch
-from transformers import Wav2Vec2Config, Wav2Vec2ForPreTraining
+from transformers import HubertConfig, HubertForPreTraining
 
 from pipeline.train import (
     compute_mask_and_negatives,
@@ -11,8 +11,8 @@ from pipeline.train import (
 )
 
 
-def _tiny_model() -> Wav2Vec2ForPreTraining:
-    config = Wav2Vec2Config(
+def _tiny_model() -> HubertForPreTraining:
+    config = HubertConfig(
         hidden_size=32,
         num_hidden_layers=2,
         num_attention_heads=2,
@@ -25,7 +25,7 @@ def _tiny_model() -> Wav2Vec2ForPreTraining:
         codevector_dim=32,
         proj_codevector_dim=32,
     )
-    return Wav2Vec2ForPreTraining(config)
+    return HubertForPreTraining(config)
 
 
 def test_tri_stage_lr():
@@ -91,10 +91,10 @@ def test_gumbel_temperature():
 
 
 def test_smoke_forward():
-    """Run 3 forward+backward steps on a tiny random wav2vec2.
+    """Run 3 forward+backward steps on a tiny random HuBERT.
 
     mask_time_indices and sampled_negative_indices are both required --
-    Wav2Vec2ForPreTraining.forward() returns loss=None without
+    HubertForPreTraining.forward() returns loss=None without
     sampled_negative_indices (see its docstring: "Required input for
     pre-training"), so this exercises the same path train.py's training loop
     depends on, not just a bare forward call.

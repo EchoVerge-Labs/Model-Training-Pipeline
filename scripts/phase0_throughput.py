@@ -36,9 +36,9 @@ def measure_throughput(steps: int = 100, batch_seconds: float = 200.0, precision
         print(f"Memory: {mem_gb:.1f} GB")
 
     # Load the actual model — not a toy config
-    from transformers import Wav2Vec2ForPreTraining
-    print("Loading facebook/wav2vec2-xls-r-300m ...")
-    model = Wav2Vec2ForPreTraining.from_pretrained("facebook/wav2vec2-xls-r-300m")
+    from transformers import HubertForPreTraining
+    print("Loading facebook/hubert-large-ll60k ...")
+    model = HubertForPreTraining.from_pretrained("facebook/hubert-large-ll60k")
     model.freeze_feature_encoder()
     model.to(device)
 

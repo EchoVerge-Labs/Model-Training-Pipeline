@@ -5,7 +5,7 @@ from pipeline.schema import Params
 
 def test_params_loads():
     p = Params.from_yaml("params.yaml")
-    assert p.pretrain.base_model == "facebook/wav2vec2-xls-r-300m"
+    assert p.pretrain.base_model == "facebook/hubert-large-ll60k"
     assert p.pretrain.precision == "bf16"
 
 
