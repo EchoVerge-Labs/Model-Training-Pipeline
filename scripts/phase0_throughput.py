@@ -36,16 +36,12 @@ def measure_throughput(steps: int = 100, batch_seconds: float = 200.0, precision
         print(f"Memory: {mem_gb:.1f} GB")
 
     # Load the actual model — not a toy config
-    from transformers import HubertForPreTraining
+    from pipeline.hubert_model import HubertForMaskedPrediction
     print("Loading facebook/hubert-large-ll60k ...")
-    model = HubertForPreTraining.from_pretrained("facebook/hubert-large-ll60k")
+    num_clusters = 100  # matches params.yaml's cluster.num_clusters default
+    model = HubertForMaskedPrediction("facebook/hubert-large-ll60k", num_clusters=num_clusters)
     model.freeze_feature_encoder()
     model.to(device)
-
-    # Verify quantizer
-    quantizer_keys = [k for k in model.state_dict() if "quantizer" in k]
-    assert len(quantizer_keys) > 0, "No quantizer weights — wrong checkpoint?"
-    print(f"Quantizer keys present: {len(quantizer_keys)} ✓")
 
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -66,31 +62,36 @@ def measure_throughput(steps: int = 100, batch_seconds: float = 200.0, precision
 
     amp_dtype = torch.bfloat16 if precision == "bf16" else torch.float16
 
-    # A real pre-training step, using the same helpers as train.py: mask +
-    # negative sampling (required -- forward() returns loss=None without them),
-    # forward under autocast, backward, per-mask-count gradient rescale, clip,
-    # optimizer step. Synthetic audio only; no real data IO or DDP sync.
-    from pipeline.train import compute_mask_and_negatives, multiply_grads
+    # A real pre-training step, using the same helpers as train.py: mask
+    # generation (required -- HubertModel applies masked_spec_embed at these
+    # positions before the transformer), forward under autocast, masked
+    # cross-entropy against synthetic cluster ids, backward, clip, optimizer
+    # step. Synthetic audio/labels only; no real data IO or DDP sync.
+    import torch.nn as nn
+
+    from pipeline.train import compute_mask
 
     trainable = [p for p in model.parameters() if p.requires_grad]
-    model.set_gumbel_temperature(1.0)
+    loss_fn = nn.CrossEntropyLoss(ignore_index=-100)
+
+    class _Out:
+        def __init__(self, loss):
+            self.loss = loss
 
     def train_step():
         x = torch.randn(batch_size, seq_len, device=device)
         m = torch.ones(batch_size, seq_len, dtype=torch.long, device=device)
-        mask_time_indices, sampled_negatives, _ = compute_mask_and_negatives(
-            model, x, m, MASK_TIME_PROB, MASK_TIME_LENGTH, device,
-        )
+        mask_time_indices, _ = compute_mask(model, x, m, MASK_TIME_PROB, MASK_TIME_LENGTH, device)
         with torch.autocast("cuda", dtype=amp_dtype):
-            out = model(x, attention_mask=m, mask_time_indices=mask_time_indices,
-                        sampled_negative_indices=sampled_negatives)
-        out.loss.backward()
-        num_losses = mask_time_indices.sum().float().clamp(min=1)
-        multiply_grads(trainable, 1.0 / num_losses)
+            logits = model(x, attention_mask=m, mask_time_indices=mask_time_indices)
+        target = torch.randint(0, num_clusters, logits.shape[:2], device=device)
+        target[~mask_time_indices] = -100
+        loss = loss_fn(logits.transpose(1, 2), target)
+        loss.backward()
         torch.nn.utils.clip_grad_norm_(trainable, 1.0)
         optimizer.step()
         optimizer.zero_grad()
-        return out
+        return _Out(loss)
 
     # Warmup (not timed)
     print("Warming up (5 steps) ...")
@@ -150,7 +151,7 @@ def measure_throughput(steps: int = 100, batch_seconds: float = 200.0, precision
         "model": {
             "total_params_M": round(total_params / 1e6, 1),
             "trainable_params_M": round(trainable_params / 1e6, 1),
-            "quantizer_keys": len(quantizer_keys),
+            "num_clusters": num_clusters,
         },
         "estimate": {
             "target_batch_seconds": target_batch,

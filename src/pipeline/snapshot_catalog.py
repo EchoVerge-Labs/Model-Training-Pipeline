@@ -23,7 +23,7 @@ except ImportError:
 # `language`: every row's `language` is set from its tab/file (see
 # _prepare_rows), so it isn't required of the sheet itself -- but if the sheet
 # does carry one, _prepare_rows refuses rows that contradict it.
-REQUIRED_COLUMNS = [
+SHEET_HEADERS = [
     "source_id",
     "source_url",
     "title",
@@ -36,12 +36,24 @@ REQUIRED_COLUMNS = [
     "accent_or_region",
     "code_switching",
     "duration_minutes",
-    "uploaded_date",
     "name_in_drive",
-    "size",
     "stored_date",
     "to_train",
     "tagged",
+]
+
+REQUIRED_COLUMNS = [
+    "source_id",
+    "source_url",
+    "title",
+    "genre",
+    "speaking_style",
+    "language_formality",
+    "code_switching",
+    "duration_minutes",
+    "name_in_drive",
+    "stored_date",
+    "to_train",
 ]
 
 TABS = ["Pre-Processed-Sinhala", "Pre-Processed-Tamil"]
@@ -75,7 +87,7 @@ def snapshot_with_gspread(sheet_id: str, out_dir: Path) -> Path:
     all_rows = []
     for tab_name in TABS:
         ws = spreadsheet.worksheet(tab_name)
-        records = ws.get_all_records()
+        records = ws.get_all_records(expected_headers=SHEET_HEADERS)
         all_rows.extend(_prepare_rows(records, _language_from_name(tab_name), tab_name))
 
     return _write_csv(all_rows, out_dir)

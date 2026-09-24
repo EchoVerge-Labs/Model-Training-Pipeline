@@ -9,6 +9,12 @@ def test_params_loads():
     assert p.pretrain.precision == "bf16"
 
 
+def test_cluster_config_loads_and_matches_labels_path():
+    p = Params.from_yaml("params.yaml")
+    assert p.cluster.num_clusters > 0
+    assert p.pretrain.labels_path == p.cluster.labels_output
+
+
 def test_language_mix_sums_to_one():
     p = Params.from_yaml("params.yaml")
     total = sum(p.select.language_mix.values())

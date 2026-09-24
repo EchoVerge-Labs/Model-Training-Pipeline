@@ -41,38 +41,38 @@ class MLflowLogger:
             mlflow.end_run()
 
 
-class CodebookCollapseDetector:
-    """Monitor codebook perplexity and warn on collapse.
+class MaskedAccuracyStallDetector:
+    """Monitor masked-prediction accuracy and kill the run if it never rises
+    above the random-guess floor.
 
-    Codebook collapse is the classic failure of wav2vec2 pre-training:
-    perplexity falls, contrastive loss looks fine, representations are garbage.
+    For HuBERT's masked cluster-id prediction, a model that isn't learning
+    anything sits at ~1/num_clusters accuracy indefinitely -- the equivalent
+    of wav2vec2's codebook-collapse failure mode for this objective.
     """
 
-    def __init__(self, num_codebooks: int = 2, alert_threshold: float = 10.0):
-        self.num_codebooks = num_codebooks
-        self.alert_threshold = alert_threshold
+    def __init__(self, num_clusters: int, alert_margin: float = 1.5):
+        self.floor = alert_margin / max(num_clusters, 1)
         self.consecutive_low = 0
         self.max_consecutive_before_kill = 500
 
-    def check(self, perplexity: float, step: int) -> bool:
-        """Returns True if training should continue, False if collapse detected."""
-        if perplexity < self.alert_threshold:
+    def check(self, accuracy: float, step: int) -> bool:
+        """Returns True if training should continue, False if stalled."""
+        if accuracy < self.floor:
             self.consecutive_low += 1
             if self.consecutive_low >= self.max_consecutive_before_kill:
                 print(f"\n{'=' * 60}")
-                print(f"CODEBOOK COLLAPSE DETECTED at step {step}")
+                print(f"MASKED-PREDICTION ACCURACY STALLED at step {step}")
                 print(
-                    f"Perplexity {perplexity:.2f} has been below {self.alert_threshold} "
-                    f"for {self.consecutive_low} consecutive steps."
+                    f"Accuracy {accuracy:.4f} has stayed near the random-guess floor "
+                    f"({self.floor:.4f}) for {self.consecutive_low} consecutive checks."
                 )
-                print("The codebook is not being used effectively.")
                 print("Recommended: lower the learning rate or check masking config.")
                 print(f"{'=' * 60}\n")
                 return False
             elif self.consecutive_low % 100 == 0:
                 warnings.warn(
-                    f"Step {step}: Codebook perplexity {perplexity:.2f} below threshold "
-                    f"({self.alert_threshold}) for {self.consecutive_low} steps"
+                    f"Step {step}: masked accuracy {accuracy:.4f} near floor "
+                    f"({self.floor:.4f}) for {self.consecutive_low} checks"
                 )
         else:
             self.consecutive_low = 0

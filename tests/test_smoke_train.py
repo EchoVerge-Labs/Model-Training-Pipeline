@@ -1,17 +1,16 @@
-"""Smoke test: 3 training steps with a tiny random model on CPU."""
+"""Smoke test: 3 masked-prediction training steps with a tiny random HuBERT on CPU."""
 
 import torch
-from transformers import HubertConfig, HubertForPreTraining
+from torch import nn
+from transformers import HubertConfig
 
-from pipeline.train import (
-    compute_mask_and_negatives,
-    get_gumbel_temperature,
-    get_tri_stage_lr,
-    multiply_grads,
-)
+from pipeline.hubert_model import HubertForMaskedPrediction
+from pipeline.train import compute_mask, get_tri_stage_lr
+
+NUM_CLUSTERS = 8
 
 
-def _tiny_model() -> HubertForPreTraining:
+def _tiny_model() -> HubertForMaskedPrediction:
     config = HubertConfig(
         hidden_size=32,
         num_hidden_layers=2,
@@ -20,12 +19,8 @@ def _tiny_model() -> HubertForPreTraining:
         conv_dim=(32, 32),
         conv_kernel=(10, 3),
         conv_stride=(5, 2),
-        num_codevectors_per_group=32,
-        num_codevector_groups=2,
-        codevector_dim=32,
-        proj_codevector_dim=32,
     )
-    return HubertForPreTraining(config)
+    return HubertForMaskedPrediction.from_config(config, num_clusters=NUM_CLUSTERS)
 
 
 def test_tri_stage_lr():
@@ -51,16 +46,17 @@ def test_tri_stage_lr():
     assert lr_end < peak * 0.05  # at least 20x reduction
 
 
-def test_mask_and_negatives_shape():
-    """compute_mask_and_negatives wraps transformers' own _compute_mask_indices /
-    _sample_negative_indices against a real model's feature-extractor output
-    length -- exercise it against the tiny model, not a bare shape tuple."""
+def test_compute_mask_shape():
+    """compute_mask wraps transformers' own _compute_mask_indices against a
+    real model's feature-extractor output length -- exercise it against the
+    tiny model, not a bare shape tuple. Must return a bool tensor: HubertModel
+    indexes hidden_states[mask_time_indices] directly with no dtype cast."""
     model = _tiny_model()
     batch_size = 4
     input_values = torch.randn(batch_size, 16000)
     attention_mask = torch.ones(batch_size, 16000, dtype=torch.long)
 
-    mask_time_indices, sampled_negative_indices, sub_attention_mask = compute_mask_and_negatives(
+    mask_time_indices, sub_attention_mask = compute_mask(
         model,
         input_values,
         attention_mask,
@@ -71,46 +67,31 @@ def test_mask_and_negatives_shape():
 
     seq_length = int(model._get_feat_extract_output_lengths(input_values.shape[-1]))
     assert mask_time_indices.shape == (batch_size, seq_length)
-    assert mask_time_indices.dtype == torch.long
+    assert mask_time_indices.dtype == torch.bool
     # Should have some masked and some unmasked
-    assert mask_time_indices.bool().any()
-    assert not mask_time_indices.bool().all()
+    assert mask_time_indices.any()
+    assert not mask_time_indices.all()
 
-    assert sampled_negative_indices.shape[:2] == (batch_size, seq_length)
     assert sub_attention_mask.shape == (batch_size, seq_length)
 
 
-def test_gumbel_temperature():
-    t0 = get_gumbel_temperature(0, max_temp=1.0, min_temp=0.5, decay=0.999)
-    t100 = get_gumbel_temperature(100, max_temp=1.0, min_temp=0.5, decay=0.999)
-    t_big = get_gumbel_temperature(100000, max_temp=1.0, min_temp=0.5, decay=0.999)
-
-    assert t0 == 1.0
-    assert t100 < 1.0
-    assert t_big == 0.5  # clamped to min
-
-
 def test_smoke_forward():
-    """Run 3 forward+backward steps on a tiny random HuBERT.
-
-    mask_time_indices and sampled_negative_indices are both required --
-    HubertForPreTraining.forward() returns loss=None without
-    sampled_negative_indices (see its docstring: "Required input for
-    pre-training"), so this exercises the same path train.py's training loop
-    depends on, not just a bare forward call.
-    """
+    """Run 3 forward+backward steps on a tiny random HuBERT against synthetic
+    cluster-id targets -- the actual objective HuBERT pretrains on (masked
+    cross-entropy against k-means pseudo-labels), not wav2vec2's contrastive
+    loss."""
     model = _tiny_model()
     model.train()
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4)
+    loss_fn = nn.CrossEntropyLoss(ignore_index=-100)
 
-    for step in range(3):
+    for _step in range(3):
         # ~1 second of 16kHz audio
         x = torch.randn(2, 16000)
         mask = torch.ones(2, 16000, dtype=torch.long)
 
-        model.set_gumbel_temperature(get_gumbel_temperature(step, 1.0, 0.5, 0.999))
-        mask_time_indices, sampled_negative_indices, _ = compute_mask_and_negatives(
+        mask_time_indices, _ = compute_mask(
             model,
             x,
             mask,
@@ -119,18 +100,15 @@ def test_smoke_forward():
             device=torch.device("cpu"),
         )
 
-        out = model(
-            x,
-            attention_mask=mask,
-            mask_time_indices=mask_time_indices,
-            sampled_negative_indices=sampled_negative_indices,
-        )
-        assert out.loss is not None
-        assert out.loss.requires_grad
-        out.loss.backward()
+        logits = model(x, attention_mask=mask, mask_time_indices=mask_time_indices)
+        assert logits.shape == (*mask_time_indices.shape, NUM_CLUSTERS)
 
-        num_losses = mask_time_indices.sum().clamp(min=1)
-        multiply_grads([p for p in model.parameters() if p.requires_grad], 1.0 / num_losses)
+        target = torch.randint(0, NUM_CLUSTERS, mask_time_indices.shape)
+        target[~mask_time_indices] = -100
+
+        loss = loss_fn(logits.transpose(1, 2), target)
+        assert loss.requires_grad
+        loss.backward()
 
         optimizer.step()
         optimizer.zero_grad()

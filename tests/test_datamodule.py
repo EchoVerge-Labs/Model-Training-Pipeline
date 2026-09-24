@@ -1,5 +1,7 @@
 """datamodule: seconds-budgeted batches from Shar shards, no clip dropped or duplicated."""
 
+import gzip
+import json
 import random
 
 import numpy as np
@@ -10,7 +12,7 @@ import soundfile as sf
 import torch
 from lhotse import CutSet, MonoCut, Recording
 
-from pipeline.datamodule import SAMPLE_RATE, create_dataloader, pack_batches
+from pipeline.datamodule import SAMPLE_RATE, create_dataloader, load_labels, pack_batches, pad_batch
 from pipeline.shard import shard_cuts
 
 
@@ -95,3 +97,47 @@ def test_too_few_shards_for_the_workers_is_a_clear_error(tmp_path):
     shars = _make_shars(tmp_path, DURATIONS[:6], shard_size=6)  # a single shard
     with pytest.raises(ValueError, match="at least 4"):
         create_dataloader(str(shars), per_device_max_seconds=12.0, num_workers=4)
+
+
+def test_pad_batch_labels_are_padded_with_ignore_index():
+    waves = [torch.zeros(3), torch.zeros(5)]
+    label_seqs = [[1, 2], [3, 4, 5]]
+    batch = pad_batch(waves, label_seqs)
+    assert batch["labels"].shape == (2, 3)
+    assert batch["labels"][0].tolist() == [1, 2, -100]
+    assert batch["labels"][1].tolist() == [3, 4, 5]
+
+
+def test_load_labels_reads_gzip_jsonl(tmp_path):
+    path = tmp_path / "labels.jsonl.gz"
+    with gzip.open(path, "wt", encoding="utf-8") as f:
+        f.write(json.dumps({"id": "a", "labels": [1, 2, 3]}) + "\n")
+        f.write(json.dumps({"id": "b", "labels": [4, 5]}) + "\n")
+    labels_by_id = load_labels(str(path))
+    assert labels_by_id == {"a": [1, 2, 3], "b": [4, 5]}
+
+
+def test_dataloader_attaches_labels_and_missing_id_raises_clearly(tmp_path):
+    durations = [1.0, 1.0, 1.0, 1.0]
+    shars = _make_shars(tmp_path, durations, shard_size=1)  # 4 shards
+    labels_path = tmp_path / "labels.jsonl.gz"
+    with gzip.open(labels_path, "wt", encoding="utf-8") as f:
+        for i in range(len(durations)):
+            f.write(json.dumps({"id": f"c{i}", "labels": [i, i, i]}) + "\n")
+
+    loader = create_dataloader(
+        str(shars), per_device_max_seconds=12.0, num_workers=0, seed=1, labels_path=str(labels_path)
+    )
+    for batch in loader:
+        assert "labels" in batch
+        assert batch["labels"].shape[0] == batch["input_values"].shape[0]
+
+    # a labels file missing one id should fail loudly when that cut is read, not silently
+    with gzip.open(labels_path, "wt", encoding="utf-8") as f:
+        for i in range(len(durations) - 1):  # drop the last id
+            f.write(json.dumps({"id": f"c{i}", "labels": [i, i, i]}) + "\n")
+    loader = create_dataloader(
+        str(shars), per_device_max_seconds=12.0, num_workers=0, seed=1, labels_path=str(labels_path)
+    )
+    with pytest.raises(KeyError, match="no cluster labels"):
+        list(loader)

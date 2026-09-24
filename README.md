@@ -7,8 +7,16 @@ encoder from `facebook/hubert-large-ll60k`.
 ## Pipeline DAG
 
 ```
-snapshot_catalog → index_drive → select → materialise → shard → pretrain → select_checkpoint → benchmark → report
+snapshot_catalog → index_drive → select → materialise → shard → fit_kmeans → assign_cluster_labels → pretrain → select_checkpoint → benchmark → report
 ```
+
+`pretrain` is HuBERT's real objective: masked prediction of k-means
+pseudo-labels, not wav2vec2-style contrastive learning. `fit_kmeans` clusters
+MFCC frames sampled from the training set (iteration 1, per the HuBERT
+paper); `assign_cluster_labels` assigns every training cut's frames to the
+nearest centroid. `transformers` has no `HubertForPreTraining` class for a
+quantizer-based objective to even target — see `pipeline.hubert_model` for
+the masked-prediction head this pipeline trains instead.
 
 Each stage is a `dvc.yaml` target; `dvc repro` runs whatever is stale given
 `params.yaml` and each stage's declared deps. The `benchmark` stage depends
@@ -42,6 +50,8 @@ make index      # list every wav on the Drive mount (path + size) -> data/catalo
 make select     # dedupe, pin each clip to its Drive file, select train/holdout -> data/manifests/
 make pull       # copy the selected clips from the mount -> data/raw/ (same <Lang>/<genre>/... layout)
 make shard      # pack into Lhotse Shar tarballs -> data/shars/
+make fit-kmeans # fit k-means on sampled MFCC frames -> models/kmeans/
+make labels     # assign cluster-id pseudo-labels to every training cut -> data/labels/
 make train      # continued pre-training -> models/hubert-large-si-ta-200h/
 make ckpt       # proxy-eval milestone checkpoints, copy the best -> models/selected/
 make bench      # slsb run on the selected checkpoint -> reports/bench/xlsr300m_adapted/
@@ -89,18 +99,24 @@ rather than fabricating a score.
 
 `params.yaml` is the single source of truth; every stage reads its own
 section from it, and `src/pipeline/schema.py` validates the `select`,
-`shard`, and `pretrain` sections with Pydantic before any stage runs (`make
+`shard`, `cluster`, and `pretrain` sections with Pydantic before any stage
+runs (`make
 test` / CI run this validation too, so a bad config is caught before it
 wastes GPU hours).
 
 ## Known gaps
 
+- **Only iteration-1 clustering is implemented.** `fit_kmeans` /
+  `assign_cluster_labels` cluster MFCC frames, matching the HuBERT paper's
+  first pretraining round. A real HuBERT recipe re-clusters on an earlier
+  checkpoint's hidden states for iteration 2+, which usually improves label
+  quality; this pipeline doesn't do that yet.
 - **Checkpoint resumption** isn't implemented — `train.py` saves
-  `training_state.pt` (optimizer state, step, Gumbel temperature) alongside
-  each checkpoint, but there's no `--resume-from` flag yet to load it back.
-  If a run crashes, restart manually by pointing `pretrain.base_model` at the
-  last checkpoint dir (note: this restarts the LR/Gumbel schedule from step 0
-  relative to the new run, which is not the same as a true resume).
+  `training_state.pt` (optimizer state, step) alongside each checkpoint, but
+  there's no `--resume-from` flag yet to load it back. If a run crashes,
+  restart manually by pointing `pretrain.base_model` at the last checkpoint
+  dir (note: this restarts the LR schedule from step 0 relative to the new
+  run, which is not the same as a true resume).
 - **`scripts/run_benchmark.sh`** exists to bridge slsb's real output filename
   (`results_<upstream-with-/-as-__>.json`) to the fixed `metrics.json` path
   `dvc.yaml` and `report.py` expect — see that script's header comment.

@@ -14,5 +14,7 @@ dvc-s3
 lhotse
 gspread
 google-auth
+scikit-learn
+joblib
 ruff
 pytest

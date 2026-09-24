@@ -23,6 +23,20 @@ shard:
   max_cut_seconds: 30.0       # split longer clips into equal windows of at most this
   output_dir: data/shars
 
+# ── Iteration-1 k-means pseudo-labels ────────────────
+# HuBERT's real pretraining target: cluster ids from 39-dim MFCC frames
+# (13 coeffs + delta + delta-delta), fit on a sample of the training set and
+# assigned to every training cut. See pipeline.fit_kmeans / .assign_cluster_labels.
+# Iteration 2+ (re-clustering on an earlier checkpoint's hidden states) is
+# not implemented -- see README "Known gaps".
+cluster:
+  num_clusters: 100
+  seed: 1337
+  sample_hours: 20.0          # ~10% of the 200h corpus, for the k-means fit
+  n_mfcc: 13                  # + delta + delta-delta = 39-dim features
+  kmeans_output: models/kmeans/km_model.joblib
+  labels_output: data/labels/train_labels.jsonl.gz
+
 # ── Pre-training ────────────────────────────────────
 pretrain:
   base_model: facebook/hubert-large-ll60k
@@ -45,15 +59,11 @@ pretrain:
   per_device_max_seconds: 200
   num_workers: 4
 
-  # wav2vec2 masking
+  # HuBERT masking (SpecAugment-style, applied by HubertModel itself)
   mask_time_prob: 0.65
   mask_time_length: 10
 
-  # Gumbel quantizer
-  diversity_loss_weight: 0.1
-  max_gumbel_temperature: 1.0
-  min_gumbel_temperature: 0.5
-  gumbel_temperature_decay: 0.999995
+  labels_path: data/labels/train_labels.jsonl.gz
 
   # checkpointing
   save_every_updates: 1500

@@ -109,8 +109,19 @@ def build_path_lookup(index: list[tuple[str, int]]) -> dict[tuple, list[str]]:
     return lookup
 
 
+def build_name_lookup(index: list[tuple[str, int]]) -> dict[tuple, list[str]]:
+    """Build a fallback lookup for catalogs that do not contain file sizes."""
+    lookup: dict[tuple, list[str]] = defaultdict(list)
+    for rel, _size in index:
+        parts = rel.split("/")
+        if len(parts) < 4:
+            continue
+        lookup[(parts[0].lower(), parts[1], parts[-1])].append(rel)
+    return lookup
+
+
 def resolve_paths(
-    segments: list[Segment], lookup: dict[tuple, list[str]]
+    segments: list[Segment], lookup: dict[tuple, list[str]], name_lookup=None
 ) -> tuple[list[Segment], list[tuple[Segment, str]]]:
     """Attach each segment's Drive relpath. Rows that can't be pinned to exactly
     one file are set aside with a reason -- never guessed:
@@ -121,6 +132,8 @@ def resolve_paths(
     resolved, unresolved, used = [], [], set()
     for s in segments:
         candidates = lookup.get((s.language.lower(), s.genre, s.filename, s.size_bytes), [])
+        if not candidates and not s.size_bytes and name_lookup is not None:
+            candidates = name_lookup.get((s.language.lower(), s.genre, s.filename), [])
         if not candidates:
             unresolved.append((s, "no_match"))
         elif len(candidates) > 1:
@@ -414,7 +427,12 @@ def main():
     if not index_path.exists():
         print(f"ERROR: {index_path} not found -- run `python -m pipeline.drive_index` first")
         sys.exit(1)
-    segments, unresolved = resolve_paths(segments, build_path_lookup(load_index(index_path)))
+    drive_index = load_index(index_path)
+    segments, unresolved = resolve_paths(
+        segments,
+        build_path_lookup(drive_index),
+        build_name_lookup(drive_index),
+    )
     write_unresolved(unresolved, Path("reports/unresolved_clips.csv"))
     reasons = [reason for _, reason in unresolved]
     cleaning = {

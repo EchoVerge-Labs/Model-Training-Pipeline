@@ -73,15 +73,53 @@ stages:
     outs:
       - data/shars/
 
+  fit_kmeans:
+    cmd: python -m pipeline.fit_kmeans --config params.yaml
+    deps:
+      - src/pipeline/fit_kmeans.py
+      - src/pipeline/mfcc_features.py
+      - src/pipeline/shard.py
+      - data/raw/
+      - data/manifests/train.jsonl
+    params:
+      - cluster
+      - shard
+      - pretrain.base_model
+    outs:
+      - models/kmeans/km_model.joblib:
+          persist: true
+    metrics:
+      - reports/kmeans_stats.json:
+          cache: false
+
+  assign_cluster_labels:
+    cmd: python -m pipeline.assign_cluster_labels --config params.yaml
+    deps:
+      - src/pipeline/assign_cluster_labels.py
+      - src/pipeline/mfcc_features.py
+      - models/kmeans/km_model.joblib
+      - data/raw/
+      - data/manifests/train.jsonl
+    params:
+      - cluster
+      - shard
+      - pretrain.base_model
+    outs:
+      - data/labels/train_labels.jsonl.gz:
+          persist: true
+
   pretrain:
     cmd: bash scripts/launch_pretrain.sh
     deps:
       - src/pipeline/train.py
       - src/pipeline/datamodule.py
       - src/pipeline/callbacks.py
+      - src/pipeline/hubert_model.py
       - data/shars/
+      - data/labels/train_labels.jsonl.gz
     params:
       - pretrain
+      - cluster.num_clusters
     outs:
       - models/hubert-large-si-ta-200h/:
           persist: true

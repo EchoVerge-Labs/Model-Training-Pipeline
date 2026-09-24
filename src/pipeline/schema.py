@@ -54,6 +54,15 @@ class ShardConfig(BaseModel):
         return self
 
 
+class ClusterConfig(BaseModel):
+    num_clusters: int = Field(gt=0)
+    seed: int
+    sample_hours: float = Field(gt=0)
+    n_mfcc: int = Field(gt=0)
+    kmeans_output: str
+    labels_output: str
+
+
 class PretrainConfig(BaseModel):
     base_model: str
     precision: Literal["bf16", "fp16", "fp32"] = "bf16"
@@ -77,10 +86,7 @@ class PretrainConfig(BaseModel):
     mask_time_prob: float = Field(ge=0, le=1)
     mask_time_length: int = Field(gt=0)
 
-    diversity_loss_weight: float = Field(ge=0)
-    max_gumbel_temperature: float = Field(gt=0)
-    min_gumbel_temperature: float = Field(gt=0)
-    gumbel_temperature_decay: float = Field(gt=0, le=1)
+    labels_path: str
 
     save_every_updates: int = Field(gt=0)
     eval_every_updates: int = Field(gt=0)
@@ -105,6 +111,7 @@ class PretrainConfig(BaseModel):
 class Params(BaseModel):
     select: SelectConfig
     shard: ShardConfig
+    cluster: ClusterConfig
     pretrain: PretrainConfig
 
     @classmethod
