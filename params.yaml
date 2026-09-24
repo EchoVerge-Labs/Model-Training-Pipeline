@@ -44,6 +44,7 @@ pretrain:
   target_batch_seconds: 1600
   per_device_max_seconds: 200
   num_workers: 4
+  max_gpu_memory_fraction: 0.8  # GB10 unified memory: leave ~24GB for the OS / sshd
 
   # wav2vec2 masking
   mask_time_prob: 0.65

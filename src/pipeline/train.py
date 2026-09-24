@@ -40,6 +40,12 @@ import shutil
 import time
 from pathlib import Path
 
+# Must be set before torch initialises CUDA. Batches vary in shape every step, and
+# with the default allocator the cache fragments and keeps growing (measured: 46GB
+# live -> 75GB+ reserved within ~20 micro-batches). On GB10's unified memory that
+# growth eats system RAM until the host locks up. Expandable segments hold it flat.
+os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+
 import torch
 import torch.distributed as dist
 import yaml
@@ -378,6 +384,8 @@ def train(
         torch.cuda.set_device(local_rank)
 
     device = torch.device(device or (f"cuda:{local_rank}" if torch.cuda.is_available() else "cpu"))
+    if device.type == "cuda":
+        torch.cuda.set_per_process_memory_fraction(cfg.max_gpu_memory_fraction, device)
 
     # ── Output dir + resume ──
     output_dir = Path(cfg.output_dir)
