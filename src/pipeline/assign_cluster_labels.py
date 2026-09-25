@@ -1,4 +1,4 @@
-"""Assign k-means cluster ids to every training cut's MFCC frames -- the
+"""Assign k-means cluster ids to every training cut's layer features -- the
 masked-prediction targets pipeline.train reads via pretrain.labels_path.
 
 Usage:
@@ -11,24 +11,23 @@ import json
 from pathlib import Path
 
 import joblib
+import torch
 
-from pipeline.mfcc_features import (
-    SAMPLE_RATE,
-    cut_target_length,
-    default_hubert_config,
-    extract_mfcc_aligned,
+from pipeline.layer_features import (
+    base_normalizes,
+    layer_features,
+    load_feature_model,
     load_final_train_cuts,
     load_waveform,
 )
 from pipeline.schema import Params
 
 
-def assign_cut(cut, km, config, n_mfcc: int) -> list[int]:
-    target_length = cut_target_length(config, cut)
-    if target_length <= 0:
+def assign_cut(cut, km, extract) -> list[int]:
+    """Nearest-centroid cluster id per frame, from extract(waveform) -> (T', D)."""
+    feats = extract(load_waveform(cut))
+    if len(feats) == 0:
         return []
-    waveform = load_waveform(cut)
-    feats = extract_mfcc_aligned(waveform, SAMPLE_RATE, target_length, n_mfcc)
     return km.predict(feats).astype(int).tolist()
 
 
@@ -41,7 +40,13 @@ def main():
     cfg = params.cluster
 
     km = joblib.load(cfg.kmeans_output)
-    config = default_hubert_config(params.pretrain.base_model)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = load_feature_model(params.pretrain.base_model, cfg.layer, device)
+    normalize = base_normalizes(params.pretrain.base_model)
+
+    def extract(waveform):
+        return layer_features(model, waveform, normalize, device)
+
     cuts = load_final_train_cuts(params)
     print(f"Assigning cluster labels to {len(cuts)} cuts")
 
@@ -50,7 +55,7 @@ def main():
     n_empty = 0
     with gzip.open(out_path, "wt", encoding="utf-8") as f:
         for i, cut in enumerate(cuts):
-            labels = assign_cut(cut, km, config, cfg.n_mfcc)
+            labels = assign_cut(cut, km, extract)
             if not labels:
                 n_empty += 1
                 continue

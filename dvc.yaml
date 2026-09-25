@@ -77,7 +77,8 @@ stages:
     cmd: python -m pipeline.fit_kmeans --config params.yaml
     deps:
       - src/pipeline/fit_kmeans.py
-      - src/pipeline/mfcc_features.py
+      - src/pipeline/layer_features.py
+      - src/pipeline/datamodule.py
       - src/pipeline/shard.py
       - data/raw/
       - data/manifests/train.jsonl
@@ -96,7 +97,8 @@ stages:
     cmd: python -m pipeline.assign_cluster_labels --config params.yaml
     deps:
       - src/pipeline/assign_cluster_labels.py
-      - src/pipeline/mfcc_features.py
+      - src/pipeline/layer_features.py
+      - src/pipeline/datamodule.py
       - models/kmeans/km_model.joblib
       - data/raw/
       - data/manifests/train.jsonl
@@ -115,6 +117,7 @@ stages:
       - src/pipeline/datamodule.py
       - src/pipeline/callbacks.py
       - src/pipeline/hubert_model.py
+      - src/pipeline/checkpoints.py
       - data/shars/
       - data/labels/train_labels.jsonl.gz
     params:
@@ -150,7 +153,7 @@ stages:
       models/selected
       ${benchmark.tasks}
       ${benchmark.seeds}
-      reports/bench/xlsr300m_adapted
+      reports/bench/hubert_large_adapted
       ${benchmark.mlflow_uri}
     deps:
       - models/selected/
@@ -159,7 +162,7 @@ stages:
       - benchmark.tasks
       - benchmark.seeds
     metrics:
-      - reports/bench/xlsr300m_adapted/metrics.json:
+      - reports/bench/hubert_large_adapted/metrics.json:
           cache: false
 
   report:

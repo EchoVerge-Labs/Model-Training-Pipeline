@@ -1,5 +1,5 @@
-"""fit_kmeans / assign_cluster_labels: MFCC -> k-means -> per-cut pseudo-labels,
-on synthetic audio (needs lhotse)."""
+"""fit_kmeans / assign_cluster_labels: layer features of a (tiny, random)
+HuBERT -> k-means -> per-cut pseudo-labels, on synthetic audio (needs lhotse)."""
 
 import json
 
@@ -9,23 +9,25 @@ import pytest
 pytest.importorskip("lhotse")
 import joblib
 import soundfile as sf
-from sklearn.cluster import MiniBatchKMeans
-from transformers import HubertConfig
+import torch
+from transformers import HubertConfig, HubertModel
 
 from pipeline.assign_cluster_labels import assign_cut
-from pipeline.fit_kmeans import collect_frames, sample_cuts
-from pipeline.mfcc_features import load_final_train_cuts
+from pipeline.fit_kmeans import collect_frames, fit_kmeans, sample_cuts
+from pipeline.layer_features import layer_features, load_final_train_cuts, truncate_to_layer
 from pipeline.schema import ClusterConfig, Params, PretrainConfig, SelectConfig, ShardConfig
 
 TINY_CONFIG = HubertConfig(
     hidden_size=16,
-    num_hidden_layers=1,
+    num_hidden_layers=3,
     num_attention_heads=2,
     intermediate_size=32,
     conv_dim=(16, 16),
     conv_kernel=(10, 3),
     conv_stride=(5, 2),
+    do_stable_layer_norm=True,
 )
+CPU = torch.device("cpu")
 
 
 def _make(tmp_path, clips):
@@ -76,10 +78,11 @@ def _params():
             output_dir="unused",
         ),
         cluster=ClusterConfig(
+            layer=2,
             num_clusters=4,
             seed=1,
             sample_hours=1.0,
-            n_mfcc=13,
+            max_frames=10_000,
             kmeans_output="unused",
             labels_output="unused",
         ),
@@ -122,6 +125,34 @@ def test_load_final_train_cuts_matches_shard_ids(tmp_path):
     assert any(cid.startswith("concat-") for cid in ids)  # the 6 short clips got merged
 
 
+def _feature_model():
+    torch.manual_seed(0)
+    model = HubertModel(TINY_CONFIG)
+    return truncate_to_layer(model, 2).eval()
+
+
+def test_truncate_to_layer_gives_the_raw_output_of_that_layer():
+    """For the pre-LN (large) encoder the full model's hidden_states[N] is the
+    raw output of layer N; the truncated model must return exactly that, not
+    the LayerNorm'd one."""
+    torch.manual_seed(0)
+    full = HubertModel(TINY_CONFIG).eval()
+    x = torch.randn(1, 8000)
+    with torch.no_grad():
+        expected = full(x, output_hidden_states=True).hidden_states[2]
+        truncated = truncate_to_layer(full, 2)
+        got = truncated(x).last_hidden_state
+    assert len(truncated.encoder.layers) == 2
+    torch.testing.assert_close(got, expected)
+
+
+def test_layer_features_frame_count_matches_the_training_side_arithmetic():
+    model = _feature_model()
+    for n_samples in (8000, 16001, 24123):
+        feats = layer_features(model, torch.randn(n_samples), True, CPU)
+        assert feats.shape == (int(model._get_feat_extract_output_lengths(n_samples)), 16)
+
+
 def test_fit_and_assign_labels_round_trip(tmp_path):
     manifest, raw = _make(
         tmp_path,
@@ -137,15 +168,42 @@ def test_fit_and_assign_labels_round_trip(tmp_path):
     sampled = sample_cuts(cuts, sample_hours=params.cluster.sample_hours, seed=params.cluster.seed)
     assert 0 < len(sampled) <= len(cuts)
 
-    features = collect_frames(sampled, TINY_CONFIG, n_mfcc=params.cluster.n_mfcc)
-    assert features.shape[1] == 3 * params.cluster.n_mfcc
+    model = _feature_model()
 
-    km = MiniBatchKMeans(n_clusters=4, random_state=0, n_init="auto").fit(features)
+    def extract(waveform):
+        return layer_features(model, waveform, True, CPU)
+
+    features = collect_frames(sampled, extract, max_frames=params.cluster.max_frames, seed=1)
+    assert features.shape[1] == TINY_CONFIG.hidden_size
+
+    km = fit_kmeans(features, num_clusters=4, seed=0)
     km_path = tmp_path / "km.joblib"
     joblib.dump(km, km_path)
     km = joblib.load(km_path)
 
     for cut in cuts:
-        labels = assign_cut(cut, km, TINY_CONFIG, n_mfcc=params.cluster.n_mfcc)
-        assert len(labels) > 0
+        labels = assign_cut(cut, km, extract)
+        # one label per CNN frame of the audio the dataloader will feed the model
+        n_samples = len(cut.load_audio()[0])
+        assert len(labels) == int(model._get_feat_extract_output_lengths(n_samples))
         assert all(0 <= label < 4 for label in labels)
+
+
+def test_collect_frames_caps_the_frame_count():
+    model = _feature_model()
+    waves = [torch.randn(16000) for _ in range(5)]
+
+    class Cut:
+        def __init__(self, w):
+            self.w, self.duration = w, 1.0
+
+        def load_audio(self):
+            return self.w.numpy()[None]
+
+    feats = collect_frames(
+        [Cut(w) for w in waves],
+        lambda w: layer_features(model, w, True, CPU),
+        max_frames=100,
+        seed=0,
+    )
+    assert 0 < len(feats) <= 100

@@ -1,5 +1,6 @@
-"""Fit k-means on MFCC frames sampled from the training set -- HuBERT
-iteration-1 pseudo-label targets.
+"""Fit k-means on layer features of the pretrained model, sampled from the
+training set -- the cluster centroids that define HuBERT's masked-prediction
+targets (see pipeline.layer_features).
 
 Usage:
   python -m pipeline.fit_kmeans --config params.yaml
@@ -12,17 +13,19 @@ from pathlib import Path
 
 import joblib
 import numpy as np
+import torch
 from sklearn.cluster import MiniBatchKMeans
 
-from pipeline.mfcc_features import (
-    SAMPLE_RATE,
-    cut_target_length,
-    default_hubert_config,
-    extract_mfcc_aligned,
+from pipeline.layer_features import (
+    base_normalizes,
+    layer_features,
+    load_feature_model,
     load_final_train_cuts,
     load_waveform,
 )
 from pipeline.schema import Params
+
+FRAMES_PER_SECOND = 50  # HubertModel's CNN stride: 320 samples at 16 kHz
 
 
 def sample_cuts(cuts, sample_hours: float, seed: int) -> list:
@@ -40,17 +43,38 @@ def sample_cuts(cuts, sample_hours: float, seed: int) -> list:
     return sampled
 
 
-def collect_frames(cuts, config, n_mfcc: int) -> np.ndarray:
+def collect_frames(cuts, extract, max_frames: int, seed: int) -> np.ndarray:
+    """Features of every sampled cut via extract(waveform) -> (T', D), randomly
+    thinned so about max_frames survive (fairseq HuBERT clusters a sample of
+    frames, not all of them)."""
+    rng = np.random.default_rng(seed)
+    total_frames = sum(c.duration for c in cuts) * FRAMES_PER_SECOND
+    keep_fraction = min(1.0, max_frames / max(total_frames, 1.0))
     frames = []
     for cut in cuts:
-        target_length = cut_target_length(config, cut)
-        if target_length <= 0:
-            continue
-        waveform = load_waveform(cut)
-        frames.append(extract_mfcc_aligned(waveform, SAMPLE_RATE, target_length, n_mfcc))
+        feats = extract(load_waveform(cut))
+        n_keep = min(len(feats), max(1, round(len(feats) * keep_fraction)))
+        frames.append(feats[rng.choice(len(feats), size=n_keep, replace=False)])
     if not frames:
-        raise RuntimeError("no MFCC frames collected -- check the sampled cuts")
-    return np.concatenate(frames, axis=0)
+        raise RuntimeError("no frames collected -- check the sampled cuts")
+    features = np.concatenate(frames, axis=0)
+    if len(features) > max_frames:
+        features = features[rng.choice(len(features), size=max_frames, replace=False)]
+    return features
+
+
+def fit_kmeans(features: np.ndarray, num_clusters: int, seed: int) -> MiniBatchKMeans:
+    """Same settings as fairseq's HuBERT learn_kmeans.py."""
+    km = MiniBatchKMeans(
+        n_clusters=num_clusters,
+        init="k-means++",
+        batch_size=10000,
+        n_init=20,
+        max_no_improvement=100,
+        reassignment_ratio=0.0,
+        random_state=seed,
+    )
+    return km.fit(features)
 
 
 def main():
@@ -60,6 +84,7 @@ def main():
 
     params = Params.from_yaml(args.config)
     cfg = params.cluster
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     cuts = load_final_train_cuts(params)
     sampled = sample_cuts(cuts, cfg.sample_hours, cfg.seed)
@@ -68,17 +93,18 @@ def main():
         f"Sampled {len(sampled)} cuts ({sampled_hours:.1f}h) of {len(cuts)} total for k-means fit"
     )
 
-    config = default_hubert_config(params.pretrain.base_model)
-    features = collect_frames(sampled, config, cfg.n_mfcc)
-    print(f"Collected {features.shape[0]} MFCC frames, dim={features.shape[1]}")
-
-    km = MiniBatchKMeans(
-        n_clusters=cfg.num_clusters,
-        random_state=cfg.seed,
-        batch_size=max(1024, cfg.num_clusters * 10),
-        n_init="auto",
+    model = load_feature_model(params.pretrain.base_model, cfg.layer, device)
+    normalize = base_normalizes(params.pretrain.base_model)
+    features = collect_frames(
+        sampled,
+        lambda w: layer_features(model, w, normalize, device),
+        cfg.max_frames,
+        cfg.seed,
     )
-    km.fit(features)
+    model = None  # free the feature model (GPU memory) before k-means
+    print(f"Collected {features.shape[0]} frames of layer {cfg.layer}, dim={features.shape[1]}")
+
+    km = fit_kmeans(features, cfg.num_clusters, cfg.seed)
 
     out_path = Path(cfg.kmeans_output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -87,6 +113,7 @@ def main():
 
     _, counts = np.unique(km.labels_, return_counts=True)
     stats = {
+        "layer": cfg.layer,
         "num_clusters": cfg.num_clusters,
         "frames_used": int(features.shape[0]),
         "sampled_cuts": len(sampled),

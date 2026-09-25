@@ -23,17 +23,18 @@ shard:
   max_cut_seconds: 30.0       # split longer clips into equal windows of at most this
   output_dir: data/shars
 
-# ── Iteration-1 k-means pseudo-labels ────────────────
-# HuBERT's real pretraining target: cluster ids from 39-dim MFCC frames
-# (13 coeffs + delta + delta-delta), fit on a sample of the training set and
-# assigned to every training cut. See pipeline.fit_kmeans / .assign_cluster_labels.
-# Iteration 2+ (re-clustering on an earlier checkpoint's hidden states) is
-# not implemented -- see README "Known gaps".
+# ── k-means pseudo-labels (HuBERT masked-prediction targets) ──
+# Cluster ids come from ONE transformer layer of the ORIGINAL pretrained
+# checkpoint (pretrain.base_model), run once offline over the training audio:
+# k-means on layer-`layer` frames, then every frame -> its nearest centroid.
+# Training then continues that same model against these ids. Not distillation.
+# See pipeline.layer_features / .fit_kmeans / .assign_cluster_labels.
 cluster:
-  num_clusters: 100
+  layer: 18                   # 3/4 of the way through the 24 layers of HuBERT Large
+  num_clusters: 500           # fairseq HuBERT iteration >= 2
   seed: 1337
-  sample_hours: 20.0          # ~10% of the 200h corpus, for the k-means fit
-  n_mfcc: 13                  # + delta + delta-delta = 39-dim features
+  sample_hours: 40.0          # audio streamed for the k-means fit
+  max_frames: 2000000         # frames kept for the fit (2M x 1024 fp32 = ~8 GB RAM)
   kmeans_output: models/kmeans/km_model.joblib
   labels_output: data/labels/train_labels.jsonl.gz
 
@@ -42,6 +43,7 @@ pretrain:
   base_model: facebook/hubert-large-ll60k
   precision: bf16
   freeze_feature_encoder: true
+  layerdrop: 0.0              # HubertModel's stock 0.1 breaks DDP (unused params per step)
 
   max_updates: 13500          # ~30 passes over 200h (was 50000 / 111 passes)
   warmup_updates: 1000        # ~8% (was 4000)
@@ -53,14 +55,16 @@ pretrain:
   adam_eps: 1.0e-6
   weight_decay: 0.01
   max_grad_norm: 1.0
+  head_lr_mult: 10.0          # the masked-prediction head starts random
 
   # batch size in AUDIO SECONDS (not examples)
   target_batch_seconds: 1600
   per_device_max_seconds: 200
   num_workers: 4
 
-  # HuBERT masking (SpecAugment-style, applied by HubertModel itself)
-  mask_time_prob: 0.65
+  # HuBERT masking (SpecAugment-style, applied by HubertModel itself);
+  # 0.8 is fairseq HuBERT's mask_prob (~65% of frames end up masked)
+  mask_time_prob: 0.8
   mask_time_length: 10
 
   labels_path: data/labels/train_labels.jsonl.gz
@@ -96,9 +100,9 @@ benchmark:
     wavlm_large:
       path: microsoft/wavlm-large
       name: "WavLM Large"
-    xlsr300m_adapted:
+    hubert_large_adapted:
       path: models/selected
-      name: "XLS-R 300M (Si/Ta 200h)"
+      name: "HuBERT Large (Si/Ta 200h)"
       is_local: true
 
 # ── MLflow ──────────────────────────────────────────

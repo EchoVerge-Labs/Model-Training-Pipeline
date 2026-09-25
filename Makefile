@@ -47,7 +47,7 @@ pull:  ## copy the selected clips from the Drive mount to data/raw/
 shard:  ## shard WAVs into Lhotse Shar tarballs
 	$(PYTHON) -m pipeline.shard --config params.yaml
 
-fit-kmeans:  ## fit k-means on sampled MFCC frames -> models/kmeans/
+fit-kmeans:  ## fit k-means on layer-18 features of the base model -> models/kmeans/
 	$(PYTHON) -m pipeline.fit_kmeans --config params.yaml
 
 labels:  ## assign cluster-id pseudo-labels to every training cut (needs `make fit-kmeans` first)

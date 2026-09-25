@@ -36,8 +36,23 @@ def load_labels(labels_path: str) -> dict[str, list[int]]:
     return labels_by_id
 
 
-def pad_batch(waveforms: list[torch.Tensor], label_seqs: list[list[int]] | None = None) -> dict:
+def normalize_waveform(waveform: torch.Tensor) -> torch.Tensor:
+    """Zero-mean / unit-variance over one un-padded utterance -- what
+    Wav2Vec2FeatureExtractor does when do_normalize is set (hubert-large-ll60k
+    expects it). Also used when extracting the k-means layer features, so
+    labels and training see identical inputs."""
+    return (waveform - waveform.mean()) / torch.sqrt(waveform.var(unbiased=False) + 1e-7)
+
+
+def pad_batch(
+    waveforms: list[torch.Tensor],
+    label_seqs: list[list[int]] | None = None,
+    normalize: bool = False,
+) -> dict:
     """1-D waveforms -> {"input_values": (B, T) zero-padded, "attention_mask": (B, T)}.
+
+    If normalize is set, each waveform is normalised over its own samples
+    *before* padding, so the zeros that pad it stay zero.
 
     If label_seqs is given, also returns "labels": (B, T_frames) padded with
     -100 (nn.CrossEntropyLoss's default ignore_index), one sequence per
@@ -47,6 +62,8 @@ def pad_batch(waveforms: list[torch.Tensor], label_seqs: list[list[int]] | None 
     padded = torch.zeros(len(waveforms), max_len)
     attention_mask = torch.zeros(len(waveforms), max_len, dtype=torch.long)
     for i, w in enumerate(waveforms):
+        if normalize:
+            w = normalize_waveform(w)
         padded[i, : w.shape[0]] = w
         attention_mask[i, : w.shape[0]] = 1
     batch = {"input_values": padded, "attention_mask": attention_mask}
@@ -108,6 +125,7 @@ class SharPretrainingDataset(IterableDataset):
         seed: int = 0,
         buffer_size: int = 256,
         labels_by_id: dict[str, list[int]] | None = None,
+        normalize: bool = False,
     ):
         super().__init__()
         if not HAS_LHOTSE:
@@ -118,6 +136,7 @@ class SharPretrainingDataset(IterableDataset):
         self.seed = seed
         self.buffer_size = buffer_size
         self.labels_by_id = labels_by_id
+        self.normalize = normalize
         # Advances on every __iter__. Persistent DataLoader workers keep their
         # copy of the dataset alive, so each epoch reshuffles shards differently.
         self._epoch = 0
@@ -156,7 +175,7 @@ class SharPretrainingDataset(IterableDataset):
         ):
             waveforms = [w for w, _ in batch]
             if self.labels_by_id is None:
-                yield pad_batch(waveforms)
+                yield pad_batch(waveforms, normalize=self.normalize)
                 continue
             label_seqs = []
             for _, cut_id in batch:
@@ -166,7 +185,7 @@ class SharPretrainingDataset(IterableDataset):
                         f"re-run `make labels` after the last `make shard`"
                     )
                 label_seqs.append(self.labels_by_id[cut_id])
-            yield pad_batch(waveforms, label_seqs)
+            yield pad_batch(waveforms, label_seqs, normalize=self.normalize)
 
 
 def create_dataloader(
@@ -175,11 +194,14 @@ def create_dataloader(
     num_workers: int = 4,
     seed: int = 0,
     labels_path: str | None = None,
+    normalize: bool = False,
 ) -> DataLoader:
     """DataLoader over padded batches of at most per_device_max_seconds each.
 
     labels_path, if given, is loaded once here (not per worker) and attaches a
     -100-padded "labels" tensor to each batch for masked-prediction training.
+    normalize applies per-utterance zero-mean/unit-variance (the base model's
+    do_normalize flag -- the caller reads it).
     """
     shar_dir = Path(shar_dir)
     world_size = dist.get_world_size() if dist.is_available() and dist.is_initialized() else 1
@@ -197,6 +219,7 @@ def create_dataloader(
         max_batch_seconds=per_device_max_seconds,
         seed=seed,
         labels_by_id=labels_by_id,
+        normalize=normalize,
     )
     return DataLoader(
         dataset,

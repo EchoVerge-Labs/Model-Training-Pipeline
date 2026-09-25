@@ -13,11 +13,14 @@ import torch
 from torch import nn
 from transformers import HubertConfig, HubertModel
 
+from pipeline.checkpoints import HEAD_FILE
+
 
 class HubertForMaskedPrediction(nn.Module):
-    def __init__(self, base_model: str, num_clusters: int):
+    def __init__(self, base_model: str, num_clusters: int, layerdrop: float = 0.0):
         super().__init__()
-        self.hubert = HubertModel.from_pretrained(base_model)
+        self.hubert = HubertModel.from_pretrained(base_model, layerdrop=layerdrop)
+        self._check_maskable()
         self.final_proj = nn.Linear(self.hubert.config.hidden_size, num_clusters)
 
     @classmethod
@@ -27,8 +30,21 @@ class HubertForMaskedPrediction(nn.Module):
         obj = cls.__new__(cls)
         nn.Module.__init__(obj)
         obj.hubert = HubertModel(config)
+        obj._check_maskable()
         obj.final_proj = nn.Linear(config.hidden_size, num_clusters)
         return obj
+
+    def _check_maskable(self):
+        """HubertModel only applies masked_spec_embed to mask_time_indices when
+        apply_spec_augment is on; otherwise the "masked" frames would be fed
+        through unmasked and the objective would be trivial."""
+        if not self.hubert.config.apply_spec_augment or not hasattr(
+            self.hubert, "masked_spec_embed"
+        ):
+            raise ValueError(
+                "base model has no masked_spec_embed / apply_spec_augment is off -- "
+                "masked prediction would silently see unmasked input"
+            )
 
     @property
     def config(self):
@@ -62,4 +78,10 @@ class HubertForMaskedPrediction(nn.Module):
         select_checkpoint.py / slsb load as an upstream), plus the
         masked-prediction head separately for training resumption."""
         self.hubert.save_pretrained(save_dir)
-        torch.save(self.final_proj.state_dict(), Path(save_dir) / "masked_prediction_head.pt")
+        torch.save(self.final_proj.state_dict(), Path(save_dir) / HEAD_FILE)
+
+    def load_checkpoint(self, ckpt_dir: str | Path):
+        """Restores backbone and head from a checkpoint written by save_pretrained."""
+        backbone = HubertModel.from_pretrained(ckpt_dir)
+        self.hubert.load_state_dict(backbone.state_dict())
+        self.final_proj.load_state_dict(torch.load(Path(ckpt_dir) / HEAD_FILE, map_location="cpu"))

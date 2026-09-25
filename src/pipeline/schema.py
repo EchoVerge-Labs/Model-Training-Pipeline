@@ -55,10 +55,11 @@ class ShardConfig(BaseModel):
 
 
 class ClusterConfig(BaseModel):
+    layer: int = Field(gt=0)  # transformer layer of the base model whose output is clustered
     num_clusters: int = Field(gt=0)
     seed: int
-    sample_hours: float = Field(gt=0)
-    n_mfcc: int = Field(gt=0)
+    sample_hours: float = Field(gt=0)  # audio streamed for the k-means fit
+    max_frames: int = Field(gt=0)  # cap on frames kept for the fit
     kmeans_output: str
     labels_output: str
 
@@ -67,6 +68,9 @@ class PretrainConfig(BaseModel):
     base_model: str
     precision: Literal["bf16", "fp16", "fp32"] = "bf16"
     freeze_feature_encoder: bool = True
+    # HubertModel's stock layerdrop (0.1) leaves parameters unused in a step,
+    # which DDP without find_unused_parameters rejects; 0 disables it.
+    layerdrop: float = Field(default=0.0, ge=0, le=1)
 
     max_updates: int = Field(gt=0)
     warmup_updates: int = Field(ge=0)
@@ -78,6 +82,9 @@ class PretrainConfig(BaseModel):
     adam_eps: float = Field(gt=0)
     weight_decay: float = Field(ge=0)
     max_grad_norm: float = Field(gt=0)
+    # the masked-prediction head starts random while the encoder is pretrained,
+    # so it gets a larger LR
+    head_lr_mult: float = Field(default=10.0, gt=0)
 
     target_batch_seconds: float = Field(gt=0)
     per_device_max_seconds: float = Field(gt=0)

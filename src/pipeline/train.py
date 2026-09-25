@@ -2,11 +2,14 @@
 
 HuBERT's real pretraining objective is masked prediction of k-means
 pseudo-labels (data/labels/, produced by pipeline.fit_kmeans +
-pipeline.assign_cluster_labels from MFCC frames -- see mfcc_features.py),
-not wav2vec2's contrastive learning with a quantizer/codebook. transformers
+pipeline.assign_cluster_labels from layer-N features of the original
+pretrained model -- see layer_features.py), not wav2vec2's contrastive learning with a quantizer/codebook. transformers
 has no HubertForPreTraining class for the latter to even target, so this
 loads a plain HubertModel encoder (pipeline.hubert_model.HubertForMaskedPrediction)
-and trains a linear head against the precomputed cluster ids.
+and trains a linear head against the precomputed cluster ids. The encoder is
+the already-pretrained checkpoint; its architecture and the objective are not
+changed. Re-running the launch script resumes from the newest complete
+checkpoint (backbone + head + optimizer + step).
 
 Key changes from a typical HF fine-tuning script:
   - Loads from Lhotse Shar tarballs (not HF datasets)
@@ -48,6 +51,7 @@ from transformers import Wav2Vec2FeatureExtractor
 from transformers.models.hubert.modeling_hubert import _compute_mask_indices
 
 from pipeline.callbacks import MaskedAccuracyStallDetector, MLflowLogger
+from pipeline.checkpoints import STATE_FILE, latest_checkpoint, list_checkpoints
 from pipeline.datamodule import create_dataloader
 from pipeline.hubert_model import HubertForMaskedPrediction
 from pipeline.schema import Params
@@ -133,6 +137,33 @@ def compute_mask(
     return mask_time_indices, sub_attention_mask
 
 
+# ─── Checkpointing ───────────────────────────────────────────────────────
+
+
+def save_checkpoint(raw_model, feature_extractor, optimizer, global_step: int, ckpt_dir: Path):
+    """Writes ckpt_dir atomically: everything goes to <ckpt_dir>.tmp, then one
+    rename, so a crash mid-save can't leave a directory that looks complete."""
+    tmp = ckpt_dir.with_name(ckpt_dir.name + ".tmp")
+    if tmp.exists():
+        shutil.rmtree(tmp)
+    tmp.mkdir(parents=True)
+    raw_model.save_pretrained(tmp)
+    feature_extractor.save_pretrained(tmp)
+    torch.save({"optimizer": optimizer.state_dict(), "global_step": global_step}, tmp / STATE_FILE)
+    if ckpt_dir.exists():
+        shutil.rmtree(ckpt_dir)
+    os.replace(tmp, ckpt_dir)
+
+
+def prediction_perplexity(prob_sum: torch.Tensor, n_frames: int) -> float:
+    """exp(entropy) of the average predicted distribution over masked frames:
+    ~1 means the model predicts one cluster for everything (collapse), up to
+    num_clusters when it uses them all evenly."""
+    mean_probs = prob_sum / max(n_frames, 1)
+    entropy = -(mean_probs * torch.log(mean_probs.clamp_min(1e-10))).sum()
+    return float(torch.exp(entropy).item())
+
+
 # ─── Training ──────────────────────────────────────────────────────────
 
 
@@ -161,8 +192,35 @@ def train(params: Params):
         print(f"Num clusters: {num_clusters}")
         print(f"Target batch seconds: {cfg.target_batch_seconds}")
 
+    # ── Resume point ──
+    output_dir = Path(cfg.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    if is_main:
+        for stale in output_dir.glob("checkpoint-*.tmp"):  # a save that never finished
+            shutil.rmtree(stale, ignore_errors=True)
+    resume = latest_checkpoint(output_dir)
+    resume_step = resume[0] if resume else 0
+    if world_size > 1:
+        # Every rank reads its own output_dir; ranks on different nodes must
+        # agree on where they resume or their optimizer states would diverge.
+        steps = torch.tensor([resume_step], device=device)
+        lo, hi = steps.clone(), steps.clone()
+        dist.all_reduce(lo, op=dist.ReduceOp.MIN)
+        dist.all_reduce(hi, op=dist.ReduceOp.MAX)
+        if lo.item() != hi.item():
+            raise RuntimeError(
+                f"ranks disagree on the resume checkpoint (steps {lo.item()}..{hi.item()}) -- "
+                f"copy {output_dir}/checkpoint-{hi.item()} to every node"
+            )
+
     # ── Load model ──
-    model = HubertForMaskedPrediction(cfg.base_model, num_clusters=num_clusters)
+    model = HubertForMaskedPrediction(
+        cfg.base_model, num_clusters=num_clusters, layerdrop=cfg.layerdrop
+    )
+    if resume:
+        model.load_checkpoint(resume[1])
+        if is_main:
+            print(f"Resuming from {resume[1]} (step {resume_step})")
 
     # Freeze CNN feature encoder — standard for continued pre-training
     if cfg.freeze_feature_encoder:
@@ -185,25 +243,41 @@ def train(params: Params):
     # save_pretrained)
     raw_model = model.module if hasattr(model, "module") else model
 
-    # ── Feature extractor (for computing output lengths) ──
+    # ── Feature extractor (saved with checkpoints; its do_normalize flag decides
+    #    whether utterances are normalised, exactly as the base model expects) ──
     feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(cfg.base_model)
+    normalize = bool(feature_extractor.do_normalize)
+    if is_main:
+        print(f"Waveform normalisation (do_normalize): {normalize}")
 
     # ── Optimizer ──
+    # The head starts random (the checkpoint has none) while the encoder is
+    # already pretrained, so the head gets a larger LR (lr_mult).
     optimizer = torch.optim.AdamW(
-        [p for p in model.parameters() if p.requires_grad],
+        [
+            {
+                "params": [p for p in raw_model.hubert.parameters() if p.requires_grad],
+                "lr_mult": 1.0,
+            },
+            {"params": list(raw_model.final_proj.parameters()), "lr_mult": cfg.head_lr_mult},
+        ],
         lr=cfg.peak_lr,
         betas=tuple(cfg.adam_betas),
         eps=cfg.adam_eps,
         weight_decay=cfg.weight_decay,
     )
+    if resume:
+        state = torch.load(resume[1] / STATE_FILE, map_location="cpu")
+        optimizer.load_state_dict(state["optimizer"])
 
     # ── Data ──
     dataloader = create_dataloader(
-        shar_dir="data/shars",
+        shar_dir=params.shard.output_dir,
         per_device_max_seconds=cfg.per_device_max_seconds,
         num_workers=cfg.num_workers,
         seed=0,
         labels_path=cfg.labels_path,
+        normalize=normalize,
     )
     data_iter = iter(dataloader)
 
@@ -220,10 +294,6 @@ def train(params: Params):
             f"Effective batch: ~{cfg.per_device_max_seconds * world_size * grad_accum_steps:.0f}s "
             f"audio per update"
         )
-
-    # ── Output dir ──
-    output_dir = Path(cfg.output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
 
     # ── Logging ──
     mlflow_logger = None
@@ -257,13 +327,22 @@ def train(params: Params):
                 "mask_time_length": cfg.mask_time_length,
                 "num_clusters": num_clusters,
                 "freeze_feature_encoder": cfg.freeze_feature_encoder,
+                "layerdrop": cfg.layerdrop,
+                "head_lr_mult": cfg.head_lr_mult,
+                "normalize": normalize,
+                "resumed_from_step": resume_step,
             }
             mlflow_logger.log_params(flat_params)
         except Exception as e:  # noqa: BLE001 -- experiment tracking must never kill a training run
             print(f"WARNING: MLflow setup failed: {e}")
             mlflow_logger = None
 
-        stall_detector = MaskedAccuracyStallDetector(num_clusters=num_clusters)
+        # Kill only after ~a fifth of the run (at least 3 checks) sits at chance
+        # or collapsed, so the threshold is reachable within max_updates.
+        stall_detector = MaskedAccuracyStallDetector(
+            num_clusters=num_clusters,
+            max_consecutive_before_kill=max(3, cfg.max_updates // cfg.eval_every_updates // 5),
+        )
 
     # ── Precision ──
     use_amp = cfg.precision in ("bf16", "fp16")
@@ -271,10 +350,13 @@ def train(params: Params):
 
     # ── Training loop ──
     model.train()
-    global_step = 0
+    global_step = resume_step
     accum_loss = 0.0
     accum_correct = 0
     accum_valid = 0
+    accum_un_correct = 0
+    accum_un_valid = 0
+    accum_probs = torch.zeros(num_clusters, device=device)
     accum_grad_norm = 0.0
     accum_num_losses = 0
     accum_audio_seconds = 0.0
@@ -283,9 +365,12 @@ def train(params: Params):
     # CSV for loss curves
     curves_path = Path("reports/pretrain_curves.csv")
     curves_path.parent.mkdir(parents=True, exist_ok=True)
-    if is_main:
+    if is_main and not (resume and curves_path.exists()):
         with open(curves_path, "w") as f:
-            f.write("step,loss,masked_accuracy,grad_norm,lr,audio_sec_per_wall_sec\n")
+            f.write(
+                "step,loss,masked_accuracy,unmasked_accuracy,pred_perplexity,"
+                "grad_norm,lr,audio_sec_per_wall_sec\n"
+            )
 
     if is_main:
         print(f"\n{'=' * 60}")
@@ -335,12 +420,18 @@ def train(params: Params):
             # here) -- crop to the overlap as a defensive guard against any
             # off-by-a-few edge case rather than crashing mid-run.
             common_len = min(logits.shape[1], labels.shape[1])
-            logits = logits[:, :common_len]
-            target = labels[:, :common_len].clone()
+            logits = logits[:, :common_len].float()  # CE in fp32, not bf16
+            label_frames = labels[:, :common_len]
             mask_time_indices = mask_time_indices[:, :common_len]
+            target = label_frames.clone()
             target[~mask_time_indices] = -100
 
-            loss = loss_fn(logits.transpose(1, 2), target)
+            if (target != -100).any():
+                loss = loss_fn(logits.transpose(1, 2), target)
+            else:
+                # no masked, labelled frame (all-padding crop): a zero loss that
+                # still touches the graph, so DDP's gradient sync stays in step
+                loss = logits.sum() * 0.0
 
             scaled_loss = loss / grad_accum_steps
             scaled_loss.backward()
@@ -349,10 +440,18 @@ def train(params: Params):
             with torch.no_grad():
                 valid = target != -100
                 n_valid = int(valid.sum().item())
+                preds = logits.argmax(-1)
                 if n_valid > 0:
-                    preds = logits.argmax(-1)
                     accum_correct += int((preds[valid] == target[valid]).sum().item())
                     accum_valid += n_valid
+                    accum_probs += torch.softmax(logits[valid], dim=-1).sum(0)
+                unmasked = (label_frames != -100) & ~mask_time_indices
+                n_un = int(unmasked.sum().item())
+                if n_un > 0:
+                    accum_un_correct += int(
+                        (preds[unmasked] == label_frames[unmasked]).sum().item()
+                    )
+                    accum_un_valid += n_un
                 accum_loss += loss.item()
                 accum_num_losses += 1
                 accum_audio_seconds += attention_mask.sum().item() / 16000.0  # 16kHz
@@ -376,7 +475,7 @@ def train(params: Params):
             cfg.max_updates,
         )
         for param_group in optimizer.param_groups:
-            param_group["lr"] = lr
+            param_group["lr"] = lr * param_group["lr_mult"]
 
         # Optimizer step
         optimizer.step()
@@ -387,12 +486,16 @@ def train(params: Params):
             elapsed = time.perf_counter() - log_start_time
             avg_loss = accum_loss / max(accum_num_losses, 1)
             masked_accuracy = accum_correct / max(accum_valid, 1)
+            unmasked_accuracy = accum_un_correct / max(accum_un_valid, 1)
+            perplexity = prediction_perplexity(accum_probs, accum_valid)
             avg_grad_norm = accum_grad_norm / (cfg.eval_every_updates)
             audio_throughput = accum_audio_seconds / elapsed if elapsed > 0 else 0
 
             metrics = {
                 "train/loss": round(avg_loss, 4),
                 "train/masked_accuracy": round(masked_accuracy, 4),
+                "train/unmasked_accuracy": round(unmasked_accuracy, 4),
+                "train/pred_perplexity": round(perplexity, 2),
                 "train/grad_norm": round(avg_grad_norm, 4),
                 "train/lr": lr,
                 "train/audio_sec_per_wall_sec": round(audio_throughput, 1),
@@ -403,6 +506,8 @@ def train(params: Params):
                 f"Step {global_step}/{cfg.max_updates} | "
                 f"loss={avg_loss:.4f} | "
                 f"acc={masked_accuracy:.4f} | "
+                f"acc_unmasked={unmasked_accuracy:.4f} | "
+                f"ppl={perplexity:.1f} | "
                 f"gnorm={avg_grad_norm:.3f} | "
                 f"lr={lr:.2e} | "
                 f"{audio_throughput:.0f} aud-s/wall-s"
@@ -415,12 +520,13 @@ def train(params: Params):
             with open(curves_path, "a") as f:
                 f.write(
                     f"{global_step},{avg_loss:.6f},{masked_accuracy:.6f},"
+                    f"{unmasked_accuracy:.6f},{perplexity:.3f},"
                     f"{avg_grad_norm:.4f},{lr:.8f},{audio_throughput:.1f}\n"
                 )
 
             # Masked-accuracy stall check
             if stall_detector:
-                should_continue = stall_detector.check(masked_accuracy, global_step)
+                should_continue = stall_detector.check(masked_accuracy, global_step, perplexity)
                 if not should_continue:
                     print("KILLING TRAINING: masked-prediction accuracy stalled")
                     stop_signal[0] = 1.0
@@ -431,6 +537,9 @@ def train(params: Params):
             accum_loss = 0.0
             accum_correct = 0
             accum_valid = 0
+            accum_un_correct = 0
+            accum_un_valid = 0
+            accum_probs.zero_()
             accum_grad_norm = 0.0
             accum_num_losses = 0
             accum_audio_seconds = 0.0
@@ -447,34 +556,17 @@ def train(params: Params):
         # ── Checkpointing ──
         if is_main and global_step % cfg.save_every_updates == 0:
             ckpt_dir = output_dir / f"checkpoint-{global_step}"
-            ckpt_dir.mkdir(parents=True, exist_ok=True)
-
-            # Save model
-            raw_model.save_pretrained(ckpt_dir)
-            feature_extractor.save_pretrained(ckpt_dir)
-
-            # Save optimizer state for resumption
-            torch.save(
-                {
-                    "optimizer": optimizer.state_dict(),
-                    "global_step": global_step,
-                },
-                ckpt_dir / "training_state.pt",
-            )
-
+            save_checkpoint(raw_model, feature_extractor, optimizer, global_step, ckpt_dir)
             print(f"  Saved checkpoint: {ckpt_dir}")
 
             # Manage checkpoint retention
             is_milestone = global_step in cfg.milestone_checkpoints
             if not is_milestone:
                 # Remove old non-milestone checkpoints beyond keep_last_n
-                all_ckpts = sorted(
-                    output_dir.glob("checkpoint-*"), key=lambda p: int(p.name.split("-")[1])
-                )
                 non_milestones = [
-                    c
-                    for c in all_ckpts
-                    if int(c.name.split("-")[1]) not in cfg.milestone_checkpoints
+                    path
+                    for step, path in list_checkpoints(output_dir)
+                    if step not in cfg.milestone_checkpoints
                 ]
                 while len(non_milestones) > cfg.keep_last_n_checkpoints:
                     oldest = non_milestones.pop(0)

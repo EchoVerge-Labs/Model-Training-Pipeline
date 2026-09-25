@@ -141,3 +141,22 @@ def test_dataloader_attaches_labels_and_missing_id_raises_clearly(tmp_path):
     )
     with pytest.raises(KeyError, match="no cluster labels"):
         list(loader)
+
+
+def test_normalize_uses_only_the_real_samples_and_leaves_padding_zero():
+    from pipeline.datamodule import normalize_waveform, pad_batch
+
+    short = torch.randn(4000) * 3 + 5
+    long = torch.randn(8000)
+    batch = pad_batch([short, long], normalize=True)
+    x, mask = batch["input_values"], batch["attention_mask"]
+
+    row = x[0, : short.shape[0]]
+    assert abs(float(row.mean())) < 1e-4
+    assert abs(float(row.var(unbiased=False)) - 1.0) < 1e-3
+    assert torch.equal(x[0, short.shape[0] :], torch.zeros(4000))  # padding stays zero
+    assert torch.allclose(row, normalize_waveform(short))
+    assert int(mask[0].sum()) == 4000
+
+    raw = pad_batch([short, long])
+    assert torch.equal(raw["input_values"][0, :4000], short)  # off by default
