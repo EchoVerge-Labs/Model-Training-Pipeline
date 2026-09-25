@@ -90,6 +90,10 @@ class PretrainConfig(BaseModel):
     target_batch_seconds: float = Field(gt=0)
     per_device_max_seconds: float = Field(gt=0)
     num_workers: int = Field(ge=0)
+    # GB10 memory is unified: whatever the CUDA allocator caches is taken from the
+    # OS. Capping it makes a spike raise torch.OutOfMemoryError instead of starving
+    # sshd and hanging the whole host. Same setting as the wav2vec2 run on main.
+    max_gpu_memory_fraction: float = Field(default=0.8, gt=0, le=1)
 
     mask_time_prob: float = Field(ge=0, le=1)
     mask_time_length: int = Field(gt=0)
