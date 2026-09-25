@@ -16,17 +16,11 @@ ones the checkpoint was pretrained on.
 
 import numpy as np
 import torch
+from lhotse import CutSet
 from torch import nn
 from transformers import HubertModel, Wav2Vec2FeatureExtractor
 
 from pipeline.datamodule import SAMPLE_RATE, normalize_waveform
-from pipeline.schema import Params
-from pipeline.shard import (
-    concatenate_short_cuts,
-    load_manifest_as_cuts,
-    shuffle_cuts,
-    split_long_cuts,
-)
 
 
 def truncate_to_layer(model: HubertModel, layer: int) -> HubertModel:
@@ -68,21 +62,19 @@ def layer_features(
     return hidden.float().cpu().numpy()
 
 
-def load_final_train_cuts(
-    params: Params,
-    manifest_path: str = "data/manifests/train.jsonl",
-    raw_dir: str = "data/raw",
-):
-    """Rebuilds the exact final cut set pipeline.shard writes to Shar (same
-    split/concat/shuffle, same seed), so cluster labels are keyed by the same
-    cut ids (including -pN / concat-... ids from split/merge) the dataloader
-    will look up at training time."""
-    cfg = params.shard
-    cuts = load_manifest_as_cuts(manifest_path, raw_dir)
-    cuts = split_long_cuts(cuts, cfg.max_cut_seconds)
-    cuts = concatenate_short_cuts(cuts, cfg.min_cut_seconds, cfg.target_cut_seconds)
-    cuts = shuffle_cuts(cuts, params.select.seed)
-    return cuts
+def load_shar_cuts(shar_dir: str, shuffle: bool = False, seed: int = 0):
+    """Lazily streams the cuts pipeline.shard wrote, audio included.
+
+    Reading Shar (not data/raw + the manifest) means training devices only
+    need `dvc pull shard`, and the labels are keyed by exactly the cut ids the
+    dataloader will look up -- nothing to reconstruct or keep in sync with the
+    shard seed. With shuffle=True the shard order is random (cuts inside a
+    shard are already shuffled across sources), so the first N hours are a
+    random sample of the corpus.
+    """
+    return CutSet.from_shar(
+        in_dir=shar_dir, shuffle_shards=shuffle, seed=seed, stateful_shuffle=False
+    )
 
 
 def load_waveform(cut) -> torch.Tensor:
@@ -100,7 +92,7 @@ __all__ = [
     "base_normalizes",
     "layer_features",
     "load_feature_model",
-    "load_final_train_cuts",
+    "load_shar_cuts",
     "load_waveform",
     "truncate_to_layer",
 ]

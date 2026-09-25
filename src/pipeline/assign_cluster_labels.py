@@ -17,7 +17,7 @@ from pipeline.layer_features import (
     base_normalizes,
     layer_features,
     load_feature_model,
-    load_final_train_cuts,
+    load_shar_cuts,
     load_waveform,
 )
 from pipeline.schema import Params
@@ -47,25 +47,28 @@ def main():
     def extract(waveform):
         return layer_features(model, waveform, normalize, device)
 
-    cuts = load_final_train_cuts(params)
-    print(f"Assigning cluster labels to {len(cuts)} cuts")
+    cuts = load_shar_cuts(params.shard.output_dir)
+    print(f"Assigning cluster labels to every cut in {params.shard.output_dir}")
 
     out_path = Path(cfg.labels_output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    n_empty = 0
-    with gzip.open(out_path, "wt", encoding="utf-8") as f:
-        for i, cut in enumerate(cuts):
+    tmp_path = out_path.with_name(out_path.name + ".tmp")  # never leave a half-written file
+    n_written = n_empty = 0
+    with gzip.open(tmp_path, "wt", encoding="utf-8") as f:
+        for cut in cuts:
             labels = assign_cut(cut, km, extract)
             if not labels:
                 n_empty += 1
                 continue
             f.write(json.dumps({"id": cut.id, "labels": labels}) + "\n")
-            if (i + 1) % 1000 == 0:
-                print(f"  {i + 1}/{len(cuts)}")
+            n_written += 1
+            if n_written % 1000 == 0:
+                print(f"  {n_written} cuts labelled")
+    tmp_path.replace(out_path)
 
     if n_empty:
         print(f"WARNING: {n_empty} cuts produced no frames and were skipped")
-    print(f"Wrote labels for {len(cuts) - n_empty} cuts to {out_path}")
+    print(f"Wrote labels for {n_written} cuts to {out_path}")
 
 
 if __name__ == "__main__":

@@ -79,9 +79,7 @@ stages:
       - src/pipeline/fit_kmeans.py
       - src/pipeline/layer_features.py
       - src/pipeline/datamodule.py
-      - src/pipeline/shard.py
-      - data/raw/
-      - data/manifests/train.jsonl
+      - data/shars/
     params:
       - cluster
       - shard
@@ -100,8 +98,7 @@ stages:
       - src/pipeline/layer_features.py
       - src/pipeline/datamodule.py
       - models/kmeans/km_model.joblib
-      - data/raw/
-      - data/manifests/train.jsonl
+      - data/shars/
     params:
       - cluster
       - shard
