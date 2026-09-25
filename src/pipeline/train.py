@@ -56,6 +56,10 @@ from pipeline.datamodule import create_dataloader
 from pipeline.schema import Params
 from pipeline.wavlm_model import WavLMForMaskedPrediction
 
+# Must be set before the first CUDA allocation. Less fragmentation on the GB10's
+# unified memory (same as main's wav2vec2 run).
+os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+
 # ─── Tri-stage LR schedule ──────────────────────────────────────────────
 #
 # Phase 1: linear warmup from 0 → peak_lr         (0 → warmup_updates)
@@ -182,6 +186,8 @@ def train(params: Params):
         torch.cuda.set_device(local_rank)
 
     device = torch.device(f"cuda:{local_rank}" if torch.cuda.is_available() else "cpu")
+    if device.type == "cuda":
+        torch.cuda.set_per_process_memory_fraction(cfg.max_gpu_memory_fraction, device)
 
     if is_main:
         print(f"World size: {world_size}, device: {device}")

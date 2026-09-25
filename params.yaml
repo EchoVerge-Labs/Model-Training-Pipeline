@@ -61,6 +61,7 @@ pretrain:
   target_batch_seconds: 1600
   per_device_max_seconds: 200
   num_workers: 4
+  max_gpu_memory_fraction: 0.8  # GB10 unified memory: leave ~24GB for the OS / sshd
 
   # masking (applied by WavLMModel itself). Same values as main's wav2vec2 run
   # so the comparison is fair (fairseq's own HuBERT default would be 0.8).

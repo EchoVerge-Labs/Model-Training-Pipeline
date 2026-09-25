@@ -107,3 +107,16 @@ def test_wavlm_branch_specifics():
     assert p.pretrain.utterance_mix_prob == 0.2  # WavLM's mixing; method, not tuning
     assert "wavlm" in p.pretrain.output_dir
     assert "wavlm" in p.cluster.kmeans_output and "wavlm" in p.cluster.labels_output
+
+
+def test_gpu_memory_cap_matches_main_and_is_bounded():
+    import pytest
+    from pydantic import ValidationError
+
+    from pipeline.schema import PretrainConfig
+
+    assert Params.from_yaml("params.yaml").pretrain.max_gpu_memory_fraction == 0.8
+    base = Params.from_yaml("params.yaml").pretrain.model_dump()
+    for bad in (0.0, 1.5):
+        with pytest.raises(ValidationError):
+            PretrainConfig(**{**base, "max_gpu_memory_fraction": bad})
