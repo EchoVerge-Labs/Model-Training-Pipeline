@@ -25,6 +25,14 @@ the base model) identically for labelling and training. `transformers` has no
 Branches: `main` continues wav2vec2 XLS-R, `HuBERT-Large` (this branch)
 continues HuBERT Large, and WavLM Large lives on its own branch.
 
+**Fair comparison across branches.** Every training setting in `pretrain`
+(updates, batch seconds, LR schedule, optimizer, masking `0.65` / length 10,
+layerdrop, CNN freeze, precision, checkpoint schedule) and the data/shard
+settings are identical to `main`'s wav2vec2 run; `tests/test_schema.py`
+(`test_training_settings_match_the_wav2vec2_run_on_main`) pins them. Only what
+the method itself requires differs: the k-means `cluster` section, the new
+masked-prediction head, and (WavLM branch) utterance mixing.
+
 Each stage is a `dvc.yaml` target; `dvc repro` runs whatever is stale given
 `params.yaml` and each stage's declared deps. The `benchmark` stage depends
 on `pretrain`'s and `select_checkpoint`'s outputs, so `dvc repro` chains

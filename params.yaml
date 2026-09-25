@@ -43,7 +43,7 @@ pretrain:
   base_model: facebook/hubert-large-ll60k
   precision: bf16
   freeze_feature_encoder: true
-  layerdrop: 0.0              # HubertModel's stock 0.1 breaks DDP (unused params per step)
+  layerdrop: 0.1              # same as main: XLS-R's stock config value (HuBERT/WavLM stock is 0.1 too)
 
   max_updates: 13500          # ~30 passes over 200h (was 50000 / 111 passes)
   warmup_updates: 1000        # ~8% (was 4000)
@@ -55,16 +55,16 @@ pretrain:
   adam_eps: 1.0e-6
   weight_decay: 0.01
   max_grad_norm: 1.0
-  head_lr_mult: 10.0          # the masked-prediction head starts random
+  head_lr_mult: 1.0           # same LR as everything else, as on main (the head is new; raise to warm it up faster)
 
   # batch size in AUDIO SECONDS (not examples)
   target_batch_seconds: 1600
   per_device_max_seconds: 200
   num_workers: 4
 
-  # HuBERT masking (SpecAugment-style, applied by HubertModel itself);
-  # 0.8 is fairseq HuBERT's mask_prob (~65% of frames end up masked)
-  mask_time_prob: 0.8
+  # masking (applied by HubertModel itself). Same values as main's wav2vec2 run
+  # so the comparison is fair (fairseq's own HuBERT default would be 0.8).
+  mask_time_prob: 0.65
   mask_time_length: 10
 
   labels_path: data/labels/train_labels.jsonl.gz

@@ -237,7 +237,9 @@ def train(params: Params):
     model.to(device)
 
     if world_size > 1:
-        model = DDP(model, device_ids=[local_rank], find_unused_parameters=False)
+        # layerdrop skips layers at random, leaving their parameters without a
+        # gradient in that step, which DDP only tolerates with this flag.
+        model = DDP(model, device_ids=[local_rank], find_unused_parameters=cfg.layerdrop > 0)
 
     # Unwrap for accessing config/methods not proxied by DDP (mask helpers,
     # save_pretrained)

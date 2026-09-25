@@ -40,7 +40,7 @@ def _setup(tmp_path):
             conv_dim=(32, 32),
             conv_kernel=(10, 3),
             conv_stride=(5, 2),
-            layerdrop=0.1,  # like hubert-large; train() must switch it off
+            layerdrop=0.1,  # like hubert-large; pretrain.layerdrop overrides it
         )
     ).save_pretrained(base)
     Wav2Vec2FeatureExtractor(do_normalize=True, sampling_rate=16000).save_pretrained(base)
@@ -109,10 +109,12 @@ def _params(tmp_path, base, shars, labels_path, max_updates):
             adam_eps=1e-6,
             weight_decay=0.01,
             max_grad_norm=1.0,
+            layerdrop=0.0,  # overrides the checkpoint's 0.1 (see the assert below)
+            head_lr_mult=10.0,
             target_batch_seconds=2,
             per_device_max_seconds=1,
             num_workers=0,
-            mask_time_prob=0.8,
+            mask_time_prob=0.65,
             mask_time_length=10,
             labels_path=str(labels_path),
             save_every_updates=2,
@@ -139,7 +141,7 @@ def test_train_runs_checkpoints_atomically_and_resumes(tmp_path, monkeypatch, ca
     state = torch.load(ckpt / STATE_FILE, map_location="cpu")
     lrs = sorted({g["lr_mult"] for g in state["optimizer"]["param_groups"]})
     assert lrs == [1.0, 10.0]  # head trains at head_lr_mult x the encoder LR
-    assert HubertModel.from_pretrained(out).config.layerdrop == 0.0  # layerdrop forced off
+    assert HubertModel.from_pretrained(out).config.layerdrop == 0.0  # pretrain.layerdrop applied
 
     curves = (tmp_path / "reports" / "pretrain_curves.csv").read_text().splitlines()
     assert curves[0].startswith("step,loss,masked_accuracy,unmasked_accuracy,pred_perplexity")

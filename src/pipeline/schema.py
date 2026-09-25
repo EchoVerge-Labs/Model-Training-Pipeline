@@ -68,9 +68,10 @@ class PretrainConfig(BaseModel):
     base_model: str
     precision: Literal["bf16", "fp16", "fp32"] = "bf16"
     freeze_feature_encoder: bool = True
-    # HubertModel's stock layerdrop (0.1) leaves parameters unused in a step,
-    # which DDP without find_unused_parameters rejects; 0 disables it.
-    layerdrop: float = Field(default=0.0, ge=0, le=1)
+    # Stock value of all three base models (XLS-R on main runs with 0.1). Layerdrop
+    # leaves parameters unused in a step, so train.py turns on DDP's
+    # find_unused_parameters when it's > 0.
+    layerdrop: float = Field(default=0.1, ge=0, le=1)
 
     max_updates: int = Field(gt=0)
     warmup_updates: int = Field(ge=0)
@@ -82,9 +83,9 @@ class PretrainConfig(BaseModel):
     adam_eps: float = Field(gt=0)
     weight_decay: float = Field(ge=0)
     max_grad_norm: float = Field(gt=0)
-    # the masked-prediction head starts random while the encoder is pretrained,
-    # so it gets a larger LR
-    head_lr_mult: float = Field(default=10.0, gt=0)
+    # LR multiplier for the (new, randomly initialised) masked-prediction head;
+    # 1.0 = same LR as the encoder, matching the wav2vec2 run on main
+    head_lr_mult: float = Field(default=1.0, gt=0)
 
     target_batch_seconds: float = Field(gt=0)
     per_device_max_seconds: float = Field(gt=0)
