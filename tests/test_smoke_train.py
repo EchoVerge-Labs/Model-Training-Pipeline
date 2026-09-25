@@ -1,17 +1,17 @@
-"""Smoke test: 3 masked-prediction training steps with a tiny random HuBERT on CPU."""
+"""Smoke test: 3 masked-prediction training steps with a tiny random WavLM on CPU."""
 
 import torch
 from torch import nn
-from transformers import HubertConfig
+from transformers import WavLMConfig
 
-from pipeline.hubert_model import HubertForMaskedPrediction
 from pipeline.train import compute_mask, get_tri_stage_lr
+from pipeline.wavlm_model import WavLMForMaskedPrediction
 
 NUM_CLUSTERS = 8
 
 
-def _tiny_model() -> HubertForMaskedPrediction:
-    config = HubertConfig(
+def _tiny_model() -> WavLMForMaskedPrediction:
+    config = WavLMConfig(
         hidden_size=32,
         num_hidden_layers=2,
         num_attention_heads=2,
@@ -20,7 +20,7 @@ def _tiny_model() -> HubertForMaskedPrediction:
         conv_kernel=(10, 3),
         conv_stride=(5, 2),
     )
-    return HubertForMaskedPrediction.from_config(config, num_clusters=NUM_CLUSTERS)
+    return WavLMForMaskedPrediction.from_config(config, num_clusters=NUM_CLUSTERS)
 
 
 def test_tri_stage_lr():
@@ -49,7 +49,7 @@ def test_tri_stage_lr():
 def test_compute_mask_shape():
     """compute_mask wraps transformers' own _compute_mask_indices against a
     real model's feature-extractor output length -- exercise it against the
-    tiny model, not a bare shape tuple. Must return a bool tensor: HubertModel
+    tiny model, not a bare shape tuple. Must return a bool tensor: WavLMModel
     indexes hidden_states[mask_time_indices] directly with no dtype cast."""
     model = _tiny_model()
     batch_size = 4
@@ -76,8 +76,8 @@ def test_compute_mask_shape():
 
 
 def test_smoke_forward():
-    """Run 3 forward+backward steps on a tiny random HuBERT against synthetic
-    cluster-id targets -- the actual objective HuBERT pretrains on (masked
+    """Run 3 forward+backward steps on a tiny random WavLM against synthetic
+    cluster-id targets -- the actual objective WavLM pretrains on (masked
     cross-entropy against k-means pseudo-labels), not wav2vec2's contrastive
     loss."""
     model = _tiny_model()

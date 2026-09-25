@@ -1,8 +1,8 @@
-# Model Training Pipeline — Continued Pre-training of HuBERT Large on Sinhala/Tamil
+# Model Training Pipeline — Continued Pre-training of WavLM Large on Sinhala/Tamil
 
-DVC-orchestrated pipeline for continued self-supervised HuBERT pre-training, automatic
+DVC-orchestrated pipeline for continued self-supervised WavLM pre-training, automatic
 checkpoint selection, and benchmarking. Produces a Sinhala/Tamil-specialised speech
-encoder from `facebook/hubert-large-ll60k`.
+encoder from `microsoft/wavlm-large`.
 
 ## Pipeline DAG
 
@@ -10,8 +10,8 @@ encoder from `facebook/hubert-large-ll60k`.
 snapshot_catalog → index_drive → select → materialise → shard → fit_kmeans → assign_cluster_labels → pretrain → select_checkpoint → benchmark → report
 ```
 
-`pretrain` continues pre-training the already-pretrained `hubert-large-ll60k`
-with HuBERT's real objective: masked prediction of k-means cluster ids, not
+`pretrain` continues pre-training the already-pretrained `wavlm-large`
+with WavLM's objective (HuBERT's): masked prediction of k-means cluster ids, not
 wav2vec2-style contrastive learning. The model architecture and objective are
 unchanged; this is not distillation. The cluster ids are made once, offline:
 `fit_kmeans` runs the *original* checkpoint over ~40 h of the training set and
@@ -19,11 +19,19 @@ clusters the output of transformer layer 18 into 500 clusters;
 `assign_cluster_labels` assigns every training cut's frames to the nearest
 centroid (`data/labels/`). Waveforms are normalised (`do_normalize`, read from
 the base model) identically for labelling and training. `transformers` has no
-`HubertForPreTraining`, and the checkpoint carries no prediction head, so
-`pipeline.hubert_model` adds a fresh linear head over the cluster ids.
+`WavLMForPreTraining`, and the checkpoint carries no prediction head, so
+`pipeline.wavlm_model` adds a fresh linear head over the cluster ids.
 
-Branches: `main` continues wav2vec2 XLS-R, `HuBERT-Large` (this branch)
-continues HuBERT Large, and WavLM Large lives on its own branch.
+Branches: `main` continues wav2vec2 XLS-R, `HuBERT-Large` continues HuBERT
+Large, and `WavLM-Large` (this branch) continues WavLM Large.
+
+**Utterance mixing** (`pretrain.utterance_mix_prob: 0.2`) is WavLM's data
+augmentation: 20% of utterances get a random crop (at most 50% of their
+length) of another utterance from the same batch mixed in at -5..+5 dB, after
+normalisation. Cluster labels always come from the clean audio. WavLM's
+relative-position bias uses more memory than HuBERT; if a step runs out of
+memory, lower `pretrain.per_device_max_seconds` first (it only changes
+micro-batching, not the effective batch).
 
 **Fair comparison across branches.** Every training setting in `pretrain`
 (updates, batch seconds, LR schedule, optimizer, masking `0.65` / length 10,
@@ -31,7 +39,7 @@ layerdrop, CNN freeze, precision, checkpoint schedule) and the data/shard
 settings are identical to `main`'s wav2vec2 run; `tests/test_schema.py`
 (`test_training_settings_match_the_wav2vec2_run_on_main`) pins them. Only what
 the method itself requires differs: the k-means `cluster` section, the new
-masked-prediction head, and (WavLM branch) utterance mixing.
+masked-prediction head, and utterance mixing.
 
 Each stage is a `dvc.yaml` target; `dvc repro` runs whatever is stale given
 `params.yaml` and each stage's declared deps. The `benchmark` stage depends
@@ -67,9 +75,9 @@ make pull       # copy the selected clips from the mount -> data/raw/ (same <Lan
 make shard      # pack into Lhotse Shar tarballs -> data/shars/
 make fit-kmeans # fit k-means on layer-18 features of the base model -> models/kmeans/
 make labels     # assign cluster-id pseudo-labels to every training cut -> data/labels/
-make train      # continued pre-training -> models/hubert-large-si-ta-200h/
+make train      # continued pre-training -> models/wavlm-large-si-ta-200h/
 make ckpt       # proxy-eval milestone checkpoints, copy the best -> models/selected/
-make bench      # slsb run on the selected checkpoint -> reports/bench/hubert_large_adapted/
+make bench      # slsb run on the selected checkpoint -> reports/bench/wavlm_large_adapted/
 make report     # aggregate into reports/results.md + results_table.csv
 ```
 

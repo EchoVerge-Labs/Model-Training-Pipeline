@@ -1,5 +1,5 @@
 """fit_kmeans / assign_cluster_labels: layer features of a (tiny, random)
-HuBERT -> k-means -> per-cut pseudo-labels, on synthetic audio (needs lhotse)."""
+WavLM -> k-means -> per-cut pseudo-labels, on synthetic audio (needs lhotse)."""
 
 import json
 
@@ -10,14 +10,14 @@ pytest.importorskip("lhotse")
 import joblib
 import soundfile as sf
 import torch
-from transformers import HubertConfig, HubertModel
+from transformers import WavLMConfig, WavLMModel
 
 from pipeline.assign_cluster_labels import assign_cut
 from pipeline.fit_kmeans import collect_frames, fit_kmeans, sample_cuts
 from pipeline.layer_features import layer_features, load_final_train_cuts, truncate_to_layer
 from pipeline.schema import ClusterConfig, Params, PretrainConfig, SelectConfig, ShardConfig
 
-TINY_CONFIG = HubertConfig(
+TINY_CONFIG = WavLMConfig(
     hidden_size=16,
     num_hidden_layers=3,
     num_attention_heads=2,
@@ -127,7 +127,7 @@ def test_load_final_train_cuts_matches_shard_ids(tmp_path):
 
 def _feature_model():
     torch.manual_seed(0)
-    model = HubertModel(TINY_CONFIG)
+    model = WavLMModel(TINY_CONFIG)
     return truncate_to_layer(model, 2).eval()
 
 
@@ -136,7 +136,7 @@ def test_truncate_to_layer_gives_the_raw_output_of_that_layer():
     raw output of layer N; the truncated model must return exactly that, not
     the LayerNorm'd one."""
     torch.manual_seed(0)
-    full = HubertModel(TINY_CONFIG).eval()
+    full = WavLMModel(TINY_CONFIG).eval()
     x = torch.randn(1, 8000)
     with torch.no_grad():
         expected = full(x, output_hidden_states=True).hidden_states[2]

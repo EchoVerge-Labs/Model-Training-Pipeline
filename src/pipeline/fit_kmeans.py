@@ -1,5 +1,5 @@
 """Fit k-means on layer features of the pretrained model, sampled from the
-training set -- the cluster centroids that define HuBERT's masked-prediction
+training set -- the cluster centroids that define WavLM's masked-prediction
 targets (see pipeline.layer_features).
 
 Usage:
@@ -25,7 +25,7 @@ from pipeline.layer_features import (
 )
 from pipeline.schema import Params
 
-FRAMES_PER_SECOND = 50  # HubertModel's CNN stride: 320 samples at 16 kHz
+FRAMES_PER_SECOND = 50  # WavLMModel's CNN stride: 320 samples at 16 kHz
 
 
 def sample_cuts(cuts, sample_hours: float, seed: int) -> list:

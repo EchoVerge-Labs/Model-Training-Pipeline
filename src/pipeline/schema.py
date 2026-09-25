@@ -94,6 +94,11 @@ class PretrainConfig(BaseModel):
     mask_time_prob: float = Field(ge=0, le=1)
     mask_time_length: int = Field(gt=0)
 
+    # WavLM utterance mixing: probability that an utterance gets another one
+    # from its batch mixed in (0 disables it; WavLM uses 0.2). A data
+    # augmentation of the method, not a training hyperparameter.
+    utterance_mix_prob: float = Field(default=0.0, ge=0, le=1)
+
     labels_path: str
 
     save_every_updates: int = Field(gt=0)

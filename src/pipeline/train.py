@@ -1,11 +1,11 @@
-"""Continued pre-training of HuBERT Large on Sinhala/Tamil.
+"""Continued pre-training of WavLM Large on Sinhala/Tamil.
 
-HuBERT's real pretraining objective is masked prediction of k-means
+WavLM's pretraining objective (HuBERT's) is masked prediction of k-means
 pseudo-labels (data/labels/, produced by pipeline.fit_kmeans +
 pipeline.assign_cluster_labels from layer-N features of the original
 pretrained model -- see layer_features.py), not wav2vec2's contrastive learning with a quantizer/codebook. transformers
-has no HubertForPreTraining class for the latter to even target, so this
-loads a plain HubertModel encoder (pipeline.hubert_model.HubertForMaskedPrediction)
+has no WavLMForPreTraining class for the latter to even target, so this
+loads a plain WavLMModel encoder (pipeline.wavlm_model.WavLMForMaskedPrediction)
 and trains a linear head against the precomputed cluster ids. The encoder is
 the already-pretrained checkpoint; its architecture and the objective are not
 changed. Re-running the launch script resumes from the newest complete
@@ -18,11 +18,11 @@ Key changes from a typical HF fine-tuning script:
   - MLflow logging to DagsHub
 
 Mask generation reuses transformers' own `_compute_mask_indices` (the same
-helper HubertModel._mask_hidden_states falls back to when no
+helper WavLMModel._mask_hidden_states falls back to when no
 mask_time_indices is given) so training explicitly controls which frames are
-masked -- masking is HubertModel's own mechanism (via `masked_spec_embed`,
-see modeling_hubert.py's `_mask_hidden_states`), not a hand-rolled one.
-`mask_time_indices` must be `torch.bool`: HubertModel indexes
+masked -- masking is WavLMModel's own mechanism (via `masked_spec_embed`,
+see modeling_wavlm.py's `_mask_hidden_states`), not a hand-rolled one.
+`mask_time_indices` must be `torch.bool`: WavLMModel indexes
 `hidden_states[mask_time_indices] = ...` directly with no internal dtype
 cast (unlike Wav2Vec2ForPreTraining, which casts before use).
 
@@ -48,13 +48,13 @@ import torch.distributed as dist
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 from transformers import Wav2Vec2FeatureExtractor
-from transformers.models.hubert.modeling_hubert import _compute_mask_indices
+from transformers.models.wavlm.modeling_wavlm import _compute_mask_indices
 
 from pipeline.callbacks import MaskedAccuracyStallDetector, MLflowLogger
 from pipeline.checkpoints import STATE_FILE, latest_checkpoint, list_checkpoints
 from pipeline.datamodule import create_dataloader
-from pipeline.hubert_model import HubertForMaskedPrediction
 from pipeline.schema import Params
+from pipeline.wavlm_model import WavLMForMaskedPrediction
 
 # ─── Tri-stage LR schedule ──────────────────────────────────────────────
 #
@@ -64,7 +64,7 @@ from pipeline.schema import Params
 #
 # hold_end = warmup_updates + hold_ratio * (max_updates - warmup_updates)
 #
-# This is the schedule fairseq uses for HuBERT/Wav2Vec2 pre-training, not a cosine.
+# This is the schedule fairseq uses for HuBERT/WavLM/Wav2Vec2 pre-training, not a cosine.
 
 
 def get_tri_stage_lr(
@@ -117,7 +117,7 @@ def compute_mask(
     device: torch.device,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Returns (mask_time_indices, sub_attention_mask), both as torch tensors
-    on `device`. mask_time_indices is torch.bool -- HubertModel indexes
+    on `device`. mask_time_indices is torch.bool -- WavLMModel indexes
     hidden_states with it directly (hidden_states[mask_time_indices] = ...),
     with no internal dtype cast."""
     batch_size = input_values.shape[0]
@@ -214,7 +214,7 @@ def train(params: Params):
             )
 
     # ── Load model ──
-    model = HubertForMaskedPrediction(
+    model = WavLMForMaskedPrediction(
         cfg.base_model, num_clusters=num_clusters, layerdrop=cfg.layerdrop
     )
     if resume:
@@ -258,7 +258,7 @@ def train(params: Params):
     optimizer = torch.optim.AdamW(
         [
             {
-                "params": [p for p in raw_model.hubert.parameters() if p.requires_grad],
+                "params": [p for p in raw_model.wavlm.parameters() if p.requires_grad],
                 "lr_mult": 1.0,
             },
             {"params": list(raw_model.final_proj.parameters()), "lr_mult": cfg.head_lr_mult},
@@ -280,6 +280,7 @@ def train(params: Params):
         seed=0,
         labels_path=cfg.labels_path,
         normalize=normalize,
+        utterance_mix_prob=cfg.utterance_mix_prob,
     )
     data_iter = iter(dataloader)
 
@@ -310,7 +311,7 @@ def train(params: Params):
             mlflow_logger = MLflowLogger(
                 tracking_uri=mlflow_cfg.get("tracking_uri", ""),
                 experiment_name=mlflow_cfg.get("experiment_name", "ssl-pretraining"),
-                run_name=f"hubert-large-si-ta-{cfg.target_batch_seconds}s",
+                run_name=f"wavlm-large-si-ta-{cfg.target_batch_seconds}s",
             )
             # Log all params
             flat_params = {
@@ -332,6 +333,7 @@ def train(params: Params):
                 "layerdrop": cfg.layerdrop,
                 "head_lr_mult": cfg.head_lr_mult,
                 "normalize": normalize,
+                "utterance_mix_prob": cfg.utterance_mix_prob,
                 "resumed_from_step": resume_step,
             }
             mlflow_logger.log_params(flat_params)

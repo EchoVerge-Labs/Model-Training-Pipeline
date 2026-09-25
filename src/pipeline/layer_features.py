@@ -1,6 +1,6 @@
-"""Layer features of the ORIGINAL pretrained model, for HuBERT k-means targets.
+"""Layer features of the ORIGINAL pretrained model, for WavLM k-means targets.
 
-HuBERT learns by predicting a cluster id for every masked frame. The ids are
+WavLM (like HuBERT) learns by predicting a cluster id for every masked frame. The ids are
 made once, offline, before training: run the pretrained checkpoint over the
 training audio, cluster the output of one of its transformer layers with
 k-means (pipeline.fit_kmeans), and assign every frame to its nearest centroid
@@ -17,7 +17,7 @@ ones the checkpoint was pretrained on.
 import numpy as np
 import torch
 from torch import nn
-from transformers import HubertModel, Wav2Vec2FeatureExtractor
+from transformers import Wav2Vec2FeatureExtractor, WavLMModel
 
 from pipeline.datamodule import SAMPLE_RATE, normalize_waveform
 from pipeline.schema import Params
@@ -29,7 +29,7 @@ from pipeline.shard import (
 )
 
 
-def truncate_to_layer(model: HubertModel, layer: int) -> HubertModel:
+def truncate_to_layer(model: WavLMModel, layer: int) -> WavLMModel:
     """Keeps only the first `layer` transformer layers, so last_hidden_state is
     the raw output of layer `layer` (what fairseq's extract_features(output_layer=)
     returns) and the upper layers cost nothing. For the pre-LN encoder used by
@@ -44,8 +44,8 @@ def truncate_to_layer(model: HubertModel, layer: int) -> HubertModel:
     return model
 
 
-def load_feature_model(base_model: str, layer: int, device: torch.device) -> HubertModel:
-    model = HubertModel.from_pretrained(base_model)
+def load_feature_model(base_model: str, layer: int, device: torch.device) -> WavLMModel:
+    model = WavLMModel.from_pretrained(base_model)
     model = truncate_to_layer(model, layer)
     model.eval().requires_grad_(False)
     if device.type == "cuda":
@@ -55,7 +55,7 @@ def load_feature_model(base_model: str, layer: int, device: torch.device) -> Hub
 
 @torch.no_grad()
 def layer_features(
-    model: HubertModel, waveform: torch.Tensor, normalize: bool, device: torch.device
+    model: WavLMModel, waveform: torch.Tensor, normalize: bool, device: torch.device
 ) -> np.ndarray:
     """(T', D) float32 features for one un-padded utterance."""
     if normalize:

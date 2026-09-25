@@ -38,32 +38,85 @@ def load_labels(labels_path: str) -> dict[str, list[int]]:
 
 def normalize_waveform(waveform: torch.Tensor) -> torch.Tensor:
     """Zero-mean / unit-variance over one un-padded utterance -- what
-    Wav2Vec2FeatureExtractor does when do_normalize is set (hubert-large-ll60k
+    Wav2Vec2FeatureExtractor does when do_normalize is set (wavlm-large
     expects it). Also used when extracting the k-means layer features, so
     labels and training see identical inputs."""
     return (waveform - waveform.mean()) / torch.sqrt(waveform.var(unbiased=False) + 1e-7)
+
+
+def mix_utterances(
+    waveforms: list[torch.Tensor],
+    prob: float,
+    rng: random.Random,
+    max_overlap: float = 0.5,
+    snr_db_range: tuple[float, float] = (-5.0, 5.0),
+) -> list[torch.Tensor]:
+    """WavLM's utterance mixing: with probability `prob`, overlap each utterance
+    with a piece of *another* utterance from the batch.
+
+    The piece is a random crop of at most `max_overlap` of the primary's length,
+    scaled so its RMS is the primary's RMS times a gain drawn uniformly from
+    `snr_db_range` (dB), and added at a random offset inside the primary. The
+    secondary is always taken from the clean inputs (never from an already
+    mixed utterance), lengths never change, and a batch of one is left as is.
+    The frame-level cluster labels stay those of the clean primary.
+    """
+    if prob <= 0 or len(waveforms) < 2:
+        return list(waveforms)
+    mixed = []
+    for i, primary in enumerate(waveforms):
+        if rng.random() >= prob:
+            mixed.append(primary)
+            continue
+        secondary = waveforms[rng.choice([k for k in range(len(waveforms)) if k != i])]
+        longest = min(secondary.shape[0], int(max_overlap * primary.shape[0]))
+        if longest < 1:
+            mixed.append(primary)
+            continue
+        crop_len = rng.randint(1, longest)
+        start = rng.randint(0, secondary.shape[0] - crop_len)
+        crop = secondary[start : start + crop_len]
+        crop_rms = crop.pow(2).mean().sqrt()
+        primary_rms = primary.pow(2).mean().sqrt()
+        if crop_rms <= 0 or primary_rms <= 0:
+            mixed.append(primary)
+            continue
+        gain = primary_rms / crop_rms * 10 ** (rng.uniform(*snr_db_range) / 20)
+        offset = rng.randint(0, primary.shape[0] - crop_len)
+        out = primary.clone()
+        out[offset : offset + crop_len] += crop * gain
+        mixed.append(out)
+    return mixed
 
 
 def pad_batch(
     waveforms: list[torch.Tensor],
     label_seqs: list[list[int]] | None = None,
     normalize: bool = False,
+    mix_prob: float = 0.0,
+    rng: random.Random | None = None,
 ) -> dict:
     """1-D waveforms -> {"input_values": (B, T) zero-padded, "attention_mask": (B, T)}.
 
     If normalize is set, each waveform is normalised over its own samples
-    *before* padding, so the zeros that pad it stay zero.
+    *before* padding, so the zeros that pad it stay zero. If mix_prob > 0,
+    utterances are then mixed (mix_utterances, needs rng) -- after
+    normalisation and without re-normalising, as in fairseq's WavLM.
 
     If label_seqs is given, also returns "labels": (B, T_frames) padded with
     -100 (nn.CrossEntropyLoss's default ignore_index), one sequence per
     waveform in the same order.
     """
+    if normalize:
+        waveforms = [normalize_waveform(w) for w in waveforms]
+    if mix_prob > 0:
+        if rng is None:
+            raise ValueError("mix_prob > 0 needs an rng")
+        waveforms = mix_utterances(waveforms, mix_prob, rng)
     max_len = max(w.shape[0] for w in waveforms)
     padded = torch.zeros(len(waveforms), max_len)
     attention_mask = torch.zeros(len(waveforms), max_len, dtype=torch.long)
     for i, w in enumerate(waveforms):
-        if normalize:
-            w = normalize_waveform(w)
         padded[i, : w.shape[0]] = w
         attention_mask[i, : w.shape[0]] = 1
     batch = {"input_values": padded, "attention_mask": attention_mask}
@@ -126,6 +179,7 @@ class SharPretrainingDataset(IterableDataset):
         buffer_size: int = 256,
         labels_by_id: dict[str, list[int]] | None = None,
         normalize: bool = False,
+        utterance_mix_prob: float = 0.0,
     ):
         super().__init__()
         if not HAS_LHOTSE:
@@ -137,6 +191,7 @@ class SharPretrainingDataset(IterableDataset):
         self.buffer_size = buffer_size
         self.labels_by_id = labels_by_id
         self.normalize = normalize
+        self.utterance_mix_prob = utterance_mix_prob
         # Advances on every __iter__. Persistent DataLoader workers keep their
         # copy of the dataset alive, so each epoch reshuffles shards differently.
         self._epoch = 0
@@ -175,7 +230,7 @@ class SharPretrainingDataset(IterableDataset):
         ):
             waveforms = [w for w, _ in batch]
             if self.labels_by_id is None:
-                yield pad_batch(waveforms, normalize=self.normalize)
+                yield pad_batch(waveforms, None, self.normalize, self.utterance_mix_prob, rng)
                 continue
             label_seqs = []
             for _, cut_id in batch:
@@ -185,7 +240,7 @@ class SharPretrainingDataset(IterableDataset):
                         f"re-run `make labels` after the last `make shard`"
                     )
                 label_seqs.append(self.labels_by_id[cut_id])
-            yield pad_batch(waveforms, label_seqs, normalize=self.normalize)
+            yield pad_batch(waveforms, label_seqs, self.normalize, self.utterance_mix_prob, rng)
 
 
 def create_dataloader(
@@ -195,13 +250,15 @@ def create_dataloader(
     seed: int = 0,
     labels_path: str | None = None,
     normalize: bool = False,
+    utterance_mix_prob: float = 0.0,
 ) -> DataLoader:
     """DataLoader over padded batches of at most per_device_max_seconds each.
 
     labels_path, if given, is loaded once here (not per worker) and attaches a
     -100-padded "labels" tensor to each batch for masked-prediction training.
     normalize applies per-utterance zero-mean/unit-variance (the base model's
-    do_normalize flag -- the caller reads it).
+    do_normalize flag -- the caller reads it). utterance_mix_prob > 0 mixes a
+    second utterance from the same batch into each one (WavLM; mix_utterances).
     """
     shar_dir = Path(shar_dir)
     world_size = dist.get_world_size() if dist.is_available() and dist.is_initialized() else 1
@@ -220,6 +277,7 @@ def create_dataloader(
         seed=seed,
         labels_by_id=labels_by_id,
         normalize=normalize,
+        utterance_mix_prob=utterance_mix_prob,
     )
     return DataLoader(
         dataset,

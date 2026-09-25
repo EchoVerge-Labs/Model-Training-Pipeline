@@ -160,3 +160,65 @@ def test_normalize_uses_only_the_real_samples_and_leaves_padding_zero():
 
     raw = pad_batch([short, long])
     assert torch.equal(raw["input_values"][0, :4000], short)  # off by default
+
+
+def _rms(x):
+    return float(x.pow(2).mean().sqrt())
+
+
+def test_mixing_with_prob_zero_or_a_single_utterance_is_a_no_op():
+    from pipeline.datamodule import mix_utterances
+
+    waves = [torch.randn(4000), torch.randn(6000)]
+    assert all(
+        torch.equal(a, b) for a, b in zip(mix_utterances(waves, 0.0, random.Random(0)), waves)
+    )
+    assert torch.equal(mix_utterances(waves[:1], 1.0, random.Random(0))[0], waves[0])
+
+
+def test_mixing_adds_one_bounded_window_of_another_utterance_at_the_right_level():
+    from pipeline.datamodule import mix_utterances
+
+    rng = random.Random(3)
+    for _ in range(50):
+        waves = [torch.randn(8000), torch.randn(8000) * 0.1 + 2.0, torch.randn(9000)]
+        originals = [w.clone() for w in waves]
+        mixed = mix_utterances(waves, 1.0, rng)
+
+        for w, o in zip(waves, originals):  # inputs are never modified in place
+            assert torch.equal(w, o)
+        for m, o in zip(mixed, originals):
+            assert m.shape == o.shape  # length, hence the labels' frame count, unchanged
+            changed = (m != o).nonzero().flatten()
+            assert len(changed) > 0
+            window = int(changed[-1] - changed[0]) + 1
+            assert window <= 0.5 * o.shape[0] + 1  # at most half the primary
+            added = (m - o)[changed[0] : changed[-1] + 1]
+            # secondary's RMS relative to the primary's is within +-5 dB
+            ratio_db = 20 * torch.log10(torch.tensor(_rms(added) / _rms(o)))
+            assert -5.5 <= float(ratio_db) <= 5.5
+
+
+def test_mixing_never_uses_an_utterance_as_its_own_secondary():
+    from pipeline.datamodule import mix_utterances
+
+    a = torch.ones(4000)
+    b = -torch.ones(4000)  # a mixed-in `a` would be positive-only, `b` negative-only
+    for seed in range(20):
+        mixed_a, mixed_b = mix_utterances([a, b], 1.0, random.Random(seed))
+        assert (mixed_a - a).max() <= 0  # only b (negative) was added to a
+        assert (mixed_b - b).min() >= 0  # only a (positive) was added to b
+
+
+def test_pad_batch_mixes_after_normalising_and_keeps_padding_and_labels():
+    from pipeline.datamodule import normalize_waveform, pad_batch
+
+    short, long = torch.randn(4000) * 3 + 5, torch.randn(8000)
+    labels = [[1, 2, 3], [4, 5, 6, 7]]
+    batch = pad_batch([short, long], labels, True, 1.0, random.Random(0))
+    assert batch["labels"].tolist() == [[1, 2, 3, -100], [4, 5, 6, 7]]  # clean labels
+    assert torch.equal(batch["input_values"][0, 4000:], torch.zeros(4000))  # padding stays zero
+    assert not torch.allclose(batch["input_values"][0, :4000], normalize_waveform(short))  # mixed
+    assert int(batch["attention_mask"][0].sum()) == 4000
+    with pytest.raises(ValueError, match="rng"):
+        pad_batch([short, long], mix_prob=0.5)

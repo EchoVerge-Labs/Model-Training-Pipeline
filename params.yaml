@@ -23,24 +23,24 @@ shard:
   max_cut_seconds: 30.0       # split longer clips into equal windows of at most this
   output_dir: data/shars
 
-# ── k-means pseudo-labels (HuBERT masked-prediction targets) ──
+# ── k-means pseudo-labels (WavLM masked-prediction targets) ──
 # Cluster ids come from ONE transformer layer of the ORIGINAL pretrained
 # checkpoint (pretrain.base_model), run once offline over the training audio:
 # k-means on layer-`layer` frames, then every frame -> its nearest centroid.
 # Training then continues that same model against these ids. Not distillation.
 # See pipeline.layer_features / .fit_kmeans / .assign_cluster_labels.
 cluster:
-  layer: 18                   # 3/4 of the way through the 24 layers of HuBERT Large
+  layer: 18                   # 3/4 of the way through the 24 layers of WavLM Large
   num_clusters: 500           # fairseq HuBERT iteration >= 2
   seed: 1337
   sample_hours: 40.0          # audio streamed for the k-means fit
   max_frames: 2000000         # frames kept for the fit (2M x 1024 fp32 = ~8 GB RAM)
-  kmeans_output: models/kmeans/km_model.joblib
-  labels_output: data/labels/train_labels.jsonl.gz
+  kmeans_output: models/kmeans/wavlm-large-L18-k500.joblib
+  labels_output: data/labels/wavlm_train_labels.jsonl.gz
 
 # ── Pre-training ────────────────────────────────────
 pretrain:
-  base_model: facebook/hubert-large-ll60k
+  base_model: microsoft/wavlm-large
   precision: bf16
   freeze_feature_encoder: true
   layerdrop: 0.1              # same as main: XLS-R's stock config value (HuBERT/WavLM stock is 0.1 too)
@@ -62,12 +62,16 @@ pretrain:
   per_device_max_seconds: 200
   num_workers: 4
 
-  # masking (applied by HubertModel itself). Same values as main's wav2vec2 run
+  # masking (applied by WavLMModel itself). Same values as main's wav2vec2 run
   # so the comparison is fair (fairseq's own HuBERT default would be 0.8).
   mask_time_prob: 0.65
   mask_time_length: 10
 
-  labels_path: data/labels/train_labels.jsonl.gz
+  # WavLM utterance mixing (method, not tuning): 20% of utterances get another
+  # utterance from the batch mixed in (<=50% overlap, -5..+5 dB). Labels stay clean.
+  utterance_mix_prob: 0.2
+
+  labels_path: data/labels/wavlm_train_labels.jsonl.gz
 
   # checkpointing
   save_every_updates: 1500
@@ -75,7 +79,7 @@ pretrain:
   keep_last_n_checkpoints: 5
   milestone_checkpoints: [4500, 9000, 13500]   # 10, 20, 30 passes
 
-  output_dir: models/hubert-large-si-ta-200h
+  output_dir: models/wavlm-large-si-ta-200h
 
 # ── Checkpoint Selection ────────────────────────────
 checkpoint_selection:
@@ -100,9 +104,9 @@ benchmark:
     wavlm_large:
       path: microsoft/wavlm-large
       name: "WavLM Large"
-    hubert_large_adapted:
+    wavlm_large_adapted:
       path: models/selected
-      name: "HuBERT Large (Si/Ta 200h)"
+      name: "WavLM Large (Si/Ta 200h)"
       is_local: true
 
 # ── MLflow ──────────────────────────────────────────

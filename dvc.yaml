@@ -87,7 +87,7 @@ stages:
       - shard
       - pretrain.base_model
     outs:
-      - models/kmeans/km_model.joblib:
+      - models/kmeans/wavlm-large-L18-k500.joblib:
           persist: true
     metrics:
       - reports/kmeans_stats.json:
@@ -99,7 +99,7 @@ stages:
       - src/pipeline/assign_cluster_labels.py
       - src/pipeline/layer_features.py
       - src/pipeline/datamodule.py
-      - models/kmeans/km_model.joblib
+      - models/kmeans/wavlm-large-L18-k500.joblib
       - data/raw/
       - data/manifests/train.jsonl
     params:
@@ -107,7 +107,7 @@ stages:
       - shard
       - pretrain.base_model
     outs:
-      - data/labels/train_labels.jsonl.gz:
+      - data/labels/wavlm_train_labels.jsonl.gz:
           persist: true
 
   pretrain:
@@ -116,15 +116,15 @@ stages:
       - src/pipeline/train.py
       - src/pipeline/datamodule.py
       - src/pipeline/callbacks.py
-      - src/pipeline/hubert_model.py
+      - src/pipeline/wavlm_model.py
       - src/pipeline/checkpoints.py
       - data/shars/
-      - data/labels/train_labels.jsonl.gz
+      - data/labels/wavlm_train_labels.jsonl.gz
     params:
       - pretrain
       - cluster.num_clusters
     outs:
-      - models/hubert-large-si-ta-200h/:
+      - models/wavlm-large-si-ta-200h/:
           persist: true
     metrics:
       - reports/pretrain_metrics.json:
@@ -137,7 +137,7 @@ stages:
     cmd: python -m pipeline.select_checkpoint --config params.yaml
     deps:
       - src/pipeline/select_checkpoint.py
-      - models/hubert-large-si-ta-200h/
+      - models/wavlm-large-si-ta-200h/
     params:
       - checkpoint_selection
     outs:
@@ -153,7 +153,7 @@ stages:
       models/selected
       ${benchmark.tasks}
       ${benchmark.seeds}
-      reports/bench/hubert_large_adapted
+      reports/bench/wavlm_large_adapted
       ${benchmark.mlflow_uri}
     deps:
       - models/selected/
@@ -162,7 +162,7 @@ stages:
       - benchmark.tasks
       - benchmark.seeds
     metrics:
-      - reports/bench/hubert_large_adapted/metrics.json:
+      - reports/bench/wavlm_large_adapted/metrics.json:
           cache: false
 
   report:

@@ -34,14 +34,14 @@ def measure_throughput(steps: int = 100, batch_seconds: float = 200.0, precision
         print(f"Memory: {mem_gb:.1f} GB")
 
     # Load the actual model — not a toy config
-    from pipeline.hubert_model import HubertForMaskedPrediction
+    from pipeline.wavlm_model import WavLMForMaskedPrediction
 
-    print("Loading facebook/hubert-large-ll60k ...")
+    print("Loading the base model from params.yaml ...")
     from pipeline.schema import Params
 
     params = Params.from_yaml(str(Path(__file__).resolve().parent.parent / "params.yaml"))
     num_clusters = params.cluster.num_clusters
-    model = HubertForMaskedPrediction(
+    model = WavLMForMaskedPrediction(
         params.pretrain.base_model, num_clusters=num_clusters, layerdrop=params.pretrain.layerdrop
     )
     model.freeze_feature_encoder()
@@ -70,7 +70,7 @@ def measure_throughput(steps: int = 100, batch_seconds: float = 200.0, precision
     amp_dtype = torch.bfloat16 if precision == "bf16" else torch.float16
 
     # A real pre-training step, using the same helpers as train.py: mask
-    # generation (required -- HubertModel applies masked_spec_embed at these
+    # generation (required -- WavLMModel applies masked_spec_embed at these
     # positions before the transformer), forward under autocast, masked
     # cross-entropy against synthetic cluster ids, backward, clip, optimizer
     # step. Synthetic audio/labels only; no real data IO or DDP sync.
