@@ -8,7 +8,6 @@ Usage:
 
 import argparse
 import json
-import random
 from pathlib import Path
 
 import joblib
@@ -20,7 +19,7 @@ from pipeline.layer_features import (
     base_normalizes,
     layer_features,
     load_feature_model,
-    load_final_train_cuts,
+    load_shar_cuts,
     load_waveform,
 )
 from pipeline.schema import Params
@@ -28,39 +27,31 @@ from pipeline.schema import Params
 FRAMES_PER_SECOND = 50  # WavLMModel's CNN stride: 320 samples at 16 kHz
 
 
-def sample_cuts(cuts, sample_hours: float, seed: int) -> list:
-    """Seeded shuffle, then take cuts up to sample_hours of audio."""
-    cuts = list(cuts)
-    random.Random(seed).shuffle(cuts)
-    budget = sample_hours * 3600
-    total = 0.0
-    sampled = []
-    for cut in cuts:
-        if total >= budget:
-            break
-        sampled.append(cut)
-        total += cut.duration
-    return sampled
-
-
-def collect_frames(cuts, extract, max_frames: int, seed: int) -> np.ndarray:
-    """Features of every sampled cut via extract(waveform) -> (T', D), randomly
-    thinned so about max_frames survive (fairseq HuBERT clusters a sample of
-    frames, not all of them)."""
+def collect_frames(
+    cuts, extract, sample_hours: float, max_frames: int, seed: int
+) -> tuple[np.ndarray, int, float]:
+    """Streams cuts until sample_hours of audio, features of each via
+    extract(waveform) -> (T', D), randomly thinned so about max_frames survive
+    (fairseq HuBERT clusters a sample of frames, not all of them). Returns
+    (features, n_cuts, hours). `cuts` should already be in random order."""
     rng = np.random.default_rng(seed)
-    total_frames = sum(c.duration for c in cuts) * FRAMES_PER_SECOND
-    keep_fraction = min(1.0, max_frames / max(total_frames, 1.0))
-    frames = []
+    budget = sample_hours * 3600
+    keep_fraction = min(1.0, max_frames / (budget * FRAMES_PER_SECOND))
+    frames, n_cuts, seconds = [], 0, 0.0
     for cut in cuts:
+        if seconds >= budget:
+            break
         feats = extract(load_waveform(cut))
         n_keep = min(len(feats), max(1, round(len(feats) * keep_fraction)))
         frames.append(feats[rng.choice(len(feats), size=n_keep, replace=False)])
+        n_cuts += 1
+        seconds += cut.duration
     if not frames:
-        raise RuntimeError("no frames collected -- check the sampled cuts")
+        raise RuntimeError("no frames collected -- is the Shar directory empty?")
     features = np.concatenate(frames, axis=0)
     if len(features) > max_frames:
         features = features[rng.choice(len(features), size=max_frames, replace=False)]
-    return features
+    return features, n_cuts, seconds / 3600
 
 
 def fit_kmeans(features: np.ndarray, num_clusters: int, seed: int) -> MiniBatchKMeans:
@@ -86,23 +77,21 @@ def main():
     cfg = params.cluster
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    cuts = load_final_train_cuts(params)
-    sampled = sample_cuts(cuts, cfg.sample_hours, cfg.seed)
-    sampled_hours = sum(c.duration for c in sampled) / 3600
-    print(
-        f"Sampled {len(sampled)} cuts ({sampled_hours:.1f}h) of {len(cuts)} total for k-means fit"
-    )
-
+    cuts = load_shar_cuts(params.shard.output_dir, shuffle=True, seed=cfg.seed)
     model = load_feature_model(params.pretrain.base_model, cfg.layer, device)
     normalize = base_normalizes(params.pretrain.base_model)
-    features = collect_frames(
-        sampled,
+    features, n_cuts, sampled_hours = collect_frames(
+        cuts,
         lambda w: layer_features(model, w, normalize, device),
+        cfg.sample_hours,
         cfg.max_frames,
         cfg.seed,
     )
     model = None  # free the feature model (GPU memory) before k-means
-    print(f"Collected {features.shape[0]} frames of layer {cfg.layer}, dim={features.shape[1]}")
+    print(
+        f"Read {n_cuts} cuts ({sampled_hours:.1f}h) -> {features.shape[0]} frames of "
+        f"layer {cfg.layer}, dim={features.shape[1]}"
+    )
 
     km = fit_kmeans(features, cfg.num_clusters, cfg.seed)
 
@@ -116,7 +105,7 @@ def main():
         "layer": cfg.layer,
         "num_clusters": cfg.num_clusters,
         "frames_used": int(features.shape[0]),
-        "sampled_cuts": len(sampled),
+        "sampled_cuts": n_cuts,
         "sampled_hours": round(sampled_hours, 2),
         "inertia": float(km.inertia_),
         "cluster_usage_min": int(counts.min()) if len(counts) else 0,
