@@ -115,12 +115,14 @@ stages:
       ${benchmark.seeds}
       reports/bench/xlsr300m_adapted
       ${benchmark.mlflow_uri}
+      ${benchmark.slsb_data_dir}
     deps:
       - models/selected/
       - scripts/run_benchmark.sh
     params:
       - benchmark.tasks
       - benchmark.seeds
+      - benchmark.slsb_data_dir
     metrics:
       - reports/bench/xlsr300m_adapted/metrics.json:
           cache: false

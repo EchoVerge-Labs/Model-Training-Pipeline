@@ -73,7 +73,7 @@ monitoring:
 # ── Checkpoint Selection ────────────────────────────
 checkpoint_selection:
   proxy_task: asr
-  proxy_data_dir: null        # filled at runtime from SLSB-benchmark data
+  proxy_data_dir: ../SLSB-benchmark/data   # relative to this repo root
   proxy_seed: 0
   output_dir: models/selected
 
@@ -81,7 +81,7 @@ checkpoint_selection:
 benchmark:
   tasks: "asr,sid,er,asv"
   seeds: "0,1,2"
-  slsb_data_dir: null         # path to SLSB-benchmark/data
+  slsb_data_dir: ../SLSB-benchmark/data    # relative to this repo root
   mlflow_uri: https://dagshub.com/EchoVerge-LABS/Model-Training-Pipeline.mlflow
   upstreams:
     xlsr300m_vanilla:
