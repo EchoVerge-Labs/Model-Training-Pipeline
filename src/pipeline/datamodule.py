@@ -23,6 +23,13 @@ except ImportError:
 SAMPLE_RATE = 16000
 
 
+def normalize_waveform(waveform: torch.Tensor) -> torch.Tensor:
+    """Zero-mean / unit-variance over one un-padded utterance -- what
+    Wav2Vec2FeatureExtractor does when do_normalize is set (XLS-R expects it, and
+    downstream eval applies it). Identical to the HuBERT-Large / WavLM-Large branches."""
+    return (waveform - waveform.mean()) / torch.sqrt(waveform.var(unbiased=False) + 1e-7)
+
+
 def pad_batch(waveforms: list[torch.Tensor]) -> dict:
     """1-D waveforms -> {"input_values": (B, T) zero-padded, "attention_mask": (B, T)}."""
     max_len = max(w.shape[0] for w in waveforms)
@@ -75,6 +82,7 @@ class SharPretrainingDataset(IterableDataset):
         shuffle: bool = True,
         seed: int = 0,
         buffer_size: int = 256,
+        normalize: bool = False,
     ):
         super().__init__()
         if not HAS_LHOTSE:
@@ -84,6 +92,7 @@ class SharPretrainingDataset(IterableDataset):
         self.shuffle = shuffle
         self.seed = seed
         self.buffer_size = buffer_size
+        self.normalize = normalize
         # Advances on every __iter__. Persistent DataLoader workers keep their
         # copy of the dataset alive, so each epoch reshuffles shards differently.
         self._epoch = 0
@@ -109,7 +118,8 @@ class SharPretrainingDataset(IterableDataset):
                 raise ValueError(
                     f"{cut.id}: expected {SAMPLE_RATE} Hz audio, got {cut.sampling_rate}"
                 )
-            buffer.append(torch.from_numpy(cut.load_audio()[0]).float())
+            wave = torch.from_numpy(cut.load_audio()[0]).float()
+            buffer.append(normalize_waveform(wave) if self.normalize else wave)
             if len(buffer) >= self.buffer_size:
                 yield from self._flush(buffer, rng)
                 buffer = []
@@ -126,8 +136,11 @@ def create_dataloader(
     per_device_max_seconds: float,
     num_workers: int = 4,
     seed: int = 0,
+    normalize: bool = False,
 ) -> DataLoader:
-    """DataLoader over padded batches of at most per_device_max_seconds each."""
+    """DataLoader over padded batches of at most per_device_max_seconds each.
+    normalize applies per-utterance zero-mean/unit-variance (the base model's
+    do_normalize flag -- the caller reads it)."""
     shar_dir = Path(shar_dir)
     world_size = dist.get_world_size() if dist.is_available() and dist.is_initialized() else 1
     n_shards = len(list(shar_dir.glob("cuts.*.jsonl.gz")))
@@ -139,7 +152,7 @@ def create_dataloader(
             f"lower num_workers or shard with a smaller shard_size"
         )
     dataset = SharPretrainingDataset(
-        str(shar_dir), max_batch_seconds=per_device_max_seconds, seed=seed
+        str(shar_dir), max_batch_seconds=per_device_max_seconds, seed=seed, normalize=normalize
     )
     return DataLoader(
         dataset,

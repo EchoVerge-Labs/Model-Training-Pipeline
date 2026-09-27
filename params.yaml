@@ -62,7 +62,10 @@ pretrain:
   keep_last_n_checkpoints: 5
   milestone_checkpoints: [4500, 9000, 13500]   # 10, 20, 30 passes
 
-  output_dir: models/xlsr300m-si-ta-200h
+  # Waveform normalisation is not a setting: it follows base_model's do_normalize
+  # (true for XLS-R), as on the HuBERT-Large / WavLM-Large branches. The first run,
+  # models/xlsr300m-si-ta-200h, predates that and trained on raw audio.
+  output_dir: models/xlsr300m-si-ta-200h-norm
 
 # ── Monitoring ──────────────────────────────────────
 monitoring:

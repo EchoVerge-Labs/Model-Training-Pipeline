@@ -42,7 +42,7 @@ make index      # list every wav on the Drive mount (path + size) -> data/catalo
 make select     # dedupe, pin each clip to its Drive file, select train/holdout -> data/manifests/
 make pull       # copy the selected clips from the mount -> data/raw/ (same <Lang>/<genre>/... layout)
 make shard      # pack into Lhotse Shar tarballs -> data/shars/
-make train      # continued pre-training -> models/xlsr300m-si-ta-200h/
+make train      # continued pre-training -> models/xlsr300m-si-ta-200h-norm/
 make ckpt       # proxy-eval milestone checkpoints, copy the best -> models/selected/
 make bench      # slsb run on the selected checkpoint -> reports/bench/xlsr300m_adapted/
 make report     # aggregate into reports/results.md + results_table.csv
@@ -76,7 +76,7 @@ complete checkpoint in `pretrain.output_dir` (falling back to the previous one i
 newest is unreadable), and the loss-curve CSV keeps its history. To choose explicitly:
 
 ```bash
-bash scripts/launch_pretrain.sh --resume-from models/xlsr300m-si-ta-200h/checkpoint-3000
+bash scripts/launch_pretrain.sh --resume-from models/xlsr300m-si-ta-200h-norm/checkpoint-3000
 bash scripts/launch_pretrain.sh --no-resume     # ignore existing checkpoints, start over
 ```
 

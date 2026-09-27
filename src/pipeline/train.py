@@ -467,8 +467,12 @@ def train(
     # sampling helpers, save_pretrained, set_gumbel_temperature)
     raw_model = model.module if hasattr(model, "module") else model
 
-    # ── Feature extractor (for computing output lengths) ──
+    # ── Feature extractor (saved with checkpoints; its do_normalize flag decides
+    #    whether utterances are normalised, exactly as the base model expects) ──
     feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(cfg.base_model)
+    normalize = bool(feature_extractor.do_normalize)
+    if is_main:
+        print(f"Waveform normalisation (do_normalize): {normalize}")
 
     # ── Optimizer ──
     optimizer = torch.optim.AdamW(
@@ -499,6 +503,7 @@ def train(
             per_device_max_seconds=cfg.per_device_max_seconds,
             num_workers=cfg.num_workers,
             seed=resume_step,
+            normalize=normalize,
         )
     data_iter = iter(dataloader)
 
@@ -550,6 +555,7 @@ def train(
                     "min_gumbel_temperature": cfg.min_gumbel_temperature,
                     "gumbel_temperature_decay": cfg.gumbel_temperature_decay,
                     "freeze_feature_encoder": cfg.freeze_feature_encoder,
+                    "normalize": normalize,
                     "resumed_from_step": resume_step,
                 }
                 mlflow_logger.log_params(flat_params)

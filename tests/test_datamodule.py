@@ -10,7 +10,7 @@ import soundfile as sf
 import torch
 from lhotse import CutSet, MonoCut, Recording
 
-from pipeline.datamodule import SAMPLE_RATE, create_dataloader, pack_batches
+from pipeline.datamodule import SAMPLE_RATE, create_dataloader, normalize_waveform, pack_batches
 from pipeline.shard import shard_cuts
 
 
@@ -18,17 +18,22 @@ def _wave(seconds):
     return torch.zeros(int(seconds * SAMPLE_RATE))
 
 
-def _make_shars(tmp_path, durations, shard_size):
+def _make_shars(tmp_path, durations, shard_size, noise_std=None):
     """One clip per duration; clip i is a constant signal of (i+1)/200, so the clip
-    can be identified from its audio after batching."""
+    can be identified from its audio after batching -- or, with noise_std, Gaussian
+    noise at that scale (a constant clip normalises to all zeros)."""
+    rng = np.random.default_rng(0)
     raw = tmp_path / "raw"
     raw.mkdir()
     cuts = []
     for i, seconds in enumerate(durations):
         path = raw / f"{i}.wav"
-        sf.write(
-            path, np.full(int(seconds * SAMPLE_RATE), (i + 1) / 200, dtype="float32"), SAMPLE_RATE
-        )
+        n = int(seconds * SAMPLE_RATE)
+        if noise_std is None:
+            audio = np.full(n, (i + 1) / 200, dtype="float32")
+        else:
+            audio = (0.01 + rng.normal(0, noise_std, n)).astype("float32")
+        sf.write(path, audio, SAMPLE_RATE)
         rec = Recording.from_file(path, recording_id=f"c{i}")
         cuts.append(MonoCut(id=f"c{i}", start=0, duration=rec.duration, channel=0, recording=rec))
     out = tmp_path / "shars"
@@ -95,3 +100,28 @@ def test_too_few_shards_for_the_workers_is_a_clear_error(tmp_path):
     shars = _make_shars(tmp_path, DURATIONS[:6], shard_size=6)  # a single shard
     with pytest.raises(ValueError, match="at least 4"):
         create_dataloader(str(shars), per_device_max_seconds=12.0, num_workers=4)
+
+
+def test_normalize_waveform_matches_the_wav2vec2_feature_extractor():
+    transformers = pytest.importorskip("transformers")
+    w = torch.from_numpy(np.random.default_rng(0).normal(0.01, 0.066, 16000).astype("float32"))
+    fe = transformers.Wav2Vec2FeatureExtractor(do_normalize=True)
+    expected = fe(w.numpy(), sampling_rate=SAMPLE_RATE, return_tensors="pt")["input_values"][0]
+    torch.testing.assert_close(normalize_waveform(w), expected, atol=1e-4, rtol=1e-4)
+
+
+def test_normalize_scales_each_clip_on_its_own_samples_and_leaves_padding_zero(tmp_path):
+    shars = _make_shars(tmp_path, DURATIONS[:12], shard_size=6, noise_std=0.066)
+    loader = create_dataloader(
+        str(shars), per_device_max_seconds=12.0, num_workers=0, seed=1, normalize=True
+    )
+    rows = 0
+    for batch in loader:
+        x, mask = batch["input_values"], batch["attention_mask"]
+        for row in range(x.shape[0]):
+            n = int(mask[row].sum())
+            assert abs(float(x[row, :n].mean())) < 1e-3
+            assert abs(float(x[row, :n].std(unbiased=False)) - 1.0) < 1e-3
+            assert not x[row, n:].any()
+            rows += 1
+    assert rows == 12
