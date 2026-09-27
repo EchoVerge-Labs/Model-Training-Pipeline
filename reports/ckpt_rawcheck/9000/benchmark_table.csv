@@ -1,0 +1,7 @@
+upstream,task,language,metric,value,status,git_commit,timestamp,split
+models/rawcheck/checkpoint-9000,asr_omni,sinhala,wer,0.9992520568436799,ok,233de4c2dcbde354c1bd4cdbd45aea2fbb964f25,2026-09-26T18:25:54.492229+00:00,random
+models/rawcheck/checkpoint-9000,asr_omni,sinhala,cer,0.7836216694027024,ok,233de4c2dcbde354c1bd4cdbd45aea2fbb964f25,2026-09-26T18:25:54.492229+00:00,random
+models/rawcheck/checkpoint-9000,asr,sinhala,wer,0.8026469443363177,ok,233de4c2dcbde354c1bd4cdbd45aea2fbb964f25,2026-09-26T18:40:43.969608+00:00,random
+models/rawcheck/checkpoint-9000,asr,sinhala,cer,0.25756395273341126,ok,233de4c2dcbde354c1bd4cdbd45aea2fbb964f25,2026-09-26T18:40:43.969608+00:00,random
+models/rawcheck/checkpoint-9000,asr,tamil,wer,0.9515625,ok,233de4c2dcbde354c1bd4cdbd45aea2fbb964f25,2026-09-26T18:48:10.394108+00:00,speaker_disjoint
+models/rawcheck/checkpoint-9000,asr,tamil,cer,0.4019841607766329,ok,233de4c2dcbde354c1bd4cdbd45aea2fbb964f25,2026-09-26T18:48:10.394108+00:00,speaker_disjoint

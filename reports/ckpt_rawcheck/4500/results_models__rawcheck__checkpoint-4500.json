@@ -1,0 +1,65 @@
+{
+  "upstream": "models/rawcheck/checkpoint-4500",
+  "families": [
+    "asr"
+  ],
+  "seeds": [
+    0
+  ],
+  "results": [
+    {
+      "upstream": "models/rawcheck/checkpoint-4500",
+      "task": "asr_omni",
+      "language": "sinhala",
+      "name": "asr_omni_sinhala",
+      "kind": "asr",
+      "seed": 0,
+      "status": "ok",
+      "split": "random",
+      "metrics": {
+        "wer": 1.005983545250561,
+        "cer": 0.8146861977522415
+      },
+      "perf": {
+        "seconds_per_step": 9.034645974636078,
+        "peak_gpu_gb": 13.626002432
+      }
+    },
+    {
+      "upstream": "models/rawcheck/checkpoint-4500",
+      "task": "asr",
+      "language": "sinhala",
+      "name": "asr_sinhala",
+      "kind": "asr",
+      "seed": 0,
+      "status": "ok",
+      "split": "random",
+      "metrics": {
+        "wer": 0.8392370572207084,
+        "cer": 0.2751590702506168
+      },
+      "perf": {
+        "seconds_per_step": 0.5768086584409078,
+        "peak_gpu_gb": 11.555766272
+      }
+    },
+    {
+      "upstream": "models/rawcheck/checkpoint-4500",
+      "task": "asr",
+      "language": "tamil",
+      "name": "asr_tamil",
+      "kind": "asr",
+      "seed": 0,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.9471875,
+        "cer": 0.40504981691220304
+      },
+      "perf": {
+        "seconds_per_step": 0.7873591899871826,
+        "peak_gpu_gb": 7.314832384
+      }
+    }
+  ]
+}
