@@ -1,8 +1,10 @@
-# Model Training Pipeline — Continued Pre-training of XLS-R 300m on Sinhala/Tamil
+# Model Training Pipeline — Continued Pre-training of wav2vec2.0 Large (mono) on Sinhala/Tamil
 
 DVC-orchestrated pipeline for continued self-supervised wav2vec2 pre-training, automatic
 checkpoint selection, and benchmarking. Produces a Sinhala/Tamil-specialised speech
-encoder from `facebook/wav2vec2-xls-r-300m`.
+encoder from `facebook/wav2vec2-large-lv60`, the monolingual (English) counterpart to the
+multilingual XLS-R checkpoint `main` continues -- to compare how much a multilingual base
+helps Sinhala/Tamil adaptation versus a same-size English-only one.
 
 ## Pipeline DAG
 
@@ -42,9 +44,9 @@ make index      # list every wav on the Drive mount (path + size) -> data/catalo
 make select     # dedupe, pin each clip to its Drive file, select train/holdout -> data/manifests/
 make pull       # copy the selected clips from the mount -> data/raw/ (same <Lang>/<genre>/... layout)
 make shard      # pack into Lhotse Shar tarballs -> data/shars/
-make train      # continued pre-training -> models/xlsr300m-si-ta-200h-norm/
+make train      # continued pre-training -> models/wav2vec2-mono-si-ta-200h/
 make ckpt       # proxy-eval milestone checkpoints, copy the best -> models/selected/
-make bench      # slsb run on the selected checkpoint -> reports/bench/xlsr300m_adapted/
+make bench      # slsb run on the selected checkpoint -> reports/bench/wav2vec2_mono_adapted/
 make report     # aggregate into reports/results.md + results_table.csv
 ```
 
@@ -76,7 +78,7 @@ complete checkpoint in `pretrain.output_dir` (falling back to the previous one i
 newest is unreadable), and the loss-curve CSV keeps its history. To choose explicitly:
 
 ```bash
-bash scripts/launch_pretrain.sh --resume-from models/xlsr300m-si-ta-200h-norm/checkpoint-3000
+bash scripts/launch_pretrain.sh --resume-from models/wav2vec2-mono-si-ta-200h/checkpoint-3000
 bash scripts/launch_pretrain.sh --no-resume     # ignore existing checkpoints, start over
 ```
 
@@ -92,13 +94,14 @@ readings in a row (defaults: 10.0 and 5, i.e. 2,500 updates at the default inter
 
 `dvc.yaml`'s `benchmark` stage only benchmarks the adapted checkpoint
 (`models/selected`) — `params.yaml`'s `benchmark.upstreams` lists three
-baselines too (`xlsr300m_vanilla`, `mhubert147`, `wavlm_large`) for
+baselines too (`xlsr300m_vanilla`, `wav2vec2_mono_vanilla`, `mhubert147`, `wavlm_large`) for
 `report.py`'s comparison table, but they aren't wired into the DVC DAG since
 they don't depend on this repo's training output. Run each once manually
 before `make report`:
 
 ```bash
 bash scripts/run_benchmark.sh facebook/wav2vec2-xls-r-300m asr,sid,er,asv 0,1,2 reports/bench/xlsr300m_vanilla
+bash scripts/run_benchmark.sh facebook/wav2vec2-large-lv60  asr,sid,er,asv 0,1,2 reports/bench/wav2vec2_mono_vanilla
 bash scripts/run_benchmark.sh utter-project/mHuBERT-147   asr,sid,er,asv 0,1,2 reports/bench/mhubert147
 bash scripts/run_benchmark.sh microsoft/wavlm-large        asr,sid,er,asv 0,1,2 reports/bench/wavlm_large
 ```

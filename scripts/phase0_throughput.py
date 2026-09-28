@@ -37,8 +37,13 @@ def measure_throughput(steps: int = 100, batch_seconds: float = 200.0, precision
 
     # Load the actual model — not a toy config
     from transformers import Wav2Vec2ForPreTraining
-    print("Loading facebook/wav2vec2-xls-r-300m ...")
-    model = Wav2Vec2ForPreTraining.from_pretrained("facebook/wav2vec2-xls-r-300m")
+    from pipeline.schema import Params
+
+    base_model = Params.from_yaml(
+        str(Path(__file__).resolve().parent.parent / "params.yaml")
+    ).pretrain.base_model
+    print(f"Loading {base_model} ...")
+    model = Wav2Vec2ForPreTraining.from_pretrained(base_model)
     model.freeze_feature_encoder()
     model.to(device)
 

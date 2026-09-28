@@ -1,4 +1,9 @@
-"""Continued pre-training of wav2vec2-xls-r-300m on Sinhala/Tamil.
+"""Continued pre-training of wav2vec2.0 Large (monolingual, English-pretrained) on Sinhala/Tamil.
+
+Same wav2vec2 contrastive-loss trainer as main (which continues the multilingual
+XLS-R checkpoint instead); only pretrain.base_model and the output/benchmark
+paths in params.yaml differ, so the two runs are a fair mono-vs-multilingual
+base comparison.
 
 Adapted from HuggingFace's run_wav2vec2_pretraining_no_trainer.py.
 Key changes from the HF example:
@@ -527,7 +532,7 @@ def train(
             try:
                 with open(config_path) as f:
                     mlflow_cfg = yaml.safe_load(f).get("mlflow", {})
-                run_name = f"xlsr300m-si-ta-{cfg.target_batch_seconds}s"
+                run_name = f"wav2vec2-mono-si-ta-{cfg.target_batch_seconds}s"
                 if resume:
                     run_name += f"-resume{resume_step}"
                 mlflow_logger = MLflowLogger(
