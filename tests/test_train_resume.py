@@ -76,7 +76,8 @@ def test_incomplete_and_tmp_checkpoints_are_never_resumed(tmp_path):
 
 
 def test_layerdrop_is_overridden_to_zero(tmp_path):
-    """The hubert-large checkpoint ships layerdrop=0.1, which leaves parameters
+    """The real checkpoints (hubert-large-ll60k, mHuBERT-147) ship layerdrop=0.1,
+    which leaves parameters
     unused in a step and breaks DDP(find_unused_parameters=False)."""
     HubertModel(HubertConfig(layerdrop=0.1, **CONFIG)).save_pretrained(tmp_path)
     assert HubertModel.from_pretrained(tmp_path).config.layerdrop == 0.1

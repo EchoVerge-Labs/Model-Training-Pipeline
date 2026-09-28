@@ -1,8 +1,8 @@
-# Model Training Pipeline — Continued Pre-training of HuBERT Large on Sinhala/Tamil
+# Model Training Pipeline — Continued Pre-training of mHuBERT-147 on Sinhala/Tamil
 
 DVC-orchestrated pipeline for continued self-supervised HuBERT pre-training, automatic
 checkpoint selection, and benchmarking. Produces a Sinhala/Tamil-specialised speech
-encoder from `facebook/hubert-large-ll60k`.
+encoder from `utter-project/mHuBERT-147` (already multilingual across 147 languages).
 
 ## Pipeline DAG
 
@@ -10,20 +10,25 @@ encoder from `facebook/hubert-large-ll60k`.
 snapshot_catalog → index_drive → select → materialise → shard → fit_kmeans → assign_cluster_labels → pretrain → select_checkpoint → benchmark → report
 ```
 
-`pretrain` continues pre-training the already-pretrained `hubert-large-ll60k`
+`pretrain` continues pre-training the already-pretrained `mHuBERT-147`
 with HuBERT's real objective: masked prediction of k-means cluster ids, not
 wav2vec2-style contrastive learning. The model architecture and objective are
 unchanged; this is not distillation. The cluster ids are made once, offline:
 `fit_kmeans` runs the *original* checkpoint over ~40 h of the training set and
-clusters the output of transformer layer 18 into 500 clusters;
+clusters the output of transformer layer 9 (mHuBERT-147 has 12 layers, vs.
+HuBERT-Large's 24) into 500 clusters;
 `assign_cluster_labels` assigns every training cut's frames to the nearest
 centroid (`data/labels/`). Waveforms are normalised (`do_normalize`, read from
 the base model) identically for labelling and training. `transformers` has no
 `HubertForPreTraining`, and the checkpoint carries no prediction head, so
 `pipeline.hubert_model` adds a fresh linear head over the cluster ids.
 
-Branches: `main` continues wav2vec2 XLS-R, `HuBERT-Large` (this branch)
-continues HuBERT Large, and WavLM Large lives on its own branch.
+Branches: `main` continues multilingual wav2vec2 XLS-R 300M, `Wav2Vec2-Mono`
+continues its monolingual (English) counterpart, `HuBERT-Large` continues
+HuBERT Large, `WavLM-Large` continues WavLM Large, and `mHuBERT-147` (this
+branch) continues mHuBERT-147 -- the only base model already pretrained on
+Sinhala/Tamil (among its 147 languages), rather than adapted from an
+unrelated-language checkpoint.
 
 **Fair comparison across branches.** Every training setting in `pretrain`
 (updates, batch seconds, LR schedule, optimizer, masking `0.65` / length 10,
@@ -67,9 +72,9 @@ make pull       # copy the selected clips from the mount -> data/raw/ (same <Lan
 make shard      # pack into Lhotse Shar tarballs -> data/shars/
 make fit-kmeans # fit k-means on layer-18 features of the base model -> models/kmeans/
 make labels     # assign cluster-id pseudo-labels to every training cut -> data/labels/
-make train      # continued pre-training -> models/hubert-large-si-ta-200h/
+make train      # continued pre-training -> models/mhubert147-si-ta-200h/
 make ckpt       # proxy-eval milestone checkpoints, copy the best -> models/selected/
-make bench      # slsb run on the selected checkpoint -> reports/bench/hubert_large_adapted/
+make bench      # slsb run on the selected checkpoint -> reports/bench/mhubert147_adapted/
 make report     # aggregate into reports/results.md + results_table.csv
 ```
 

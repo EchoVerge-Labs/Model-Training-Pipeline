@@ -30,17 +30,17 @@ shard:
 # Training then continues that same model against these ids. Not distillation.
 # See pipeline.layer_features / .fit_kmeans / .assign_cluster_labels.
 cluster:
-  layer: 18                   # 3/4 of the way through the 24 layers of HuBERT Large
+  layer: 9                    # 3/4 of the way through mHuBERT-147's 12 layers
   num_clusters: 500           # fairseq HuBERT iteration >= 2
   seed: 1337
   sample_hours: 40.0          # audio streamed for the k-means fit
   max_frames: 2000000         # frames kept for the fit (2M x 1024 fp32 = ~8 GB RAM)
-  kmeans_output: models/kmeans/km_model.joblib
-  labels_output: data/labels/train_labels.jsonl.gz
+  kmeans_output: models/kmeans/mhubert147-L9-k500.joblib
+  labels_output: data/labels/mhubert147_train_labels.jsonl.gz
 
 # ── Pre-training ────────────────────────────────────
 pretrain:
-  base_model: facebook/hubert-large-ll60k
+  base_model: utter-project/mHuBERT-147
   precision: bf16
   freeze_feature_encoder: true
   layerdrop: 0.1              # same as main: XLS-R's stock config value (HuBERT/WavLM stock is 0.1 too)
@@ -68,7 +68,7 @@ pretrain:
   mask_time_prob: 0.65
   mask_time_length: 10
 
-  labels_path: data/labels/train_labels.jsonl.gz
+  labels_path: data/labels/mhubert147_train_labels.jsonl.gz
 
   # checkpointing
   save_every_updates: 1500
@@ -76,7 +76,7 @@ pretrain:
   keep_last_n_checkpoints: 5
   milestone_checkpoints: [4500, 9000, 13500]   # 10, 20, 30 passes
 
-  output_dir: models/hubert-large-si-ta-200h
+  output_dir: models/mhubert147-si-ta-200h
 
 # ── Checkpoint Selection ────────────────────────────
 checkpoint_selection:
@@ -97,13 +97,13 @@ benchmark:
       name: "XLS-R 300M (vanilla)"
     mhubert147:
       path: utter-project/mHuBERT-147
-      name: "mHuBERT-147"
+      name: "mHuBERT-147 (vanilla)"
     wavlm_large:
       path: microsoft/wavlm-large
       name: "WavLM Large"
-    hubert_large_adapted:
+    mhubert147_adapted:
       path: models/selected
-      name: "HuBERT Large (Si/Ta 200h)"
+      name: "mHuBERT-147 (Si/Ta 200h)"
       is_local: true
 
 # ── MLflow ──────────────────────────────────────────

@@ -40,7 +40,7 @@ def _setup(tmp_path):
             conv_dim=(32, 32),
             conv_kernel=(10, 3),
             conv_stride=(5, 2),
-            layerdrop=0.1,  # like hubert-large; pretrain.layerdrop overrides it
+            layerdrop=0.1,  # like the real checkpoints; pretrain.layerdrop overrides it
         )
     ).save_pretrained(base)
     Wav2Vec2FeatureExtractor(do_normalize=True, sampling_rate=16000).save_pretrained(base)
