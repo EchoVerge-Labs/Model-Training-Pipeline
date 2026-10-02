@@ -135,3 +135,32 @@ stages:
       hash: md5
       md5: 2a39f8c8d6424d04a43b31e0160bc0b7
       size: 4872
+  benchmark:
+    cmd: "bash scripts/run_benchmark.sh models/selected asr,sid,er,asv 0,1,2 reports/bench/xlsr300m_adapted_norm
+      https://dagshub.com/EchoVerge-LABS/Model-Training-Pipeline.mlflow ../SLSB-benchmark/data
+      xlsr_200h_CoPT_norm model=xlsr300m,base_model=facebook/wav2vec2-xls-r-300m,stage=continued-pretraining,copt_data=si-ta-200h,copt_run=xlsr300m-si-ta-200h-norm,train_normalize=true,variant=norm\n"
+    deps:
+    - path: models/selected/
+      hash: md5
+      md5: fe031ac411194fee27a7989e2f904a60.dir
+      size: 3775403047
+      nfiles: 4
+    - path: scripts/label_benchmark_runs.py
+      hash: md5
+      md5: 4e632bb3c5718e28ea9bf3b5ec40b1b3
+      size: 5623
+    - path: scripts/run_benchmark.sh
+      hash: md5
+      md5: d9218c90f6cfae95c74a6eba08bfa299
+      size: 2833
+      isexec: true
+    params:
+      params.yaml:
+        benchmark.seeds: 0,1,2
+        benchmark.slsb_data_dir: ../SLSB-benchmark/data
+        benchmark.tasks: asr,sid,er,asv
+    outs:
+    - path: reports/bench/xlsr300m_adapted_norm/metrics.json
+      hash: md5
+      md5: 289b5e0c5013e29233306c956d80e584
+      size: 8965

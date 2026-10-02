@@ -44,7 +44,7 @@ make pull       # copy the selected clips from the mount -> data/raw/ (same <Lan
 make shard      # pack into Lhotse Shar tarballs -> data/shars/
 make train      # continued pre-training -> models/xlsr300m-si-ta-200h-norm/
 make ckpt       # proxy-eval milestone checkpoints, copy the best -> models/selected/
-make bench      # slsb run on the selected checkpoint -> reports/bench/xlsr300m_adapted/
+make bench      # slsb run on the selected checkpoint -> reports/bench/xlsr300m_adapted_norm/
 make report     # aggregate into reports/results.md + results_table.csv
 ```
 

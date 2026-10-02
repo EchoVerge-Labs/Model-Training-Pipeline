@@ -113,18 +113,21 @@ stages:
       models/selected
       ${benchmark.tasks}
       ${benchmark.seeds}
-      reports/bench/xlsr300m_adapted
+      reports/bench/xlsr300m_adapted_norm
       ${benchmark.mlflow_uri}
       ${benchmark.slsb_data_dir}
+      ${benchmark.mlflow_run_prefix}
+      ${benchmark.mlflow_run_tags}
     deps:
       - models/selected/
       - scripts/run_benchmark.sh
+      - scripts/label_benchmark_runs.py
     params:
       - benchmark.tasks
       - benchmark.seeds
       - benchmark.slsb_data_dir
     metrics:
-      - reports/bench/xlsr300m_adapted/metrics.json:
+      - reports/bench/xlsr300m_adapted_norm/metrics.json:
           cache: false
 
   report:

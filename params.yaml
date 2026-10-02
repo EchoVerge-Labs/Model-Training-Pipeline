@@ -86,6 +86,10 @@ benchmark:
   seeds: "0,1,2"
   slsb_data_dir: ../SLSB-benchmark/data    # relative to this repo root
   mlflow_uri: https://dagshub.com/EchoVerge-LABS/Model-Training-Pipeline.mlflow
+  # MLflow runs are named <prefix>_<task>_<language>_s<seed>; eval_normalize and
+  # checkpoint tags are added from models/selected and checkpoint_selection.json.
+  mlflow_run_prefix: xlsr_200h_CoPT_norm
+  mlflow_run_tags: "model=xlsr300m,base_model=facebook/wav2vec2-xls-r-300m,stage=continued-pretraining,copt_data=si-ta-200h,copt_run=xlsr300m-si-ta-200h-norm,train_normalize=true,variant=norm"
   upstreams:
     xlsr300m_vanilla:
       path: facebook/wav2vec2-xls-r-300m
@@ -96,7 +100,18 @@ benchmark:
     wavlm_large:
       path: microsoft/wavlm-large
       name: "WavLM Large"
+    # The first pre-training run (raw audio, models/xlsr300m-si-ta-200h): its
+    # checkpoint-9000 benchmarked with normalisation on, and its checkpoint-13500
+    # with normalisation off, as it was trained.
     xlsr300m_adapted:
+      path: models/xlsr300m-si-ta-200h/checkpoint-9000
+      name: "XLS-R 300M (Si/Ta 200h, raw-trained, norm eval)"
+      is_local: true
+    xlsr300m_adapted_raw:
+      path: models/selected_raw
+      name: "XLS-R 300M (Si/Ta 200h, raw-trained, raw eval)"
+      is_local: true
+    xlsr300m_adapted_norm:
       path: models/selected
       name: "XLS-R 300M (Si/Ta 200h)"
       is_local: true
