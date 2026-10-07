@@ -8,6 +8,9 @@ CONFIG="params.yaml"
 # Source NCCL env for GB10
 source configs/nccl-env.sh
 
+# DagsHub credentials (DAGSHUB_USER / DAGSHUB_TOKEN) for MLflow logging, if present
+if [ -f .env ]; then set -a; source .env; set +a; fi
+
 # ─── Detect number of nodes ──────────────────────────
 NNODES=${NNODES:-1}
 NODE_RANK=${NODE_RANK:-0}

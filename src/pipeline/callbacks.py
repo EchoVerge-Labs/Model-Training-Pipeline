@@ -19,12 +19,13 @@ class MLflowLogger:
             warnings.warn("mlflow not installed, logging disabled")
             return
 
-        mlflow.set_tracking_uri(tracking_uri)
-        mlflow.set_experiment(experiment_name)
-
-        # DagsHub auth via env vars
+        # DagsHub auth via env vars -- set before the first MLflow call: set_experiment
+        # creates the experiment if needed, and without credentials DagsHub answers 403.
         os.environ.setdefault("MLFLOW_TRACKING_USERNAME", os.environ.get("DAGSHUB_USER", ""))
         os.environ.setdefault("MLFLOW_TRACKING_PASSWORD", os.environ.get("DAGSHUB_TOKEN", ""))
+
+        mlflow.set_tracking_uri(tracking_uri)
+        mlflow.set_experiment(experiment_name)
 
         self.run = mlflow.start_run(run_name=run_name)
 
