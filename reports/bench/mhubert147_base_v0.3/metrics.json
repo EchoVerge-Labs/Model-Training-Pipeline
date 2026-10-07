@@ -1,0 +1,1020 @@
+{
+  "upstream": "models/mhubert147-base",
+  "families": [
+    "asr",
+    "sid",
+    "er",
+    "sd",
+    "asv",
+    "ic"
+  ],
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "results": [
+    {
+      "upstream": "models/mhubert147-base",
+      "task": "asr",
+      "language": "sinhala",
+      "name": "asr_sinhala",
+      "kind": "asr",
+      "seed": 0,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.6149068322981367,
+        "cer": 0.16636492952282425
+      },
+      "perf": {
+        "train_seconds": 913.2038087844849,
+        "peak_gpu_gb": 4.108232704,
+        "feature_seconds": 27.343369722366333
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 11,
+        "dev_cer": 0.17412286422329465
+      }
+    },
+    {
+      "upstream": "models/mhubert147-base",
+      "task": "asr",
+      "language": "sinhala",
+      "name": "asr_sinhala",
+      "kind": "asr",
+      "seed": 1,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.6184006211180124,
+        "cer": 0.16261476787792578
+      },
+      "perf": {
+        "train_seconds": 351.1685321331024,
+        "peak_gpu_gb": 3.787268096,
+        "feature_seconds": 27.343369722366333
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 10,
+        "dev_cer": 0.17542715534107212
+      }
+    },
+    {
+      "upstream": "models/mhubert147-base",
+      "task": "asr",
+      "language": "sinhala",
+      "name": "asr_sinhala",
+      "kind": "asr",
+      "seed": 2,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.6498447204968945,
+        "cer": 0.17017974912711756
+      },
+      "perf": {
+        "train_seconds": 497.0803380012512,
+        "peak_gpu_gb": 3.78745856,
+        "feature_seconds": 27.343369722366333
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 17,
+        "dev_cer": 0.17438372244685013
+      }
+    },
+    {
+      "upstream": "models/mhubert147-base",
+      "task": "asr",
+      "language": "tamil",
+      "name": "asr_tamil",
+      "kind": "asr",
+      "seed": 0,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.79,
+        "cer": 0.2893212977944307
+      },
+      "perf": {
+        "train_seconds": 711.508472442627,
+        "peak_gpu_gb": 4.191110656,
+        "feature_seconds": 11.383809566497803
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 18,
+        "dev_cer": 0.2635289091426944
+      }
+    },
+    {
+      "upstream": "models/mhubert147-base",
+      "task": "asr",
+      "language": "tamil",
+      "name": "asr_tamil",
+      "kind": "asr",
+      "seed": 1,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.8025,
+        "cer": 0.2911947543217236
+      },
+      "perf": {
+        "train_seconds": 338.6091182231903,
+        "peak_gpu_gb": 3.870232064,
+        "feature_seconds": 11.383809566497803
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 32,
+        "dev_cer": 0.2631016804329251
+      }
+    },
+    {
+      "upstream": "models/mhubert147-base",
+      "task": "asr",
+      "language": "tamil",
+      "name": "asr_tamil",
+      "kind": "asr",
+      "seed": 2,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.81,
+        "cer": 0.29638933832921743
+      },
+      "perf": {
+        "train_seconds": 222.08142113685608,
+        "peak_gpu_gb": 3.870232064,
+        "feature_seconds": 11.383809566497803
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 18,
+        "dev_cer": 0.2674451723155796
+      }
+    },
+    {
+      "upstream": "models/mhubert147-base",
+      "task": "asv",
+      "language": "tamil",
+      "name": "asv_tamil",
+      "kind": "verification",
+      "seed": 0,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "eer": 0.19019088016967123
+      },
+      "perf": {
+        "train_seconds": 216.0798008441925,
+        "peak_gpu_gb": 0.560520192,
+        "feature_seconds": 356.28709411621094
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.0001,
+        "best_epoch": 24,
+        "dev_eer": 0.12462962962962965,
+        "train_speakers": 80,
+        "layer_weights": [
+          0.2646,
+          0.181,
+          0.1857,
+          0.1293,
+          0.0941,
+          0.0302,
+          0.0177,
+          0.0161,
+          0.0158,
+          0.0158,
+          0.0158,
+          0.0168,
+          0.0171
+        ]
+      }
+    },
+    {
+      "upstream": "models/mhubert147-base",
+      "task": "asv",
+      "language": "tamil",
+      "name": "asv_tamil",
+      "kind": "verification",
+      "seed": 1,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "eer": 0.20654825026511137
+      },
+      "perf": {
+        "train_seconds": 97.30174732208252,
+        "peak_gpu_gb": 0.560520192,
+        "feature_seconds": 356.28709411621094
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.0001,
+        "best_epoch": 18,
+        "dev_eer": 0.12555555555555553,
+        "train_speakers": 80,
+        "layer_weights": [
+          0.2646,
+          0.181,
+          0.1857,
+          0.1293,
+          0.0941,
+          0.0302,
+          0.0177,
+          0.0161,
+          0.0158,
+          0.0158,
+          0.0158,
+          0.0168,
+          0.0171
+        ]
+      }
+    },
+    {
+      "upstream": "models/mhubert147-base",
+      "task": "asv",
+      "language": "tamil",
+      "name": "asv_tamil",
+      "kind": "verification",
+      "seed": 2,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "eer": 0.19019088016967123
+      },
+      "perf": {
+        "train_seconds": 85.64379477500916,
+        "peak_gpu_gb": 0.564880384,
+        "feature_seconds": 356.28709411621094
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.0001,
+        "best_epoch": 15,
+        "dev_eer": 0.1290740740740741,
+        "train_speakers": 80,
+        "layer_weights": [
+          0.2646,
+          0.181,
+          0.1857,
+          0.1293,
+          0.0941,
+          0.0302,
+          0.0177,
+          0.0161,
+          0.0158,
+          0.0158,
+          0.0158,
+          0.0168,
+          0.0171
+        ]
+      }
+    },
+    {
+      "upstream": "models/mhubert147-base",
+      "task": "er",
+      "language": "tamil",
+      "name": "er_tamil",
+      "kind": "classification",
+      "seed": 0,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.40161441787354235,
+        "macro_f1": 0.38615528108669395
+      },
+      "perf": {
+        "train_seconds": 15.258195161819458,
+        "peak_gpu_gb": 0.511142912,
+        "feature_seconds": 4.481720685958862
+      },
+      "details": {
+        "fold_accuracy": [
+          0.4194,
+          0.3186,
+          0.3515,
+          0.4709,
+          0.4477
+        ],
+        "fold_accuracy_std": 0.057690048855488646,
+        "fold_lr": [
+          0.001,
+          0.01,
+          0.01,
+          0.001,
+          0.01
+        ]
+      }
+    },
+    {
+      "upstream": "models/mhubert147-base",
+      "task": "er",
+      "language": "tamil",
+      "name": "er_tamil",
+      "kind": "classification",
+      "seed": 1,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.4054851001626353,
+        "macro_f1": 0.3878333708251528
+      },
+      "perf": {
+        "train_seconds": 4.717450141906738,
+        "peak_gpu_gb": 0.511110144,
+        "feature_seconds": 4.481720685958862
+      },
+      "details": {
+        "fold_accuracy": [
+          0.4301,
+          0.3627,
+          0.3218,
+          0.4593,
+          0.4535
+        ],
+        "fold_accuracy_std": 0.05411055107637063,
+        "fold_lr": [
+          0.001,
+          0.01,
+          0.01,
+          0.001,
+          0.01
+        ]
+      }
+    },
+    {
+      "upstream": "models/mhubert147-base",
+      "task": "er",
+      "language": "tamil",
+      "name": "er_tamil",
+      "kind": "classification",
+      "seed": 2,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.40974189383105825,
+        "macro_f1": 0.39019659696911735
+      },
+      "perf": {
+        "train_seconds": 4.636380672454834,
+        "peak_gpu_gb": 0.511110144,
+        "feature_seconds": 4.481720685958862
+      },
+      "details": {
+        "fold_accuracy": [
+          0.4301,
+          0.3235,
+          0.3416,
+          0.4826,
+          0.4709
+        ],
+        "fold_accuracy_std": 0.06563390344190409,
+        "fold_lr": [
+          0.001,
+          0.01,
+          0.01,
+          0.001,
+          0.01
+        ]
+      }
+    },
+    {
+      "upstream": "models/mhubert147-base",
+      "task": "ic_banking",
+      "language": "sinhala",
+      "name": "ic_banking_sinhala",
+      "kind": "classification",
+      "seed": 0,
+      "status": "ok",
+      "split": "random_stratified_no_speaker_ids",
+      "metrics": {
+        "accuracy": 0.9927536231884058,
+        "macro_f1": 0.9923392409737425
+      },
+      "perf": {
+        "train_seconds": 57.65374946594238,
+        "peak_gpu_gb": 0.755265536,
+        "feature_seconds": 40.688920736312866
+      },
+      "details": {
+        "lr": 0.01,
+        "best_epoch": 25,
+        "dev_accuracy": 1.0
+      }
+    },
+    {
+      "upstream": "models/mhubert147-base",
+      "task": "ic_banking",
+      "language": "sinhala",
+      "name": "ic_banking_sinhala",
+      "kind": "classification",
+      "seed": 1,
+      "status": "ok",
+      "split": "random_stratified_no_speaker_ids",
+      "metrics": {
+        "accuracy": 0.9934123847167325,
+        "macro_f1": 0.9931390588173193
+      },
+      "perf": {
+        "train_seconds": 6.69624924659729,
+        "peak_gpu_gb": 0.755226624,
+        "feature_seconds": 40.688920736312866
+      },
+      "details": {
+        "lr": 0.01,
+        "best_epoch": 10,
+        "dev_accuracy": 0.9986824769433466
+      }
+    },
+    {
+      "upstream": "models/mhubert147-base",
+      "task": "ic_banking",
+      "language": "sinhala",
+      "name": "ic_banking_sinhala",
+      "kind": "classification",
+      "seed": 2,
+      "status": "ok",
+      "split": "random_stratified_no_speaker_ids",
+      "metrics": {
+        "accuracy": 0.9934123847167325,
+        "macro_f1": 0.9930269483085897
+      },
+      "perf": {
+        "train_seconds": 8.540048837661743,
+        "peak_gpu_gb": 0.755226624,
+        "feature_seconds": 40.688920736312866
+      },
+      "details": {
+        "lr": 0.01,
+        "best_epoch": 18,
+        "dev_accuracy": 0.9986824769433466
+      }
+    },
+    {
+      "upstream": "models/mhubert147-base",
+      "task": "ic_banking",
+      "language": "tamil",
+      "name": "ic_banking_tamil",
+      "kind": "classification",
+      "seed": 0,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.8825808720112518,
+        "macro_f1": 0.8686767728548336
+      },
+      "perf": {
+        "train_seconds": 10.718757629394531,
+        "peak_gpu_gb": 0.48179712,
+        "feature_seconds": 2.5107927322387695
+      },
+      "details": {
+        "fold_accuracy": [
+          0.8608,
+          0.825,
+          0.9259,
+          0.8519,
+          0.9494
+        ],
+        "fold_accuracy_std": 0.04706419972829882,
+        "fold_lr": [
+          0.01,
+          0.01,
+          0.01,
+          0.01,
+          0.01
+        ]
+      }
+    },
+    {
+      "upstream": "models/mhubert147-base",
+      "task": "ic_banking",
+      "language": "tamil",
+      "name": "ic_banking_tamil",
+      "kind": "classification",
+      "seed": 1,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.8751101734646038,
+        "macro_f1": 0.8615909305923468
+      },
+      "perf": {
+        "train_seconds": 3.9570751190185547,
+        "peak_gpu_gb": 0.481758208,
+        "feature_seconds": 2.5107927322387695
+      },
+      "details": {
+        "fold_accuracy": [
+          0.8481,
+          0.85,
+          0.8889,
+          0.8519,
+          0.9367
+        ],
+        "fold_accuracy_std": 0.03430802443413513,
+        "fold_lr": [
+          0.01,
+          0.01,
+          0.01,
+          0.01,
+          0.01
+        ]
+      }
+    },
+    {
+      "upstream": "models/mhubert147-base",
+      "task": "ic_banking",
+      "language": "tamil",
+      "name": "ic_banking_tamil",
+      "kind": "classification",
+      "seed": 2,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.8825492264416315,
+        "macro_f1": 0.8706452740177724
+      },
+      "perf": {
+        "train_seconds": 3.319830894470215,
+        "peak_gpu_gb": 0.481758208,
+        "feature_seconds": 2.5107927322387695
+      },
+      "details": {
+        "fold_accuracy": [
+          0.8608,
+          0.8375,
+          0.9136,
+          0.8642,
+          0.9367
+        ],
+        "fold_accuracy_std": 0.03670749299189948,
+        "fold_lr": [
+          0.01,
+          0.01,
+          0.01,
+          0.01,
+          0.01
+        ]
+      }
+    },
+    {
+      "upstream": "models/mhubert147-base",
+      "task": "ic_health",
+      "language": "tamil",
+      "name": "ic_health_tamil",
+      "kind": "classification",
+      "seed": 0,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.6029102974286052,
+        "macro_f1": 0.5970342144154184
+      },
+      "perf": {
+        "train_seconds": 49.20229411125183,
+        "peak_gpu_gb": 0.533991424,
+        "feature_seconds": 12.596540689468384
+      },
+      "details": {
+        "fold_accuracy": [
+          0.5979,
+          0.6014,
+          0.5808,
+          0.6517,
+          0.5828
+        ],
+        "fold_accuracy_std": 0.025716819979499865,
+        "fold_lr": [
+          0.01,
+          0.01,
+          0.01,
+          0.01,
+          0.01
+        ]
+      }
+    },
+    {
+      "upstream": "models/mhubert147-base",
+      "task": "ic_health",
+      "language": "tamil",
+      "name": "ic_health_tamil",
+      "kind": "classification",
+      "seed": 1,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.6173646166607419,
+        "macro_f1": 0.6124751390954204
+      },
+      "perf": {
+        "train_seconds": 16.421703100204468,
+        "peak_gpu_gb": 0.533891072,
+        "feature_seconds": 12.596540689468384
+      },
+      "details": {
+        "fold_accuracy": [
+          0.6323,
+          0.6048,
+          0.5842,
+          0.6828,
+          0.5828
+        ],
+        "fold_accuracy_std": 0.03729631334733854,
+        "fold_lr": [
+          0.01,
+          0.01,
+          0.01,
+          0.01,
+          0.01
+        ]
+      }
+    },
+    {
+      "upstream": "models/mhubert147-base",
+      "task": "ic_health",
+      "language": "tamil",
+      "name": "ic_health_tamil",
+      "kind": "classification",
+      "seed": 2,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.6139068610024885,
+        "macro_f1": 0.6083346323705657
+      },
+      "perf": {
+        "train_seconds": 14.992730379104614,
+        "peak_gpu_gb": 0.533891072,
+        "feature_seconds": 12.596540689468384
+      },
+      "details": {
+        "fold_accuracy": [
+          0.6117,
+          0.6357,
+          0.5876,
+          0.6517,
+          0.5828
+        ],
+        "fold_accuracy_std": 0.02673001704229249,
+        "fold_lr": [
+          0.01,
+          0.01,
+          0.01,
+          0.01,
+          0.01
+        ]
+      }
+    },
+    {
+      "upstream": "models/mhubert147-base",
+      "task": "sd",
+      "language": "sinhala",
+      "name": "sd_sinhala",
+      "kind": "diarization",
+      "seed": 0,
+      "status": "ok",
+      "split": "recording_disjoint",
+      "metrics": {
+        "der": 0.11147511349543575
+      },
+      "perf": {
+        "train_seconds": 495.84655499458313,
+        "peak_gpu_gb": 0.633690112,
+        "feature_seconds": 142.0984001159668
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.001,
+        "best_epoch": 7,
+        "threshold": 0.49999999999999994,
+        "dev_der": 0.0908451630938911,
+        "missed": 0.009475171951916802,
+        "false_alarm": 0.0,
+        "confusion": 0.10199994154351895,
+        "test_recordings": 24,
+        "train_classes": 95,
+        "layer_weights": [
+          0.3627,
+          0.3433,
+          0.1705,
+          0.0449,
+          0.016,
+          0.0088,
+          0.0071,
+          0.0075,
+          0.0077,
+          0.0077,
+          0.0076,
+          0.0081,
+          0.0081
+        ]
+      }
+    },
+    {
+      "upstream": "models/mhubert147-base",
+      "task": "sd",
+      "language": "sinhala",
+      "name": "sd_sinhala",
+      "kind": "diarization",
+      "seed": 1,
+      "status": "ok",
+      "split": "recording_disjoint",
+      "metrics": {
+        "der": 0.11388240113488085
+      },
+      "perf": {
+        "train_seconds": 401.43657183647156,
+        "peak_gpu_gb": 0.633690112,
+        "feature_seconds": 142.0984001159668
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.001,
+        "best_epoch": 20,
+        "threshold": 0.49999999999999994,
+        "dev_der": 0.08127950413047447,
+        "missed": 0.009475171951916802,
+        "false_alarm": 0.0,
+        "confusion": 0.10440722918296405,
+        "test_recordings": 24,
+        "train_classes": 95,
+        "layer_weights": [
+          0.3627,
+          0.3433,
+          0.1705,
+          0.0449,
+          0.016,
+          0.0088,
+          0.0071,
+          0.0075,
+          0.0077,
+          0.0077,
+          0.0076,
+          0.0081,
+          0.0081
+        ]
+      }
+    },
+    {
+      "upstream": "models/mhubert147-base",
+      "task": "sd",
+      "language": "sinhala",
+      "name": "sd_sinhala",
+      "kind": "diarization",
+      "seed": 2,
+      "status": "ok",
+      "split": "recording_disjoint",
+      "metrics": {
+        "der": 0.11315644497900956
+      },
+      "perf": {
+        "train_seconds": 304.2927794456482,
+        "peak_gpu_gb": 0.638081024,
+        "feature_seconds": 142.0984001159668
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.001,
+        "best_epoch": 14,
+        "threshold": 0.49999999999999994,
+        "dev_der": 0.08200257112165449,
+        "missed": 0.009475171951916802,
+        "false_alarm": 0.0,
+        "confusion": 0.10368127302709278,
+        "test_recordings": 24,
+        "train_classes": 95,
+        "layer_weights": [
+          0.3627,
+          0.3433,
+          0.1705,
+          0.0449,
+          0.016,
+          0.0088,
+          0.0071,
+          0.0075,
+          0.0077,
+          0.0077,
+          0.0076,
+          0.0081,
+          0.0081
+        ]
+      }
+    },
+    {
+      "upstream": "models/mhubert147-base",
+      "task": "sd",
+      "language": "tamil",
+      "name": "sd_tamil",
+      "kind": "diarization",
+      "seed": 0,
+      "status": "ok",
+      "split": "recording_disjoint",
+      "metrics": {
+        "der": 0.06871733508760652
+      },
+      "perf": {
+        "train_seconds": 495.84655499458313,
+        "peak_gpu_gb": 0.623080448,
+        "feature_seconds": 1.7404556274414062e-05
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.001,
+        "best_epoch": 7,
+        "threshold": 0.39999999999999997,
+        "dev_der": 0.17273811122502122,
+        "missed": 0.008886534574915582,
+        "false_alarm": 0.0,
+        "confusion": 0.05983080051269094,
+        "test_recordings": 5,
+        "train_classes": 95,
+        "layer_weights": [
+          0.3627,
+          0.3433,
+          0.1705,
+          0.0449,
+          0.016,
+          0.0088,
+          0.0071,
+          0.0075,
+          0.0077,
+          0.0077,
+          0.0076,
+          0.0081,
+          0.0081
+        ]
+      }
+    },
+    {
+      "upstream": "models/mhubert147-base",
+      "task": "sd",
+      "language": "tamil",
+      "name": "sd_tamil",
+      "kind": "diarization",
+      "seed": 1,
+      "status": "ok",
+      "split": "recording_disjoint",
+      "metrics": {
+        "der": 0.09830002247423747
+      },
+      "perf": {
+        "train_seconds": 401.43657183647156,
+        "peak_gpu_gb": 0.623080448,
+        "feature_seconds": 1.7404556274414062e-05
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.001,
+        "best_epoch": 20,
+        "threshold": 0.3,
+        "dev_der": 0.08826522201005105,
+        "missed": 0.008886534574915582,
+        "false_alarm": 0.0,
+        "confusion": 0.0894134878993219,
+        "test_recordings": 5,
+        "train_classes": 95,
+        "layer_weights": [
+          0.3627,
+          0.3433,
+          0.1705,
+          0.0449,
+          0.016,
+          0.0088,
+          0.0071,
+          0.0075,
+          0.0077,
+          0.0077,
+          0.0076,
+          0.0081,
+          0.0081
+        ]
+      }
+    },
+    {
+      "upstream": "models/mhubert147-base",
+      "task": "sd",
+      "language": "tamil",
+      "name": "sd_tamil",
+      "kind": "diarization",
+      "seed": 2,
+      "status": "ok",
+      "split": "recording_disjoint",
+      "metrics": {
+        "der": 0.2591285726976084
+      },
+      "perf": {
+        "train_seconds": 304.2927794456482,
+        "peak_gpu_gb": 0.623080448,
+        "feature_seconds": 1.7404556274414062e-05
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.001,
+        "best_epoch": 14,
+        "threshold": 0.3,
+        "dev_der": 0.11336765921301588,
+        "missed": 0.008886534574915582,
+        "false_alarm": 0.0,
+        "confusion": 0.25024203812269286,
+        "test_recordings": 5,
+        "train_classes": 95,
+        "layer_weights": [
+          0.3627,
+          0.3433,
+          0.1705,
+          0.0449,
+          0.016,
+          0.0088,
+          0.0071,
+          0.0075,
+          0.0077,
+          0.0077,
+          0.0076,
+          0.0081,
+          0.0081
+        ]
+      }
+    },
+    {
+      "upstream": "models/mhubert147-base",
+      "task": "sid",
+      "language": "multilingual",
+      "name": "sid",
+      "kind": "classification",
+      "seed": 0,
+      "status": "ok",
+      "split": "stratified_closed_set",
+      "metrics": {
+        "accuracy": 0.995995995995996,
+        "macro_f1": 0.9958292915690249
+      },
+      "perf": {
+        "train_seconds": 19.603666305541992,
+        "peak_gpu_gb": 0.675714048,
+        "feature_seconds": 95.11454796791077
+      },
+      "details": {
+        "lr": 0.01,
+        "best_epoch": 6,
+        "dev_accuracy": 1.0
+      }
+    },
+    {
+      "upstream": "models/mhubert147-base",
+      "task": "sid",
+      "language": "multilingual",
+      "name": "sid",
+      "kind": "classification",
+      "seed": 1,
+      "status": "ok",
+      "split": "stratified_closed_set",
+      "metrics": {
+        "accuracy": 0.997997997997998,
+        "macro_f1": 0.997876879122565
+      },
+      "perf": {
+        "train_seconds": 2.791393518447876,
+        "peak_gpu_gb": 0.675226624,
+        "feature_seconds": 95.11454796791077
+      },
+      "details": {
+        "lr": 0.01,
+        "best_epoch": 13,
+        "dev_accuracy": 1.0
+      }
+    },
+    {
+      "upstream": "models/mhubert147-base",
+      "task": "sid",
+      "language": "multilingual",
+      "name": "sid",
+      "kind": "classification",
+      "seed": 2,
+      "status": "ok",
+      "split": "stratified_closed_set",
+      "metrics": {
+        "accuracy": 0.997997997997998,
+        "macro_f1": 0.9979682916846763
+      },
+      "perf": {
+        "train_seconds": 2.3195559978485107,
+        "peak_gpu_gb": 0.675226624,
+        "feature_seconds": 95.11454796791077
+      },
+      "details": {
+        "lr": 0.01,
+        "best_epoch": 6,
+        "dev_accuracy": 1.0
+      }
+    }
+  ]
+}
