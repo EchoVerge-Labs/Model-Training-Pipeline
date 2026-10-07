@@ -1,0 +1,1128 @@
+{
+  "upstream": "facebook/wav2vec2-large-lv60",
+  "families": [
+    "asr",
+    "sid",
+    "er",
+    "asv",
+    "ic",
+    "sd"
+  ],
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "results": [
+    {
+      "upstream": "facebook/wav2vec2-large-lv60",
+      "task": "asr",
+      "language": "sinhala",
+      "name": "asr_sinhala",
+      "kind": "asr",
+      "seed": 0,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.7107919254658385,
+        "cer": 0.2119487908961593
+      },
+      "perf": {
+        "train_seconds": 1066.0437507629395,
+        "peak_gpu_gb": 5.82769152,
+        "feature_seconds": 68.9263162612915
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 15,
+        "dev_cer": 0.21990348245728447
+      }
+    },
+    {
+      "upstream": "facebook/wav2vec2-large-lv60",
+      "task": "asr",
+      "language": "sinhala",
+      "name": "asr_sinhala",
+      "kind": "asr",
+      "seed": 1,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.7298136645962733,
+        "cer": 0.21362989784042416
+      },
+      "perf": {
+        "train_seconds": 465.0944974422455,
+        "peak_gpu_gb": 5.489668096,
+        "feature_seconds": 68.9263162612915
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 13,
+        "dev_cer": 0.2213382026868397
+      }
+    },
+    {
+      "upstream": "facebook/wav2vec2-large-lv60",
+      "task": "asr",
+      "language": "sinhala",
+      "name": "asr_sinhala",
+      "kind": "asr",
+      "seed": 2,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.718944099378882,
+        "cer": 0.216280874175611
+      },
+      "perf": {
+        "train_seconds": 519.778195142746,
+        "peak_gpu_gb": 5.491012096,
+        "feature_seconds": 68.9263162612915
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 15,
+        "dev_cer": 0.21899047867484023
+      }
+    },
+    {
+      "upstream": "facebook/wav2vec2-large-lv60",
+      "task": "asr",
+      "language": "tamil",
+      "name": "asr_tamil",
+      "kind": "asr",
+      "seed": 0,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.888125,
+        "cer": 0.3610661670782594
+      },
+      "perf": {
+        "train_seconds": 724.9270725250244,
+        "peak_gpu_gb": 5.913611776,
+        "feature_seconds": 32.51403307914734
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 30,
+        "dev_cer": 0.3345912845343207
+      }
+    },
+    {
+      "upstream": "facebook/wav2vec2-large-lv60",
+      "task": "asr",
+      "language": "tamil",
+      "name": "asr_tamil",
+      "kind": "asr",
+      "seed": 1,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.899375,
+        "cer": 0.36093843140594395
+      },
+      "perf": {
+        "train_seconds": 378.0285120010376,
+        "peak_gpu_gb": 5.57677824,
+        "feature_seconds": 32.51403307914734
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 31,
+        "dev_cer": 0.3341640558245514
+      }
+    },
+    {
+      "upstream": "facebook/wav2vec2-large-lv60",
+      "task": "asr",
+      "language": "tamil",
+      "name": "asr_tamil",
+      "kind": "asr",
+      "seed": 2,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.894375,
+        "cer": 0.36242868091629055
+      },
+      "perf": {
+        "train_seconds": 484.97616243362427,
+        "peak_gpu_gb": 5.577217536,
+        "feature_seconds": 32.51403307914734
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 42,
+        "dev_cer": 0.3391483907718599
+      }
+    },
+    {
+      "upstream": "facebook/wav2vec2-large-lv60",
+      "task": "asv",
+      "language": "tamil",
+      "name": "asv_tamil",
+      "kind": "verification",
+      "seed": 0,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "eer": 0.19331919406150586
+      },
+      "perf": {
+        "train_seconds": 136.66706585884094,
+        "peak_gpu_gb": 1.4769664,
+        "feature_seconds": 913.0519380569458
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.0001,
+        "best_epoch": 18,
+        "dev_eer": 0.11296296296296295,
+        "train_speakers": 80,
+        "layer_weights": [
+          0.0116,
+          0.0548,
+          0.1117,
+          0.1252,
+          0.1138,
+          0.0959,
+          0.0814,
+          0.0536,
+          0.02,
+          0.0115,
+          0.0106,
+          0.0101,
+          0.0103,
+          0.0105,
+          0.0114,
+          0.0182,
+          0.0252,
+          0.0386,
+          0.0584,
+          0.0515,
+          0.0259,
+          0.013,
+          0.0123,
+          0.0123,
+          0.0123
+        ]
+      }
+    },
+    {
+      "upstream": "facebook/wav2vec2-large-lv60",
+      "task": "asv",
+      "language": "tamil",
+      "name": "asv_tamil",
+      "kind": "verification",
+      "seed": 1,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "eer": 0.1658536585365854
+      },
+      "perf": {
+        "train_seconds": 53.919580936431885,
+        "peak_gpu_gb": 1.4769664,
+        "feature_seconds": 913.0519380569458
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.0001,
+        "best_epoch": 8,
+        "dev_eer": 0.1188888888888889,
+        "train_speakers": 80,
+        "layer_weights": [
+          0.0116,
+          0.0548,
+          0.1117,
+          0.1252,
+          0.1138,
+          0.0959,
+          0.0814,
+          0.0536,
+          0.02,
+          0.0115,
+          0.0106,
+          0.0101,
+          0.0103,
+          0.0105,
+          0.0114,
+          0.0182,
+          0.0252,
+          0.0386,
+          0.0584,
+          0.0515,
+          0.0259,
+          0.013,
+          0.0123,
+          0.0123,
+          0.0123
+        ]
+      }
+    },
+    {
+      "upstream": "facebook/wav2vec2-large-lv60",
+      "task": "asv",
+      "language": "tamil",
+      "name": "asv_tamil",
+      "kind": "verification",
+      "seed": 2,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "eer": 0.18292682926829268
+      },
+      "perf": {
+        "train_seconds": 95.97556686401367,
+        "peak_gpu_gb": 1.481326592,
+        "feature_seconds": 913.0519380569458
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.0001,
+        "best_epoch": 19,
+        "dev_eer": 0.10777777777777776,
+        "train_speakers": 80,
+        "layer_weights": [
+          0.0116,
+          0.0548,
+          0.1117,
+          0.1252,
+          0.1138,
+          0.0959,
+          0.0814,
+          0.0536,
+          0.02,
+          0.0115,
+          0.0106,
+          0.0101,
+          0.0103,
+          0.0105,
+          0.0114,
+          0.0182,
+          0.0252,
+          0.0386,
+          0.0584,
+          0.0515,
+          0.0259,
+          0.013,
+          0.0123,
+          0.0123,
+          0.0123
+        ]
+      }
+    },
+    {
+      "upstream": "facebook/wav2vec2-large-lv60",
+      "task": "er",
+      "language": "tamil",
+      "name": "er_tamil",
+      "kind": "classification",
+      "seed": 0,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.3783896469166797,
+        "macro_f1": 0.35530959569671955
+      },
+      "perf": {
+        "train_seconds": 17.67392611503601,
+        "peak_gpu_gb": 1.472825344,
+        "feature_seconds": 11.268912076950073
+      },
+      "details": {
+        "fold_accuracy": [
+          0.3548,
+          0.3333,
+          0.3317,
+          0.5116,
+          0.3605
+        ],
+        "fold_accuracy_std": 0.0675868861898201,
+        "fold_lr": [
+          0.001,
+          0.01,
+          0.01,
+          0.01,
+          0.001
+        ]
+      }
+    },
+    {
+      "upstream": "facebook/wav2vec2-large-lv60",
+      "task": "er",
+      "language": "tamil",
+      "name": "er_tamil",
+      "kind": "classification",
+      "seed": 1,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.38848703148413777,
+        "macro_f1": 0.37226399820131834
+      },
+      "perf": {
+        "train_seconds": 5.898532152175903,
+        "peak_gpu_gb": 1.472782336,
+        "feature_seconds": 11.268912076950073
+      },
+      "details": {
+        "fold_accuracy": [
+          0.3548,
+          0.3039,
+          0.3069,
+          0.5116,
+          0.4651
+        ],
+        "fold_accuracy_std": 0.0848182529964322,
+        "fold_lr": [
+          0.001,
+          0.01,
+          0.01,
+          0.01,
+          0.001
+        ]
+      }
+    },
+    {
+      "upstream": "facebook/wav2vec2-large-lv60",
+      "task": "er",
+      "language": "tamil",
+      "name": "er_tamil",
+      "kind": "classification",
+      "seed": 2,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.38578752871094885,
+        "macro_f1": 0.36808312124102815
+      },
+      "perf": {
+        "train_seconds": 4.551439046859741,
+        "peak_gpu_gb": 1.472782336,
+        "feature_seconds": 11.268912076950073
+      },
+      "details": {
+        "fold_accuracy": [
+          0.3656,
+          0.3578,
+          0.3218,
+          0.4709,
+          0.4128
+        ],
+        "fold_accuracy_std": 0.05150516238174816,
+        "fold_lr": [
+          0.001,
+          0.01,
+          0.01,
+          0.01,
+          0.001
+        ]
+      }
+    },
+    {
+      "upstream": "facebook/wav2vec2-large-lv60",
+      "task": "ic_banking",
+      "language": "sinhala",
+      "name": "ic_banking_sinhala",
+      "kind": "classification",
+      "seed": 0,
+      "status": "ok",
+      "split": "random_stratified_no_speaker_ids",
+      "metrics": {
+        "accuracy": 0.9729907773386034,
+        "macro_f1": 0.9726948012628193
+      },
+      "perf": {
+        "train_seconds": 75.53853297233582,
+        "peak_gpu_gb": 2.096830976,
+        "feature_seconds": 103.69633984565735
+      },
+      "details": {
+        "lr": 0.01,
+        "best_epoch": 36,
+        "dev_accuracy": 0.9841897233201581
+      }
+    },
+    {
+      "upstream": "facebook/wav2vec2-large-lv60",
+      "task": "ic_banking",
+      "language": "sinhala",
+      "name": "ic_banking_sinhala",
+      "kind": "classification",
+      "seed": 1,
+      "status": "ok",
+      "split": "random_stratified_no_speaker_ids",
+      "metrics": {
+        "accuracy": 0.974308300395257,
+        "macro_f1": 0.97434684260574
+      },
+      "perf": {
+        "train_seconds": 16.73200273513794,
+        "peak_gpu_gb": 2.096779776,
+        "feature_seconds": 103.69633984565735
+      },
+      "details": {
+        "lr": 0.01,
+        "best_epoch": 36,
+        "dev_accuracy": 0.9841897233201581
+      }
+    },
+    {
+      "upstream": "facebook/wav2vec2-large-lv60",
+      "task": "ic_banking",
+      "language": "sinhala",
+      "name": "ic_banking_sinhala",
+      "kind": "classification",
+      "seed": 2,
+      "status": "ok",
+      "split": "random_stratified_no_speaker_ids",
+      "metrics": {
+        "accuracy": 0.9723320158102767,
+        "macro_f1": 0.9719072734727695
+      },
+      "perf": {
+        "train_seconds": 13.650853395462036,
+        "peak_gpu_gb": 2.096779776,
+        "feature_seconds": 103.69633984565735
+      },
+      "details": {
+        "lr": 0.01,
+        "best_epoch": 33,
+        "dev_accuracy": 0.9855072463768116
+      }
+    },
+    {
+      "upstream": "facebook/wav2vec2-large-lv60",
+      "task": "ic_banking",
+      "language": "tamil",
+      "name": "ic_banking_tamil",
+      "kind": "classification",
+      "seed": 0,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.7975714955461791,
+        "macro_f1": 0.7725824633508598
+      },
+      "perf": {
+        "train_seconds": 13.53848934173584,
+        "peak_gpu_gb": 1.398231552,
+        "feature_seconds": 6.330816745758057
+      },
+      "details": {
+        "fold_accuracy": [
+          0.8228,
+          0.7,
+          0.8519,
+          0.7778,
+          0.8354
+        ],
+        "fold_accuracy_std": 0.05464121163541005,
+        "fold_lr": [
+          0.01,
+          0.01,
+          0.01,
+          0.001,
+          0.01
+        ]
+      }
+    },
+    {
+      "upstream": "facebook/wav2vec2-large-lv60",
+      "task": "ic_banking",
+      "language": "tamil",
+      "name": "ic_banking_tamil",
+      "kind": "classification",
+      "seed": 1,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.7999449132676981,
+        "macro_f1": 0.7792262026734712
+      },
+      "perf": {
+        "train_seconds": 4.243261098861694,
+        "peak_gpu_gb": 1.398180352,
+        "feature_seconds": 6.330816745758057
+      },
+      "details": {
+        "fold_accuracy": [
+          0.8228,
+          0.7625,
+          0.8765,
+          0.7531,
+          0.7848
+        ],
+        "fold_accuracy_std": 0.04520146379045391,
+        "fold_lr": [
+          0.01,
+          0.01,
+          0.01,
+          0.001,
+          0.01
+        ]
+      }
+    },
+    {
+      "upstream": "facebook/wav2vec2-large-lv60",
+      "task": "ic_banking",
+      "language": "tamil",
+      "name": "ic_banking_tamil",
+      "kind": "classification",
+      "seed": 2,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.7975699328020003,
+        "macro_f1": 0.7752440257369793
+      },
+      "perf": {
+        "train_seconds": 5.398839235305786,
+        "peak_gpu_gb": 1.398180352,
+        "feature_seconds": 6.330816745758057
+      },
+      "details": {
+        "fold_accuracy": [
+          0.8354,
+          0.75,
+          0.8765,
+          0.7284,
+          0.7975
+        ],
+        "fold_accuracy_std": 0.054257206342228796,
+        "fold_lr": [
+          0.01,
+          0.01,
+          0.01,
+          0.001,
+          0.01
+        ]
+      }
+    },
+    {
+      "upstream": "facebook/wav2vec2-large-lv60",
+      "task": "ic_health",
+      "language": "tamil",
+      "name": "ic_health_tamil",
+      "kind": "classification",
+      "seed": 0,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.48246000710984716,
+        "macro_f1": 0.47143308432729614
+      },
+      "perf": {
+        "train_seconds": 59.651039361953735,
+        "peak_gpu_gb": 1.531763712,
+        "feature_seconds": 32.593300104141235
+      },
+      "details": {
+        "fold_accuracy": [
+          0.4433,
+          0.5017,
+          0.488,
+          0.5069,
+          0.4724
+        ],
+        "fold_accuracy_std": 0.022947436448001908,
+        "fold_lr": [
+          0.01,
+          0.01,
+          0.01,
+          0.01,
+          0.01
+        ]
+      }
+    },
+    {
+      "upstream": "facebook/wav2vec2-large-lv60",
+      "task": "ic_health",
+      "language": "tamil",
+      "name": "ic_health_tamil",
+      "kind": "classification",
+      "seed": 1,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.48042659082829714,
+        "macro_f1": 0.4684689633461172
+      },
+      "perf": {
+        "train_seconds": 18.02005124092102,
+        "peak_gpu_gb": 1.531630592,
+        "feature_seconds": 32.593300104141235
+      },
+      "details": {
+        "fold_accuracy": [
+          0.4502,
+          0.4674,
+          0.4639,
+          0.5448,
+          0.4759
+        ],
+        "fold_accuracy_std": 0.033247908993651945,
+        "fold_lr": [
+          0.01,
+          0.01,
+          0.01,
+          0.01,
+          0.01
+        ]
+      }
+    },
+    {
+      "upstream": "facebook/wav2vec2-large-lv60",
+      "task": "ic_health",
+      "language": "tamil",
+      "name": "ic_health_tamil",
+      "kind": "classification",
+      "seed": 2,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.4790401706363313,
+        "macro_f1": 0.46855219044807717
+      },
+      "perf": {
+        "train_seconds": 13.930726528167725,
+        "peak_gpu_gb": 1.531630592,
+        "feature_seconds": 32.593300104141235
+      },
+      "details": {
+        "fold_accuracy": [
+          0.4433,
+          0.4639,
+          0.4845,
+          0.5207,
+          0.4828
+        ],
+        "fold_accuracy_std": 0.02563138449930962,
+        "fold_lr": [
+          0.01,
+          0.01,
+          0.01,
+          0.01,
+          0.01
+        ]
+      }
+    },
+    {
+      "upstream": "facebook/wav2vec2-large-lv60",
+      "task": "sd",
+      "language": "sinhala",
+      "name": "sd_sinhala",
+      "kind": "diarization",
+      "seed": 0,
+      "status": "ok",
+      "split": "recording_disjoint",
+      "metrics": {
+        "der": 0.08768476841999467
+      },
+      "perf": {
+        "train_seconds": 636.1049377918243,
+        "peak_gpu_gb": 1.570236928,
+        "feature_seconds": 339.65056920051575
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.001,
+        "best_epoch": 19,
+        "threshold": 0.39999999999999997,
+        "dev_der": 0.04282831242071788,
+        "missed": 0.009475171951916802,
+        "false_alarm": 0.0,
+        "confusion": 0.07820959646807787,
+        "test_recordings": 24,
+        "train_classes": 95,
+        "layer_weights": [
+          0.0118,
+          0.0249,
+          0.0907,
+          0.1071,
+          0.1021,
+          0.0887,
+          0.0821,
+          0.0594,
+          0.0216,
+          0.0112,
+          0.0108,
+          0.0105,
+          0.0107,
+          0.0108,
+          0.0109,
+          0.021,
+          0.0338,
+          0.0568,
+          0.0701,
+          0.0657,
+          0.0395,
+          0.0231,
+          0.0123,
+          0.0122,
+          0.0122
+        ]
+      }
+    },
+    {
+      "upstream": "facebook/wav2vec2-large-lv60",
+      "task": "sd",
+      "language": "sinhala",
+      "name": "sd_sinhala",
+      "kind": "diarization",
+      "seed": 1,
+      "status": "ok",
+      "split": "recording_disjoint",
+      "metrics": {
+        "der": 0.09014591398303315
+      },
+      "perf": {
+        "train_seconds": 198.67355179786682,
+        "peak_gpu_gb": 1.572278784,
+        "feature_seconds": 339.65056920051575
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.001,
+        "best_epoch": 9,
+        "threshold": 0.44999999999999996,
+        "dev_der": 0.06304461129749467,
+        "missed": 0.009475171951916802,
+        "false_alarm": 0.0,
+        "confusion": 0.08067074203111635,
+        "test_recordings": 24,
+        "train_classes": 95,
+        "layer_weights": [
+          0.0118,
+          0.0249,
+          0.0907,
+          0.1071,
+          0.1021,
+          0.0887,
+          0.0821,
+          0.0594,
+          0.0216,
+          0.0112,
+          0.0108,
+          0.0105,
+          0.0107,
+          0.0108,
+          0.0109,
+          0.021,
+          0.0338,
+          0.0568,
+          0.0701,
+          0.0657,
+          0.0395,
+          0.0231,
+          0.0123,
+          0.0122,
+          0.0122
+        ]
+      }
+    },
+    {
+      "upstream": "facebook/wav2vec2-large-lv60",
+      "task": "sd",
+      "language": "sinhala",
+      "name": "sd_sinhala",
+      "kind": "diarization",
+      "seed": 2,
+      "status": "ok",
+      "split": "recording_disjoint",
+      "metrics": {
+        "der": 0.09417113575698403
+      },
+      "perf": {
+        "train_seconds": 128.6571204662323,
+        "peak_gpu_gb": 1.576669696,
+        "feature_seconds": 339.65056920051575
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.001,
+        "best_epoch": 4,
+        "threshold": 0.44999999999999996,
+        "dev_der": 0.046182331112343544,
+        "missed": 0.009475171951916802,
+        "false_alarm": 0.0,
+        "confusion": 0.08469596380506723,
+        "test_recordings": 24,
+        "train_classes": 95,
+        "layer_weights": [
+          0.0118,
+          0.0249,
+          0.0907,
+          0.1071,
+          0.1021,
+          0.0887,
+          0.0821,
+          0.0594,
+          0.0216,
+          0.0112,
+          0.0108,
+          0.0105,
+          0.0107,
+          0.0108,
+          0.0109,
+          0.021,
+          0.0338,
+          0.0568,
+          0.0701,
+          0.0657,
+          0.0395,
+          0.0231,
+          0.0123,
+          0.0122,
+          0.0122
+        ]
+      }
+    },
+    {
+      "upstream": "facebook/wav2vec2-large-lv60",
+      "task": "sd",
+      "language": "tamil",
+      "name": "sd_tamil",
+      "kind": "diarization",
+      "seed": 0,
+      "status": "ok",
+      "split": "recording_disjoint",
+      "metrics": {
+        "der": 0.07081738679063374
+      },
+      "perf": {
+        "train_seconds": 636.1049377918243,
+        "peak_gpu_gb": 1.556716032,
+        "feature_seconds": 2.574920654296875e-05
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.001,
+        "best_epoch": 19,
+        "threshold": 0.35,
+        "dev_der": 0.06672693347832309,
+        "missed": 0.008886534574915582,
+        "false_alarm": 0.0,
+        "confusion": 0.06193085221571815,
+        "test_recordings": 5,
+        "train_classes": 95,
+        "layer_weights": [
+          0.0118,
+          0.0249,
+          0.0907,
+          0.1071,
+          0.1021,
+          0.0887,
+          0.0821,
+          0.0594,
+          0.0216,
+          0.0112,
+          0.0108,
+          0.0105,
+          0.0107,
+          0.0108,
+          0.0109,
+          0.021,
+          0.0338,
+          0.0568,
+          0.0701,
+          0.0657,
+          0.0395,
+          0.0231,
+          0.0123,
+          0.0122,
+          0.0122
+        ]
+      }
+    },
+    {
+      "upstream": "facebook/wav2vec2-large-lv60",
+      "task": "sd",
+      "language": "tamil",
+      "name": "sd_tamil",
+      "kind": "diarization",
+      "seed": 1,
+      "status": "ok",
+      "split": "recording_disjoint",
+      "metrics": {
+        "der": 0.0788888720593647
+      },
+      "perf": {
+        "train_seconds": 198.67355179786682,
+        "peak_gpu_gb": 1.556716032,
+        "feature_seconds": 2.574920654296875e-05
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.001,
+        "best_epoch": 9,
+        "threshold": 0.35,
+        "dev_der": 0.06881116071477317,
+        "missed": 0.008886534574915582,
+        "false_alarm": 0.0,
+        "confusion": 0.07000233748444913,
+        "test_recordings": 5,
+        "train_classes": 95,
+        "layer_weights": [
+          0.0118,
+          0.0249,
+          0.0907,
+          0.1071,
+          0.1021,
+          0.0887,
+          0.0821,
+          0.0594,
+          0.0216,
+          0.0112,
+          0.0108,
+          0.0105,
+          0.0107,
+          0.0108,
+          0.0109,
+          0.021,
+          0.0338,
+          0.0568,
+          0.0701,
+          0.0657,
+          0.0395,
+          0.0231,
+          0.0123,
+          0.0122,
+          0.0122
+        ]
+      }
+    },
+    {
+      "upstream": "facebook/wav2vec2-large-lv60",
+      "task": "sd",
+      "language": "tamil",
+      "name": "sd_tamil",
+      "kind": "diarization",
+      "seed": 2,
+      "status": "ok",
+      "split": "recording_disjoint",
+      "metrics": {
+        "der": 0.08895110809453258
+      },
+      "perf": {
+        "train_seconds": 128.6571204662323,
+        "peak_gpu_gb": 1.556716032,
+        "feature_seconds": 2.574920654296875e-05
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.001,
+        "best_epoch": 4,
+        "threshold": 0.3,
+        "dev_der": 0.15055730423931174,
+        "missed": 0.008886534574915582,
+        "false_alarm": 0.0,
+        "confusion": 0.080064573519617,
+        "test_recordings": 5,
+        "train_classes": 95,
+        "layer_weights": [
+          0.0118,
+          0.0249,
+          0.0907,
+          0.1071,
+          0.1021,
+          0.0887,
+          0.0821,
+          0.0594,
+          0.0216,
+          0.0112,
+          0.0108,
+          0.0105,
+          0.0107,
+          0.0108,
+          0.0109,
+          0.021,
+          0.0338,
+          0.0568,
+          0.0701,
+          0.0657,
+          0.0395,
+          0.0231,
+          0.0123,
+          0.0122,
+          0.0122
+        ]
+      }
+    },
+    {
+      "upstream": "facebook/wav2vec2-large-lv60",
+      "task": "sid",
+      "language": "multilingual",
+      "name": "sid",
+      "kind": "classification",
+      "seed": 0,
+      "status": "ok",
+      "split": "stratified_closed_set",
+      "metrics": {
+        "accuracy": 0.997997997997998,
+        "macro_f1": 0.997876879122565
+      },
+      "perf": {
+        "train_seconds": 30.570941925048828,
+        "peak_gpu_gb": 1.872884224,
+        "feature_seconds": 249.901469707489
+      },
+      "details": {
+        "lr": 0.01,
+        "best_epoch": 3,
+        "dev_accuracy": 1.0
+      }
+    },
+    {
+      "upstream": "facebook/wav2vec2-large-lv60",
+      "task": "sid",
+      "language": "multilingual",
+      "name": "sid",
+      "kind": "classification",
+      "seed": 1,
+      "status": "ok",
+      "split": "stratified_closed_set",
+      "metrics": {
+        "accuracy": 0.994994994994995,
+        "macro_f1": 0.9945222896619352
+      },
+      "perf": {
+        "train_seconds": 3.6591172218322754,
+        "peak_gpu_gb": 1.872235008,
+        "feature_seconds": 249.901469707489
+      },
+      "details": {
+        "lr": 0.01,
+        "best_epoch": 3,
+        "dev_accuracy": 1.0
+      }
+    },
+    {
+      "upstream": "facebook/wav2vec2-large-lv60",
+      "task": "sid",
+      "language": "multilingual",
+      "name": "sid",
+      "kind": "classification",
+      "seed": 2,
+      "status": "ok",
+      "split": "stratified_closed_set",
+      "metrics": {
+        "accuracy": 0.997997997997998,
+        "macro_f1": 0.9978166623421554
+      },
+      "perf": {
+        "train_seconds": 5.1685755252838135,
+        "peak_gpu_gb": 1.872235008,
+        "feature_seconds": 249.901469707489
+      },
+      "details": {
+        "lr": 0.01,
+        "best_epoch": 3,
+        "dev_accuracy": 1.0
+      }
+    }
+  ]
+}

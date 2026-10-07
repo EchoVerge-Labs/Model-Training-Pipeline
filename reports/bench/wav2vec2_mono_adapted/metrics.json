@@ -1,0 +1,1128 @@
+{
+  "upstream": "/home/anas22/EchoVerge-LABS/Model-Training-Pipeline/models/wav2vec2-mono-si-ta-200h",
+  "families": [
+    "asr",
+    "sid",
+    "er",
+    "asv",
+    "ic",
+    "sd"
+  ],
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "results": [
+    {
+      "upstream": "/home/anas22/EchoVerge-LABS/Model-Training-Pipeline/models/wav2vec2-mono-si-ta-200h",
+      "task": "asr",
+      "language": "sinhala",
+      "name": "asr_sinhala",
+      "kind": "asr",
+      "seed": 0,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.6921583850931677,
+        "cer": 0.19552566920987974
+      },
+      "perf": {
+        "train_seconds": 1179.18186378479,
+        "peak_gpu_gb": 5.827756032,
+        "feature_seconds": 80.43961524963379
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 16,
+        "dev_cer": 0.20438241815573235
+      }
+    },
+    {
+      "upstream": "/home/anas22/EchoVerge-LABS/Model-Training-Pipeline/models/wav2vec2-mono-si-ta-200h",
+      "task": "asr",
+      "language": "sinhala",
+      "name": "asr_sinhala",
+      "kind": "asr",
+      "seed": 1,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.6925465838509317,
+        "cer": 0.19571964308806414
+      },
+      "perf": {
+        "train_seconds": 465.1560945510864,
+        "peak_gpu_gb": 5.489668096,
+        "feature_seconds": 80.43961524963379
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 13,
+        "dev_cer": 0.20386070170862136
+      }
+    },
+    {
+      "upstream": "/home/anas22/EchoVerge-LABS/Model-Training-Pipeline/models/wav2vec2-mono-si-ta-200h",
+      "task": "asr",
+      "language": "sinhala",
+      "name": "asr_sinhala",
+      "kind": "asr",
+      "seed": 2,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.6774068322981367,
+        "cer": 0.19074098021466443
+      },
+      "perf": {
+        "train_seconds": 542.2912940979004,
+        "peak_gpu_gb": 5.490835968,
+        "feature_seconds": 80.43961524963379
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 16,
+        "dev_cer": 0.2082952915090648
+      }
+    },
+    {
+      "upstream": "/home/anas22/EchoVerge-LABS/Model-Training-Pipeline/models/wav2vec2-mono-si-ta-200h",
+      "task": "asr",
+      "language": "tamil",
+      "name": "asr_tamil",
+      "kind": "asr",
+      "seed": 0,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.853125,
+        "cer": 0.33023929149280423
+      },
+      "perf": {
+        "train_seconds": 697.4012904167175,
+        "peak_gpu_gb": 5.91319296,
+        "feature_seconds": 33.12616991996765
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 27,
+        "dev_cer": 0.30112503560239245
+      }
+    },
+    {
+      "upstream": "/home/anas22/EchoVerge-LABS/Model-Training-Pipeline/models/wav2vec2-mono-si-ta-200h",
+      "task": "asr",
+      "language": "tamil",
+      "name": "asr_tamil",
+      "kind": "asr",
+      "seed": 1,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.8503125,
+        "cer": 0.32772715660393426
+      },
+      "perf": {
+        "train_seconds": 318.03291869163513,
+        "peak_gpu_gb": 5.57677824,
+        "feature_seconds": 33.12616991996765
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 25,
+        "dev_cer": 0.29991455425804614
+      }
+    },
+    {
+      "upstream": "/home/anas22/EchoVerge-LABS/Model-Training-Pipeline/models/wav2vec2-mono-si-ta-200h",
+      "task": "asr",
+      "language": "tamil",
+      "name": "asr_tamil",
+      "kind": "asr",
+      "seed": 2,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.855625,
+        "cer": 0.33219790513497405
+      },
+      "perf": {
+        "train_seconds": 407.02723836898804,
+        "peak_gpu_gb": 5.577217536,
+        "feature_seconds": 33.12616991996765
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 34,
+        "dev_cer": 0.29906009683850754
+      }
+    },
+    {
+      "upstream": "/home/anas22/EchoVerge-LABS/Model-Training-Pipeline/models/wav2vec2-mono-si-ta-200h",
+      "task": "asv",
+      "language": "tamil",
+      "name": "asv_tamil",
+      "kind": "verification",
+      "seed": 0,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "eer": 0.1825821845174973
+      },
+      "perf": {
+        "train_seconds": 136.2756962776184,
+        "peak_gpu_gb": 1.4769664,
+        "feature_seconds": 936.4002935886383
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.0001,
+        "best_epoch": 18,
+        "dev_eer": 0.11203703703703705,
+        "train_speakers": 80,
+        "layer_weights": [
+          0.0109,
+          0.1073,
+          0.1489,
+          0.1638,
+          0.1426,
+          0.1067,
+          0.068,
+          0.0341,
+          0.0121,
+          0.0097,
+          0.0095,
+          0.0094,
+          0.0096,
+          0.0096,
+          0.0092,
+          0.01,
+          0.0118,
+          0.0148,
+          0.0286,
+          0.0234,
+          0.0132,
+          0.0094,
+          0.0124,
+          0.0124,
+          0.0124
+        ]
+      }
+    },
+    {
+      "upstream": "/home/anas22/EchoVerge-LABS/Model-Training-Pipeline/models/wav2vec2-mono-si-ta-200h",
+      "task": "asv",
+      "language": "tamil",
+      "name": "asv_tamil",
+      "kind": "verification",
+      "seed": 1,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "eer": 0.17465535524920464
+      },
+      "perf": {
+        "train_seconds": 51.18613648414612,
+        "peak_gpu_gb": 1.4769664,
+        "feature_seconds": 936.4002935886383
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.0001,
+        "best_epoch": 8,
+        "dev_eer": 0.11629629629629631,
+        "train_speakers": 80,
+        "layer_weights": [
+          0.0109,
+          0.1073,
+          0.1489,
+          0.1638,
+          0.1426,
+          0.1067,
+          0.068,
+          0.0341,
+          0.0121,
+          0.0097,
+          0.0095,
+          0.0094,
+          0.0096,
+          0.0096,
+          0.0092,
+          0.01,
+          0.0118,
+          0.0148,
+          0.0286,
+          0.0234,
+          0.0132,
+          0.0094,
+          0.0124,
+          0.0124,
+          0.0124
+        ]
+      }
+    },
+    {
+      "upstream": "/home/anas22/EchoVerge-LABS/Model-Training-Pipeline/models/wav2vec2-mono-si-ta-200h",
+      "task": "asv",
+      "language": "tamil",
+      "name": "asv_tamil",
+      "kind": "verification",
+      "seed": 2,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "eer": 0.16874337221633084
+      },
+      "perf": {
+        "train_seconds": 77.69953155517578,
+        "peak_gpu_gb": 1.481326592,
+        "feature_seconds": 936.4002935886383
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.0001,
+        "best_epoch": 15,
+        "dev_eer": 0.11018518518518516,
+        "train_speakers": 80,
+        "layer_weights": [
+          0.0109,
+          0.1073,
+          0.1489,
+          0.1638,
+          0.1426,
+          0.1067,
+          0.068,
+          0.0341,
+          0.0121,
+          0.0097,
+          0.0095,
+          0.0094,
+          0.0096,
+          0.0096,
+          0.0092,
+          0.01,
+          0.0118,
+          0.0148,
+          0.0286,
+          0.0234,
+          0.0132,
+          0.0094,
+          0.0124,
+          0.0124,
+          0.0124
+        ]
+      }
+    },
+    {
+      "upstream": "/home/anas22/EchoVerge-LABS/Model-Training-Pipeline/models/wav2vec2-mono-si-ta-200h",
+      "task": "er",
+      "language": "tamil",
+      "name": "er_tamil",
+      "kind": "classification",
+      "seed": 0,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.37655302002553637,
+        "macro_f1": 0.33954142869185205
+      },
+      "perf": {
+        "train_seconds": 20.671055555343628,
+        "peak_gpu_gb": 1.472825344,
+        "feature_seconds": 11.860448122024536
+      },
+      "details": {
+        "fold_accuracy": [
+          0.3548,
+          0.348,
+          0.302,
+          0.4826,
+          0.3953
+        ],
+        "fold_accuracy_std": 0.06072235535531797,
+        "fold_lr": [
+          0.001,
+          0.001,
+          0.01,
+          0.001,
+          0.001
+        ]
+      }
+    },
+    {
+      "upstream": "/home/anas22/EchoVerge-LABS/Model-Training-Pipeline/models/wav2vec2-mono-si-ta-200h",
+      "task": "er",
+      "language": "tamil",
+      "name": "er_tamil",
+      "kind": "classification",
+      "seed": 1,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.3944521948774905,
+        "macro_f1": 0.3839111810547854
+      },
+      "perf": {
+        "train_seconds": 4.970081090927124,
+        "peak_gpu_gb": 1.472782336,
+        "feature_seconds": 11.860448122024536
+      },
+      "details": {
+        "fold_accuracy": [
+          0.3333,
+          0.3578,
+          0.3218,
+          0.4709,
+          0.4884
+        ],
+        "fold_accuracy_std": 0.07074815499075307,
+        "fold_lr": [
+          0.001,
+          0.001,
+          0.01,
+          0.001,
+          0.001
+        ]
+      }
+    },
+    {
+      "upstream": "/home/anas22/EchoVerge-LABS/Model-Training-Pipeline/models/wav2vec2-mono-si-ta-200h",
+      "task": "er",
+      "language": "tamil",
+      "name": "er_tamil",
+      "kind": "classification",
+      "seed": 2,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.37874003299893116,
+        "macro_f1": 0.35677013396238366
+      },
+      "perf": {
+        "train_seconds": 5.250707387924194,
+        "peak_gpu_gb": 1.472782336,
+        "feature_seconds": 11.860448122024536
+      },
+      "details": {
+        "fold_accuracy": [
+          0.3763,
+          0.3284,
+          0.3168,
+          0.4826,
+          0.3895
+        ],
+        "fold_accuracy_std": 0.058760656401632375,
+        "fold_lr": [
+          0.001,
+          0.001,
+          0.01,
+          0.001,
+          0.001
+        ]
+      }
+    },
+    {
+      "upstream": "/home/anas22/EchoVerge-LABS/Model-Training-Pipeline/models/wav2vec2-mono-si-ta-200h",
+      "task": "ic_banking",
+      "language": "sinhala",
+      "name": "ic_banking_sinhala",
+      "kind": "classification",
+      "seed": 0,
+      "status": "ok",
+      "split": "random_stratified_no_speaker_ids",
+      "metrics": {
+        "accuracy": 0.9802371541501976,
+        "macro_f1": 0.9789587357822236
+      },
+      "perf": {
+        "train_seconds": 79.1201171875,
+        "peak_gpu_gb": 2.096830976,
+        "feature_seconds": 107.26012969017029
+      },
+      "details": {
+        "lr": 0.01,
+        "best_epoch": 26,
+        "dev_accuracy": 0.9841897233201581
+      }
+    },
+    {
+      "upstream": "/home/anas22/EchoVerge-LABS/Model-Training-Pipeline/models/wav2vec2-mono-si-ta-200h",
+      "task": "ic_banking",
+      "language": "sinhala",
+      "name": "ic_banking_sinhala",
+      "kind": "classification",
+      "seed": 1,
+      "status": "ok",
+      "split": "random_stratified_no_speaker_ids",
+      "metrics": {
+        "accuracy": 0.9782608695652174,
+        "macro_f1": 0.9766233044069779
+      },
+      "perf": {
+        "train_seconds": 10.968876838684082,
+        "peak_gpu_gb": 2.096779776,
+        "feature_seconds": 107.26012969017029
+      },
+      "details": {
+        "lr": 0.01,
+        "best_epoch": 18,
+        "dev_accuracy": 0.9868247694334651
+      }
+    },
+    {
+      "upstream": "/home/anas22/EchoVerge-LABS/Model-Training-Pipeline/models/wav2vec2-mono-si-ta-200h",
+      "task": "ic_banking",
+      "language": "sinhala",
+      "name": "ic_banking_sinhala",
+      "kind": "classification",
+      "seed": 2,
+      "status": "ok",
+      "split": "random_stratified_no_speaker_ids",
+      "metrics": {
+        "accuracy": 0.969038208168643,
+        "macro_f1": 0.9684645288489473
+      },
+      "perf": {
+        "train_seconds": 3.313279867172241,
+        "peak_gpu_gb": 2.096779776,
+        "feature_seconds": 107.26012969017029
+      },
+      "details": {
+        "lr": 0.01,
+        "best_epoch": 5,
+        "dev_accuracy": 0.9841897233201581
+      }
+    },
+    {
+      "upstream": "/home/anas22/EchoVerge-LABS/Model-Training-Pipeline/models/wav2vec2-mono-si-ta-200h",
+      "task": "ic_banking",
+      "language": "tamil",
+      "name": "ic_banking_tamil",
+      "kind": "classification",
+      "seed": 0,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.7298769338959212,
+        "macro_f1": 0.7079867030922229
+      },
+      "perf": {
+        "train_seconds": 17.08516836166382,
+        "peak_gpu_gb": 1.398231552,
+        "feature_seconds": 6.556752443313599
+      },
+      "details": {
+        "fold_accuracy": [
+          0.7848,
+          0.5875,
+          0.8395,
+          0.716,
+          0.7215
+        ],
+        "fold_accuracy_std": 0.08434272160406443,
+        "fold_lr": [
+          0.01,
+          0.01,
+          0.01,
+          0.01,
+          0.01
+        ]
+      }
+    },
+    {
+      "upstream": "/home/anas22/EchoVerge-LABS/Model-Training-Pipeline/models/wav2vec2-mono-si-ta-200h",
+      "task": "ic_banking",
+      "language": "tamil",
+      "name": "ic_banking_tamil",
+      "kind": "classification",
+      "seed": 1,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.7521909673386468,
+        "macro_f1": 0.7379532671444431
+      },
+      "perf": {
+        "train_seconds": 2.6763737201690674,
+        "peak_gpu_gb": 1.398180352,
+        "feature_seconds": 6.556752443313599
+      },
+      "details": {
+        "fold_accuracy": [
+          0.7975,
+          0.65,
+          0.8519,
+          0.7654,
+          0.6962
+        ],
+        "fold_accuracy_std": 0.07174309720417238,
+        "fold_lr": [
+          0.01,
+          0.01,
+          0.01,
+          0.01,
+          0.01
+        ]
+      }
+    },
+    {
+      "upstream": "/home/anas22/EchoVerge-LABS/Model-Training-Pipeline/models/wav2vec2-mono-si-ta-200h",
+      "task": "ic_banking",
+      "language": "tamil",
+      "name": "ic_banking_tamil",
+      "kind": "classification",
+      "seed": 2,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.7522851226754181,
+        "macro_f1": 0.7309068669794893
+      },
+      "perf": {
+        "train_seconds": 5.533279180526733,
+        "peak_gpu_gb": 1.398180352,
+        "feature_seconds": 6.556752443313599
+      },
+      "details": {
+        "fold_accuracy": [
+          0.8101,
+          0.6375,
+          0.8272,
+          0.7778,
+          0.7089
+        ],
+        "fold_accuracy_std": 0.07023265739475174,
+        "fold_lr": [
+          0.01,
+          0.01,
+          0.01,
+          0.01,
+          0.01
+        ]
+      }
+    },
+    {
+      "upstream": "/home/anas22/EchoVerge-LABS/Model-Training-Pipeline/models/wav2vec2-mono-si-ta-200h",
+      "task": "ic_health",
+      "language": "tamil",
+      "name": "ic_health_tamil",
+      "kind": "classification",
+      "seed": 0,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.4707382391278587,
+        "macro_f1": 0.45875974039544215
+      },
+      "perf": {
+        "train_seconds": 78.24067234992981,
+        "peak_gpu_gb": 1.531763712,
+        "feature_seconds": 33.40739130973816
+      },
+      "details": {
+        "fold_accuracy": [
+          0.4605,
+          0.4948,
+          0.4742,
+          0.4414,
+          0.4828
+        ],
+        "fold_accuracy_std": 0.0184660151876616,
+        "fold_lr": [
+          0.01,
+          0.01,
+          0.01,
+          0.01,
+          0.01
+        ]
+      }
+    },
+    {
+      "upstream": "/home/anas22/EchoVerge-LABS/Model-Training-Pipeline/models/wav2vec2-mono-si-ta-200h",
+      "task": "ic_health",
+      "language": "tamil",
+      "name": "ic_health_tamil",
+      "kind": "classification",
+      "seed": 1,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.48795828889678877,
+        "macro_f1": 0.47940603655020586
+      },
+      "perf": {
+        "train_seconds": 26.296082735061646,
+        "peak_gpu_gb": 1.531630592,
+        "feature_seconds": 33.40739130973816
+      },
+      "details": {
+        "fold_accuracy": [
+          0.4605,
+          0.5189,
+          0.4811,
+          0.5,
+          0.4793
+        ],
+        "fold_accuracy_std": 0.019895915478689404,
+        "fold_lr": [
+          0.01,
+          0.01,
+          0.01,
+          0.01,
+          0.01
+        ]
+      }
+    },
+    {
+      "upstream": "/home/anas22/EchoVerge-LABS/Model-Training-Pipeline/models/wav2vec2-mono-si-ta-200h",
+      "task": "ic_health",
+      "language": "tamil",
+      "name": "ic_health_tamil",
+      "kind": "classification",
+      "seed": 2,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.48244104751747835,
+        "macro_f1": 0.473345805300844
+      },
+      "perf": {
+        "train_seconds": 11.50301480293274,
+        "peak_gpu_gb": 1.531630592,
+        "feature_seconds": 33.40739130973816
+      },
+      "details": {
+        "fold_accuracy": [
+          0.457,
+          0.5052,
+          0.4983,
+          0.4759,
+          0.4759
+        ],
+        "fold_accuracy_std": 0.0173111409231244,
+        "fold_lr": [
+          0.01,
+          0.01,
+          0.01,
+          0.01,
+          0.01
+        ]
+      }
+    },
+    {
+      "upstream": "/home/anas22/EchoVerge-LABS/Model-Training-Pipeline/models/wav2vec2-mono-si-ta-200h",
+      "task": "sd",
+      "language": "sinhala",
+      "name": "sd_sinhala",
+      "kind": "diarization",
+      "seed": 0,
+      "status": "ok",
+      "split": "recording_disjoint",
+      "metrics": {
+        "der": 0.10096627557672284
+      },
+      "perf": {
+        "train_seconds": 568.261435508728,
+        "peak_gpu_gb": 1.57018368,
+        "feature_seconds": 357.13048028945923
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.001,
+        "best_epoch": 9,
+        "threshold": 0.44999999999999996,
+        "dev_der": 0.04898834280533019,
+        "missed": 0.009475171951916802,
+        "false_alarm": 0.0,
+        "confusion": 0.09149110362480604,
+        "test_recordings": 24,
+        "train_classes": 95,
+        "layer_weights": [
+          0.0089,
+          0.0567,
+          0.1489,
+          0.1928,
+          0.1642,
+          0.1063,
+          0.0735,
+          0.0326,
+          0.0091,
+          0.0075,
+          0.0075,
+          0.0076,
+          0.0077,
+          0.0077,
+          0.0075,
+          0.0086,
+          0.0104,
+          0.0189,
+          0.0407,
+          0.0328,
+          0.0133,
+          0.0071,
+          0.0098,
+          0.0099,
+          0.0099
+        ]
+      }
+    },
+    {
+      "upstream": "/home/anas22/EchoVerge-LABS/Model-Training-Pipeline/models/wav2vec2-mono-si-ta-200h",
+      "task": "sd",
+      "language": "sinhala",
+      "name": "sd_sinhala",
+      "kind": "diarization",
+      "seed": 1,
+      "status": "ok",
+      "split": "recording_disjoint",
+      "metrics": {
+        "der": 0.08405870580068814
+      },
+      "perf": {
+        "train_seconds": 154.9779634475708,
+        "peak_gpu_gb": 1.572278784,
+        "feature_seconds": 357.13048028945923
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.001,
+        "best_epoch": 6,
+        "threshold": 0.44999999999999996,
+        "dev_der": 0.059402854732214384,
+        "missed": 0.009475171951916802,
+        "false_alarm": 0.0,
+        "confusion": 0.07458353384877135,
+        "test_recordings": 24,
+        "train_classes": 95,
+        "layer_weights": [
+          0.0089,
+          0.0567,
+          0.1489,
+          0.1928,
+          0.1642,
+          0.1063,
+          0.0735,
+          0.0326,
+          0.0091,
+          0.0075,
+          0.0075,
+          0.0076,
+          0.0077,
+          0.0077,
+          0.0075,
+          0.0086,
+          0.0104,
+          0.0189,
+          0.0407,
+          0.0328,
+          0.0133,
+          0.0071,
+          0.0098,
+          0.0099,
+          0.0099
+        ]
+      }
+    },
+    {
+      "upstream": "/home/anas22/EchoVerge-LABS/Model-Training-Pipeline/models/wav2vec2-mono-si-ta-200h",
+      "task": "sd",
+      "language": "sinhala",
+      "name": "sd_sinhala",
+      "kind": "diarization",
+      "seed": 2,
+      "status": "ok",
+      "split": "recording_disjoint",
+      "metrics": {
+        "der": 0.07966892603854225
+      },
+      "perf": {
+        "train_seconds": 128.18223071098328,
+        "peak_gpu_gb": 1.576669696,
+        "feature_seconds": 357.13048028945923
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.001,
+        "best_epoch": 4,
+        "threshold": 0.44999999999999996,
+        "dev_der": 0.04990140979694106,
+        "missed": 0.009475171951916802,
+        "false_alarm": 0.0,
+        "confusion": 0.07019375408662545,
+        "test_recordings": 24,
+        "train_classes": 95,
+        "layer_weights": [
+          0.0089,
+          0.0567,
+          0.1489,
+          0.1928,
+          0.1642,
+          0.1063,
+          0.0735,
+          0.0326,
+          0.0091,
+          0.0075,
+          0.0075,
+          0.0076,
+          0.0077,
+          0.0077,
+          0.0075,
+          0.0086,
+          0.0104,
+          0.0189,
+          0.0407,
+          0.0328,
+          0.0133,
+          0.0071,
+          0.0098,
+          0.0099,
+          0.0099
+        ]
+      }
+    },
+    {
+      "upstream": "/home/anas22/EchoVerge-LABS/Model-Training-Pipeline/models/wav2vec2-mono-si-ta-200h",
+      "task": "sd",
+      "language": "tamil",
+      "name": "sd_tamil",
+      "kind": "diarization",
+      "seed": 0,
+      "status": "ok",
+      "split": "recording_disjoint",
+      "metrics": {
+        "der": 0.07478230896795754
+      },
+      "perf": {
+        "train_seconds": 568.261435508728,
+        "peak_gpu_gb": 1.556716032,
+        "feature_seconds": 1.0967254638671875e-05
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.001,
+        "best_epoch": 9,
+        "threshold": 0.3,
+        "dev_der": 0.09127583311770485,
+        "missed": 0.008886534574915582,
+        "false_alarm": 0.0,
+        "confusion": 0.06589577439304196,
+        "test_recordings": 5,
+        "train_classes": 95,
+        "layer_weights": [
+          0.0089,
+          0.0567,
+          0.1489,
+          0.1928,
+          0.1642,
+          0.1063,
+          0.0735,
+          0.0326,
+          0.0091,
+          0.0075,
+          0.0075,
+          0.0076,
+          0.0077,
+          0.0077,
+          0.0075,
+          0.0086,
+          0.0104,
+          0.0189,
+          0.0407,
+          0.0328,
+          0.0133,
+          0.0071,
+          0.0098,
+          0.0099,
+          0.0099
+        ]
+      }
+    },
+    {
+      "upstream": "/home/anas22/EchoVerge-LABS/Model-Training-Pipeline/models/wav2vec2-mono-si-ta-200h",
+      "task": "sd",
+      "language": "tamil",
+      "name": "sd_tamil",
+      "kind": "diarization",
+      "seed": 1,
+      "status": "ok",
+      "split": "recording_disjoint",
+      "metrics": {
+        "der": 0.12852357359207492
+      },
+      "perf": {
+        "train_seconds": 154.9779634475708,
+        "peak_gpu_gb": 1.556716032,
+        "feature_seconds": 1.0967254638671875e-05
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.001,
+        "best_epoch": 6,
+        "threshold": 0.25,
+        "dev_der": 0.08256662375931713,
+        "missed": 0.008886534574915582,
+        "false_alarm": 0.0,
+        "confusion": 0.11963703901715934,
+        "test_recordings": 5,
+        "train_classes": 95,
+        "layer_weights": [
+          0.0089,
+          0.0567,
+          0.1489,
+          0.1928,
+          0.1642,
+          0.1063,
+          0.0735,
+          0.0326,
+          0.0091,
+          0.0075,
+          0.0075,
+          0.0076,
+          0.0077,
+          0.0077,
+          0.0075,
+          0.0086,
+          0.0104,
+          0.0189,
+          0.0407,
+          0.0328,
+          0.0133,
+          0.0071,
+          0.0098,
+          0.0099,
+          0.0099
+        ]
+      }
+    },
+    {
+      "upstream": "/home/anas22/EchoVerge-LABS/Model-Training-Pipeline/models/wav2vec2-mono-si-ta-200h",
+      "task": "sd",
+      "language": "tamil",
+      "name": "sd_tamil",
+      "kind": "diarization",
+      "seed": 2,
+      "status": "ok",
+      "split": "recording_disjoint",
+      "metrics": {
+        "der": 0.13033051866364656
+      },
+      "perf": {
+        "train_seconds": 128.18223071098328,
+        "peak_gpu_gb": 1.556716032,
+        "feature_seconds": 1.0967254638671875e-05
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.001,
+        "best_epoch": 4,
+        "threshold": 0.25,
+        "dev_der": 0.15601570867547318,
+        "missed": 0.008886534574915582,
+        "false_alarm": 0.0,
+        "confusion": 0.12144398408873099,
+        "test_recordings": 5,
+        "train_classes": 95,
+        "layer_weights": [
+          0.0089,
+          0.0567,
+          0.1489,
+          0.1928,
+          0.1642,
+          0.1063,
+          0.0735,
+          0.0326,
+          0.0091,
+          0.0075,
+          0.0075,
+          0.0076,
+          0.0077,
+          0.0077,
+          0.0075,
+          0.0086,
+          0.0104,
+          0.0189,
+          0.0407,
+          0.0328,
+          0.0133,
+          0.0071,
+          0.0098,
+          0.0099,
+          0.0099
+        ]
+      }
+    },
+    {
+      "upstream": "/home/anas22/EchoVerge-LABS/Model-Training-Pipeline/models/wav2vec2-mono-si-ta-200h",
+      "task": "sid",
+      "language": "multilingual",
+      "name": "sid",
+      "kind": "classification",
+      "seed": 0,
+      "status": "ok",
+      "split": "stratified_closed_set",
+      "metrics": {
+        "accuracy": 0.998998998998999,
+        "macro_f1": 0.9989963869931755
+      },
+      "perf": {
+        "train_seconds": 22.076814651489258,
+        "peak_gpu_gb": 1.872884224,
+        "feature_seconds": 251.83373045921326
+      },
+      "details": {
+        "lr": 0.01,
+        "best_epoch": 5,
+        "dev_accuracy": 1.0
+      }
+    },
+    {
+      "upstream": "/home/anas22/EchoVerge-LABS/Model-Training-Pipeline/models/wav2vec2-mono-si-ta-200h",
+      "task": "sid",
+      "language": "multilingual",
+      "name": "sid",
+      "kind": "classification",
+      "seed": 1,
+      "status": "ok",
+      "split": "stratified_closed_set",
+      "metrics": {
+        "accuracy": 0.998998998998999,
+        "macro_f1": 0.9989963869931755
+      },
+      "perf": {
+        "train_seconds": 6.997622489929199,
+        "peak_gpu_gb": 1.872235008,
+        "feature_seconds": 251.83373045921326
+      },
+      "details": {
+        "lr": 0.01,
+        "best_epoch": 5,
+        "dev_accuracy": 1.0
+      }
+    },
+    {
+      "upstream": "/home/anas22/EchoVerge-LABS/Model-Training-Pipeline/models/wav2vec2-mono-si-ta-200h",
+      "task": "sid",
+      "language": "multilingual",
+      "name": "sid",
+      "kind": "classification",
+      "seed": 2,
+      "status": "ok",
+      "split": "stratified_closed_set",
+      "metrics": {
+        "accuracy": 0.998998998998999,
+        "macro_f1": 0.9988866897575457
+      },
+      "perf": {
+        "train_seconds": 3.952618360519409,
+        "peak_gpu_gb": 1.872235008,
+        "feature_seconds": 251.83373045921326
+      },
+      "details": {
+        "lr": 0.01,
+        "best_epoch": 3,
+        "dev_accuracy": 1.0
+      }
+    }
+  ]
+}
