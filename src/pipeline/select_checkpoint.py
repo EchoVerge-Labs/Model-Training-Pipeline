@@ -6,7 +6,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from pipeline.schema import Params
+from pipeline import experiment
 
 # Mirrors slsb's own per-family primary metric (see SLSB-benchmark's
 # configs/tasks/*.yaml / scripts/run_all.py PRIMARY_METRIC). Lower is better
@@ -29,7 +29,11 @@ def find_milestone_checkpoints(model_dir: str, milestones: list[int]) -> list[Pa
 
 
 def evaluate_checkpoint(
-    ckpt_path: Path, task: str, seed: int, data_dir: str | None = None
+    ckpt_path: Path,
+    task: str,
+    seed: int,
+    data_dir: str | None = None,
+    scratch: str | Path = "/tmp/ckpt_eval",
 ) -> float:
     """Run a fast proxy evaluation using slsb.
 
@@ -39,7 +43,7 @@ def evaluate_checkpoint(
     used by the dvc.yaml `benchmark` stage.
     """
     upstream = str(ckpt_path)
-    out_dir = Path(f"/tmp/ckpt_eval/{ckpt_path.name}")
+    out_dir = Path(scratch) / ckpt_path.name
     cmd = [
         "slsb",
         "run",
@@ -98,9 +102,10 @@ def evaluate_checkpoint(
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="params.yaml")
+    parser.add_argument("--experiment", default=None, help="single-language run (see select.py)")
     args = parser.parse_args()
 
-    params = Params.from_yaml(args.config)
+    params, exp = experiment.load(args.config, args.experiment)
     cfg = params.pretrain
     import yaml
 
@@ -112,6 +117,14 @@ def main():
     proxy_seed = sel_cfg.get("proxy_seed", 0)
     proxy_data = sel_cfg.get("proxy_data_dir")
     output_dir = Path(sel_cfg.get("output_dir", "models/selected"))
+    report_path = Path("reports/checkpoint_selection.json")
+    scratch = Path("/tmp/ckpt_eval")
+    if exp is not None:  # this run's own checkpoints, selection and scratch -- nothing shared
+        output_dir, report_path, scratch = (
+            exp.selected_dir,
+            exp.checkpoint_selection,
+            exp.proxy_scratch,
+        )
 
     checkpoints = find_milestone_checkpoints(cfg.output_dir, cfg.milestone_checkpoints)
     if not checkpoints:
@@ -129,7 +142,7 @@ def main():
     print(f"Evaluating {len(checkpoints)} checkpoints on proxy task: {proxy_task}")
     results = {}
     for ckpt in checkpoints:
-        score = evaluate_checkpoint(ckpt, proxy_task, proxy_seed, proxy_data)
+        score = evaluate_checkpoint(ckpt, proxy_task, proxy_seed, proxy_data, scratch)
         results[ckpt.name] = score
         print(f"  {ckpt.name}: {proxy_task} score = {score:.4f}")
 
@@ -157,7 +170,8 @@ def main():
         "best_score": results[best_name],
         "all_scores": results,
     }
-    with open("reports/checkpoint_selection.json", "w") as f:
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(report_path, "w") as f:
         json.dump(report, f, indent=2)
 
 

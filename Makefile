@@ -1,4 +1,8 @@
-.PHONY: setup lint test phase0 snapshot index select pull shard train ckpt bench report all clean help
+# Single-language ablation runs: keys of `experiments.runs` in params.yaml.
+EXPERIMENTS := si-100h ta-100h
+
+.PHONY: setup lint test phase0 snapshot index select pull shard train ckpt bench report all clean help \
+        $(foreach e,$(EXPERIMENTS),select-$(e) pull-$(e) shard-$(e) train-$(e) ckpt-$(e) bench-$(e) heldout-$(e) run-$(e))
 
 help:  ## show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | \
@@ -45,6 +49,43 @@ bench:  ## run SLSB benchmark on selected checkpoint
 
 report:  ## generate results table
 	python -m pipeline.report --config params.yaml
+
+# ── Single-language runs: make <stage>-si-100h / <stage>-ta-100h ─────
+# Each run writes only under its own name (see README "Single-language 100h CoPT
+# Experiments"). `run-X` = select -> pull -> shard -> train -> ckpt -> bench through DVC,
+# one stage at a time (`-s`), so the always-changed snapshot_catalog stage is not re-run.
+
+define EXPERIMENT_TARGETS
+select-$(1):  ## [$(1)] select this run's language slice
+	python -m pipeline.select --config params.yaml --experiment $(1)
+
+pull-$(1):  ## [$(1)] copy this run's clips from the Drive mount
+	python -m pipeline.materialise --config params.yaml --experiment $(1)
+
+shard-$(1):  ## [$(1)] shard this run's clips
+	python -m pipeline.shard --config params.yaml --experiment $(1)
+
+train-$(1):  ## [$(1)] launch pre-training for this run (GPU, resumes automatically)
+	bash scripts/launch_pretrain.sh --experiment $(1)
+
+ckpt-$(1):  ## [$(1)] select this run's best checkpoint
+	python -m pipeline.select_checkpoint --config params.yaml --experiment $(1)
+
+bench-$(1):  ## [$(1)] run SLSB on this run's selected checkpoint
+	dvc repro -s benchmark_single@$(1)
+
+heldout-$(1):  ## [$(1)] held-out vs train loss of saved checkpoints (CPU; overfitting check)
+	python -m pipeline.heldout_loss --experiment $(1) --include-base
+
+run-$(1):  ## [$(1)] whole chain: select -> pull -> shard -> train -> ckpt -> bench
+	dvc repro -s select_single@$(1)
+	dvc repro -s materialise_single@$(1)
+	dvc repro -s shard_single@$(1)
+	dvc repro -s pretrain_single@$(1)
+	dvc repro -s select_checkpoint_single@$(1)
+	dvc repro -s benchmark_single@$(1)
+endef
+$(foreach e,$(EXPERIMENTS),$(eval $(call EXPERIMENT_TARGETS,$(e))))
 
 # ── Full pipeline ───────────────────────────────────
 

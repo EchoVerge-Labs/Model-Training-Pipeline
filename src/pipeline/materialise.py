@@ -20,7 +20,7 @@ import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from pipeline.schema import Params
+from pipeline import experiment
 
 MANIFESTS = ("data/manifests/train.jsonl", "data/manifests/dev.jsonl")
 
@@ -38,6 +38,10 @@ def read_filenames(manifest_paths) -> list[str]:
 def copy_one(src: Path, dst: Path) -> tuple[str, int]:
     """Returns (status, bytes): copied | skipped | missing. Raises on a bad copy."""
     if not src.exists():
+        # Drive not mounted (or clip gone): a copy already on local disk is still usable.
+        # Its size can't be checked against the source, so only a non-empty file counts.
+        if dst.exists() and dst.stat().st_size > 0:
+            return "skipped", dst.stat().st_size
         return "missing", 0
     size = src.stat().st_size
     if dst.exists() and dst.stat().st_size == size:
@@ -92,12 +96,17 @@ def main():
     parser.add_argument("--config", default="params.yaml")
     parser.add_argument("--raw-dir", default="data/raw")
     parser.add_argument("--workers", type=int, default=16)
-    parser.add_argument("--report", default="reports/materialise.json")
+    parser.add_argument("--report", default=None)
+    parser.add_argument("--experiment", default=None, help="single-language run (see select.py)")
     args = parser.parse_args()
 
-    cfg = Params.from_yaml(args.config).select
+    params, exp = experiment.load(args.config, args.experiment)
+    cfg = params.select
+    manifests = MANIFESTS if exp is None else (exp.train_manifest, exp.dev_manifest)
+    if args.report is None:
+        args.report = "reports/materialise.json" if exp is None else str(exp.materialise_report)
     drive_root = Path(os.path.expanduser(cfg.drive_root))
-    filenames = read_filenames(MANIFESTS)
+    filenames = read_filenames(manifests)
     print(f"Copying {len(filenames):,} files from {drive_root} to {args.raw_dir}/ ...")
 
     report = materialise(filenames, drive_root, Path(args.raw_dir), args.workers)

@@ -1,0 +1,26 @@
+{
+  "target_hours": 100.0,
+  "realised_train_hours": 94.48,
+  "realised_holdout_hours": 1.53,
+  "shortfall_pct": 5.5,
+  "train_segments": 17079,
+  "holdout_segments": 301,
+  "candidate_segments": 30965,
+  "longest_train_segment_seconds": 811.8,
+  "cleaning": {},
+  "train_channels": 2033,
+  "holdout_channels": 26,
+  "channel_overlap": 0,
+  "hours_by_language": {
+    "sinhala": 94.48
+  },
+  "hours_by_genre": {
+    "drama": 11.52,
+    "education": 19.83,
+    "interview": 14.62,
+    "news": 16.89,
+    "podcast_or_discussion": 13.98,
+    "political_speech": 11.86,
+    "vlog": 5.77
+  }
+}

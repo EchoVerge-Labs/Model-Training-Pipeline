@@ -8,7 +8,7 @@ set -euo pipefail
 # --upstream string. dvc.yaml needs a fixed, predictable `metrics:` path, so
 # this copies whatever slsb actually produced to <out>/metrics.json.
 
-UPSTREAM="${1:?usage: run_benchmark.sh <upstream> <tasks> <seeds> <out_dir> [mlflow_uri] [data_dir] [run_prefix] [run_tags]}"
+UPSTREAM="${1:?usage: run_benchmark.sh <upstream> <tasks> <seeds> <out_dir> [mlflow_uri] [data_dir] [run_prefix] [run_tags] [selection_report]}"
 TASKS="${2:?}"
 SEEDS="${3:?}"
 OUT_DIR="${4:?}"
@@ -25,6 +25,9 @@ SLSB_PARAMS="$(dirname "$DATA_DIR")/params.yaml"
 # and tagged (key=value,key=value) once slsb is done; see label_benchmark_runs.py.
 RUN_PREFIX="${7:-}"
 RUN_TAGS="${8:-}"
+# checkpoint_selection.json of the benchmarked checkpoint, for the run labels. Defaults to the
+# joint run's, used only when benchmarking models/selected; single-language runs pass their own.
+SELECTION_REPORT="${9:-}"
 
 ARGS=(run --upstream "$UPSTREAM" --tasks "$TASKS" --seeds "$SEEDS" --out "$OUT_DIR"
       --data-dir "$DATA_DIR" --params "$SLSB_PARAMS")
@@ -51,7 +54,9 @@ if [ -n "$MLFLOW_URI" ] && [ -n "$RUN_PREFIX" ] && [ -n "${DAGSHUB_TOKEN:-}" ]; 
     LABEL_ARGS=(--mlflow-uri "$MLFLOW_URI" --upstream "$UPSTREAM" --since-ms "$START_MS"
                 --prefix "$RUN_PREFIX" --tags "$RUN_TAGS")
     # models/selected is a copy of whichever checkpoint select_checkpoint picked.
-    if [ "$UPSTREAM" = "models/selected" ]; then
+    if [ -n "$SELECTION_REPORT" ]; then
+        LABEL_ARGS+=(--selection-report "$SELECTION_REPORT")
+    elif [ "$UPSTREAM" = "models/selected" ]; then
         LABEL_ARGS+=(--selection-report reports/checkpoint_selection.json)
     fi
     # The scores are already on disk and in MLflow; a failed rename is not worth

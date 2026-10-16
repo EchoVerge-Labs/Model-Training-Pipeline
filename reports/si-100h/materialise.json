@@ -1,0 +1,11 @@
+{
+  "expected_files": 17380,
+  "copied": 0,
+  "skipped": 17380,
+  "missing": 0,
+  "failed": 0,
+  "copied_gb": 0.0,
+  "total_gb_on_disk": 11.06,
+  "missing_files": [],
+  "failed_files": []
+}

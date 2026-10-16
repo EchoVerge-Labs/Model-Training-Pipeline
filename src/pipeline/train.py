@@ -59,8 +59,10 @@ from transformers.models.wav2vec2.modeling_wav2vec2 import (
     _sample_negative_indices,
 )
 
+from pipeline import experiment as experiment_guard
 from pipeline.callbacks import CodebookCollapseDetector, MLflowLogger
 from pipeline.datamodule import create_dataloader
+from pipeline.experiment import ExperimentPaths
 from pipeline.schema import Params
 
 # ─── Tri-stage LR schedule ──────────────────────────────────────────────
@@ -360,6 +362,7 @@ def train(
     reports_dir: str | Path = "reports",
     use_mlflow: bool = True,
     device: str | None = None,
+    experiment: ExperimentPaths | None = None,
 ) -> int:
     """Run (or resume) pre-training. Returns the global step reached.
 
@@ -367,6 +370,8 @@ def train(
     auto_resume: with no resume_from, restart from the newest complete
         checkpoint in pretrain.output_dir if there is one (so a crash followed by
         the same launch command just continues).
+    experiment: a single-language run (params must come from experiment.resolve): its
+        shards and output directory are checked to be its own before anything is loaded.
     dataloader / device / reports_dir / use_mlflow: seams for tests; in a real run
         they default to the shard loader, CUDA if present, ./reports, and MLflow.
     """
@@ -393,6 +398,11 @@ def train(
     if is_main:
         for stale in output_dir.glob(".tmp-checkpoint-*"):  # a save that never finished
             shutil.rmtree(stale, ignore_errors=True)
+
+    if experiment is not None:
+        experiment_guard.check_resume(experiment, params, resume_from, write=is_main)
+        if dataloader is None:
+            experiment_guard.assert_shar_language(params.shard.output_dir, experiment.language)
 
     resume = find_resume(resume_from, output_dir, device, auto_resume)
     resume_step = int(resume[1]["global_step"]) if resume else 0
@@ -499,7 +509,7 @@ def train(
     # shard order of the first epoch (a fresh run has step 0, i.e. seed 0 as before).
     if dataloader is None:
         dataloader = create_dataloader(
-            shar_dir="data/shars",
+            shar_dir=params.shard.output_dir,
             per_device_max_seconds=cfg.per_device_max_seconds,
             num_workers=cfg.num_workers,
             seed=resume_step,
@@ -527,7 +537,11 @@ def train(
             try:
                 with open(config_path) as f:
                     mlflow_cfg = yaml.safe_load(f).get("mlflow", {})
-                run_name = f"xlsr300m-si-ta-{cfg.target_batch_seconds}s"
+                run_name = (
+                    experiment.mlflow_run_name
+                    if experiment
+                    else f"xlsr300m-si-ta-{cfg.target_batch_seconds}s"
+                )
                 if resume:
                     run_name += f"-resume{resume_step}"
                 mlflow_logger = MLflowLogger(
@@ -558,6 +572,9 @@ def train(
                     "normalize": normalize,
                     "resumed_from_step": resume_step,
                 }
+                if experiment:
+                    flat_params["experiment"] = experiment.name
+                    flat_params["train_language"] = experiment.language
                 mlflow_logger.log_params(flat_params)
             except Exception as e:  # noqa: BLE001 -- experiment tracking must never kill a training run
                 print(f"WARNING: MLflow setup failed: {e}")
@@ -848,14 +865,21 @@ def main():
         help="ignore checkpoints already in pretrain.output_dir and start from the base model "
         "(by default the newest complete checkpoint there is resumed automatically)",
     )
+    parser.add_argument(
+        "--experiment",
+        default=None,
+        help="single-language run from params.yaml `experiments` (default: the joint run)",
+    )
     args = parser.parse_args()
 
-    params = Params.from_yaml(args.config)
+    params, exp = experiment_guard.load(args.config, args.experiment)
     train(
         params,
         config_path=args.config,
         resume_from=args.resume_from,
         auto_resume=not args.no_resume,
+        reports_dir=exp.reports_dir if exp else "reports",
+        experiment=exp,
     )
 
 

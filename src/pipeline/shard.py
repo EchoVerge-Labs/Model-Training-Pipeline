@@ -8,7 +8,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from pipeline.schema import Params
+from pipeline import experiment
 
 try:
     from lhotse import CutSet, MonoCut, Recording
@@ -181,12 +181,16 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="params.yaml")
+    parser.add_argument("--experiment", default=None, help="single-language run (see select.py)")
     args = parser.parse_args()
 
-    params = Params.from_yaml(args.config)
+    params, exp = experiment.load(args.config, args.experiment)
     cfg = params.shard
+    manifest = "data/manifests/train.jsonl" if exp is None else str(exp.train_manifest)
+    if exp is not None:
+        experiment.assert_manifest_language(manifest, exp.language)
 
-    cuts = load_manifest_as_cuts("data/manifests/train.jsonl", "data/raw")
+    cuts = load_manifest_as_cuts(manifest, "data/raw")
     print(f"Loaded {len(cuts)} cuts")
 
     # Split long clips first, then concatenate short ones
@@ -206,6 +210,9 @@ def main():
     print(f"Longest cut: {longest:.1f}s")
 
     shard_cuts(cuts, cfg.output_dir, cfg.shard_size, cfg.format)
+    if exp is not None:
+        n = experiment.assert_shar_language(cfg.output_dir, exp.language)
+        print(f"Verified: all {n} shard cuts are {exp.language}")
 
 
 if __name__ == "__main__":
