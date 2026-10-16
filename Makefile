@@ -2,7 +2,7 @@
 EXPERIMENTS := si-100h ta-100h
 
 .PHONY: setup lint test phase0 snapshot index select pull shard fit-kmeans labels train ckpt bench report all clean help \
-        $(foreach e,$(EXPERIMENTS),select-$(e) pull-$(e) shard-$(e) labels-$(e) train-$(e) ckpt-$(e) bench-$(e) run-$(e))
+        $(foreach e,$(EXPERIMENTS),select-$(e) pull-$(e) shard-$(e) labels-$(e) train-$(e) ckpt-$(e) bench-$(e) heldout-$(e) run-$(e))
 
 # Load local credentials/config for recipes. Values already supplied by the
 # shell or command line take precedence over .env.
@@ -95,6 +95,9 @@ ckpt-$(1):  ## [$(1)] select this run's best checkpoint
 
 bench-$(1):  ## [$(1)] run SLSB on this run's selected checkpoint
 	dvc repro -s benchmark_single@$(1)
+
+heldout-$(1):  ## [$(1)] held-out vs train loss of saved checkpoints (CPU; overfitting check)
+	$(PYTHON) -m pipeline.heldout_loss --experiment $(1)
 
 run-$(1):  ## [$(1)] whole chain: select -> pull -> shard -> labels -> train -> ckpt -> bench
 	dvc repro -s select_single@$(1)
