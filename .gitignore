@@ -41,3 +41,4 @@ wandb/
 Thumbs.db
 
 /secrets/*
+/data/shars_single/

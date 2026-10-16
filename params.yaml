@@ -14,6 +14,18 @@ select:
   drive_root: ~/google-drive/Pre Processed Data   # mount holding <Lang>/<genre>/<source-dir>/<clip>.wav
   drive_index_path: data/catalog/drive_index.tsv  # relpath + size of every wav under drive_root
 
+# ── Single-language ablation runs ───────────────────
+# Each run trains from the base model on ONE language of the joint selection above
+# (same channels, same holdout, same seed) with the unchanged `pretrain` recipe below;
+# only output locations differ. `target_hours` must equal select.target_hours x that
+# language's share of language_mix. Realised hours can be lower (see
+# reports/<run>/selection_stats.json). Run with: make run-si-100h / run-ta-100h.
+experiments:
+  backbone_tag: wavlm-large       # prefix of every output name
+  runs:
+    si-100h: {language: sinhala, target_hours: 100.0}
+    ta-100h: {language: tamil, target_hours: 100.0}
+
 # ── Sharding ────────────────────────────────────────
 shard:
   format: flac               # inside tar
@@ -109,6 +121,26 @@ benchmark:
       path: models/selected
       name: "WavLM Large (Si/Ta 200h)"
       is_local: true
+    # Single-language ablation (names must match reports/bench/<dir>, see experiment.py)
+    wavlm-large-si-100h:
+      path: models/selected_single/wavlm-large-si-100h
+      name: "WavLM Large (Si 100h)"
+      is_local: true
+    wavlm-large-ta-100h:
+      path: models/selected_single/wavlm-large-ta-100h
+      name: "WavLM Large (Ta 100h)"
+      is_local: true
+
+  # reports/results_ablation.{md,csv}: frozen vs joint vs single-language, per benchmark
+  # language. cross_language adds each single-language model's OTHER language.
+  cross_language: true
+  ablation_languages: [sinhala, tamil]
+  ablation_rows:
+    - {upstream: wavlm_large, mode: frozen, train_language: "—"}
+    - {upstream: wavlm_large_adapted, mode: joint CoPT, train_language: sinhala+tamil,
+       stats: reports/selection_stats.json, checkpoint_report: reports/checkpoint_selection.json}
+    - {upstream: wavlm-large-si-100h, mode: single-language CoPT, train_language: sinhala, experiment: si-100h}
+    - {upstream: wavlm-large-ta-100h, mode: single-language CoPT, train_language: tamil, experiment: ta-100h}
 
 # ── MLflow ──────────────────────────────────────────
 mlflow:

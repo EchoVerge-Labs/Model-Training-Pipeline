@@ -162,6 +162,150 @@ stages:
       - reports/bench/wavlm_large_adapted/metrics.json:
           cache: false
 
+  # ── Single-language ablation runs (params.yaml `experiments.runs`) ──────────
+  # One chain per run, e.g. `dvc repro -s select_single@si-100h`. Each reuses the
+  # shared snapshot/index stages and writes only under its own name: manifests,
+  # shards, models/, reports/ -- nothing the joint stages above produce.
+  select_single:
+    foreach: ${experiments.runs}
+    do:
+      cmd: python -m pipeline.select --config params.yaml --experiment ${key}
+      deps:
+        - src/pipeline/select.py
+        - src/pipeline/experiment.py
+        - data/manifests/train.jsonl
+        - data/manifests/dev.jsonl
+      params:
+        - experiments.runs.${key}
+      outs:
+        - data/manifests/${key}/train.jsonl:
+            cache: false
+        - data/manifests/${key}/dev.jsonl:
+            cache: false
+        - reports/${key}/selection_report.md:
+            cache: false
+      metrics:
+        - reports/${key}/selection_stats.json:
+            cache: false
+
+  # Copies into the shared data/raw/ (owned by `materialise`; idempotent), so only its
+  # report is declared here.
+  materialise_single:
+    foreach: ${experiments.runs}
+    do:
+      cmd: python -m pipeline.materialise --config params.yaml --experiment ${key}
+      deps:
+        - src/pipeline/materialise.py
+        - data/manifests/${key}/train.jsonl
+        - data/manifests/${key}/dev.jsonl
+      params:
+        - select.drive_root
+      outs:
+        - reports/${key}/materialise.json:
+            cache: false
+
+  shard_single:
+    foreach: ${experiments.runs}
+    do:
+      cmd: python -m pipeline.shard --config params.yaml --experiment ${key}
+      deps:
+        - src/pipeline/shard.py
+        - src/pipeline/experiment.py
+        - reports/${key}/materialise.json
+        - data/manifests/${key}/train.jsonl
+      params:
+        - shard
+        - select.seed
+        - experiments.runs.${key}
+      outs:
+        - data/shars_single/${key}/
+
+  # Labels for this run's shards from the JOINT run's k-means, so the masked-prediction
+  # targets are defined exactly as in the joint model. Requires models/kmeans/... (fit_kmeans).
+  assign_cluster_labels_single:
+    foreach: ${experiments.runs}
+    do:
+      cmd: python -m pipeline.assign_cluster_labels --config params.yaml --experiment ${key}
+      deps:
+        - src/pipeline/assign_cluster_labels.py
+        - src/pipeline/layer_features.py
+        - src/pipeline/datamodule.py
+        - src/pipeline/experiment.py
+        - models/kmeans/wavlm-large-L18-k500.joblib
+        - data/shars_single/${key}/
+      params:
+        - cluster
+        - pretrain.base_model
+        - experiments.runs.${key}
+      outs:
+        - data/labels/${key}/wavlm_train_labels.jsonl.gz:
+            persist: true
+
+  pretrain_single:
+    foreach: ${experiments.runs}
+    do:
+      cmd: bash scripts/launch_pretrain.sh --experiment ${key}
+      deps:
+        - src/pipeline/train.py
+        - src/pipeline/datamodule.py
+        - src/pipeline/callbacks.py
+        - src/pipeline/experiment.py
+        - src/pipeline/wavlm_model.py
+        - src/pipeline/checkpoints.py
+        - data/shars_single/${key}/
+        - data/labels/${key}/wavlm_train_labels.jsonl.gz
+      params:
+        - pretrain
+        - cluster.num_clusters
+        - experiments.runs.${key}
+      outs:
+        - models/${experiments.backbone_tag}-${key}/:
+            persist: true
+      metrics:
+        - reports/${key}/pretrain_metrics.json:
+            cache: false
+      plots:
+        - reports/${key}/pretrain_curves.csv:
+            cache: false
+
+  select_checkpoint_single:
+    foreach: ${experiments.runs}
+    do:
+      cmd: python -m pipeline.select_checkpoint --config params.yaml --experiment ${key}
+      deps:
+        - src/pipeline/select_checkpoint.py
+        - src/pipeline/experiment.py
+        - models/${experiments.backbone_tag}-${key}/
+      params:
+        - checkpoint_selection
+        - pretrain.milestone_checkpoints
+      outs:
+        - models/selected_single/${experiments.backbone_tag}-${key}/:
+            persist: true
+      metrics:
+        - reports/${key}/checkpoint_selection.json:
+            cache: false
+
+  benchmark_single:
+    foreach: ${experiments.runs}
+    do:
+      cmd: >
+        bash scripts/run_benchmark.sh
+        models/selected_single/${experiments.backbone_tag}-${key}
+        ${benchmark.tasks}
+        ${benchmark.seeds}
+        reports/bench/${experiments.backbone_tag}-${key}
+        ${benchmark.mlflow_uri}
+      deps:
+        - models/selected_single/${experiments.backbone_tag}-${key}/
+        - scripts/run_benchmark.sh
+      params:
+        - benchmark.tasks
+        - benchmark.seeds
+      metrics:
+        - reports/bench/${experiments.backbone_tag}-${key}/metrics.json:
+            cache: false
+
   report:
     cmd: python -m pipeline.report --config params.yaml
     deps:
@@ -171,4 +315,8 @@ stages:
       - reports/results.md:
           cache: false
       - reports/results_table.csv:
+          cache: false
+      - reports/results_ablation.md:
+          cache: false
+      - reports/results_ablation.csv:
           cache: false

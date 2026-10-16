@@ -1,4 +1,8 @@
-.PHONY: setup lint test phase0 snapshot index select pull shard fit-kmeans labels train ckpt bench report all clean help
+# Single-language ablation runs: keys of `experiments.runs` in params.yaml.
+EXPERIMENTS := si-100h ta-100h
+
+.PHONY: setup lint test phase0 snapshot index select pull shard fit-kmeans labels train ckpt bench report all clean help \
+        $(foreach e,$(EXPERIMENTS),select-$(e) pull-$(e) shard-$(e) labels-$(e) train-$(e) ckpt-$(e) bench-$(e) run-$(e))
 
 # Load local credentials/config for recipes. Values already supplied by the
 # shell or command line take precedence over .env.
@@ -64,6 +68,44 @@ bench:  ## run SLSB benchmark on selected checkpoint
 
 report:  ## generate results table
 	$(PYTHON) -m pipeline.report --config params.yaml
+
+# ── Single-language runs: make <stage>-si-100h / <stage>-ta-100h ─────
+# Each run writes only under its own name (see README "Single-language 100h CoPT
+# Experiments"). `run-X` = select -> pull -> shard -> labels -> train -> ckpt -> bench through DVC,
+# one stage at a time (`-s`), so the always-changed snapshot_catalog stage is not re-run.
+
+define EXPERIMENT_TARGETS
+select-$(1):  ## [$(1)] select this run's language slice
+	$(PYTHON) -m pipeline.select --config params.yaml --experiment $(1)
+
+labels-$(1):  ## [$(1)] assign cluster labels to this run's shards (joint run's k-means)
+	$(PYTHON) -m pipeline.assign_cluster_labels --config params.yaml --experiment $(1)
+
+pull-$(1):  ## [$(1)] copy this run's clips from the Drive mount
+	$(PYTHON) -m pipeline.materialise --config params.yaml --experiment $(1)
+
+shard-$(1):  ## [$(1)] shard this run's clips
+	$(PYTHON) -m pipeline.shard --config params.yaml --experiment $(1)
+
+train-$(1):  ## [$(1)] launch pre-training for this run (GPU, resumes automatically; needs labels-$(1))
+	bash scripts/launch_pretrain.sh --experiment $(1)
+
+ckpt-$(1):  ## [$(1)] select this run's best checkpoint
+	$(PYTHON) -m pipeline.select_checkpoint --config params.yaml --experiment $(1)
+
+bench-$(1):  ## [$(1)] run SLSB on this run's selected checkpoint
+	dvc repro -s benchmark_single@$(1)
+
+run-$(1):  ## [$(1)] whole chain: select -> pull -> shard -> labels -> train -> ckpt -> bench
+	dvc repro -s select_single@$(1)
+	dvc repro -s materialise_single@$(1)
+	dvc repro -s shard_single@$(1)
+	dvc repro -s assign_cluster_labels_single@$(1)
+	dvc repro -s pretrain_single@$(1)
+	dvc repro -s select_checkpoint_single@$(1)
+	dvc repro -s benchmark_single@$(1)
+endef
+$(foreach e,$(EXPERIMENTS),$(eval $(call EXPERIMENT_TARGETS,$(e))))
 
 # ── Full pipeline ───────────────────────────────────
 

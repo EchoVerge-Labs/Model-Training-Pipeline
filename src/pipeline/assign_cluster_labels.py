@@ -13,6 +13,7 @@ from pathlib import Path
 import joblib
 import torch
 
+from pipeline import experiment
 from pipeline.layer_features import (
     base_normalizes,
     layer_features,
@@ -20,7 +21,6 @@ from pipeline.layer_features import (
     load_shar_cuts,
     load_waveform,
 )
-from pipeline.schema import Params
 
 
 def assign_cut(cut, km, extract) -> list[int]:
@@ -34,10 +34,18 @@ def assign_cut(cut, km, extract) -> list[int]:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="params.yaml")
+    parser.add_argument(
+        "--experiment",
+        default=None,
+        help="single-language run: label that run's shards with the JOINT run's k-means "
+        "(cluster.kmeans_output), so the targets are defined identically",
+    )
     args = parser.parse_args()
 
-    params = Params.from_yaml(args.config)
+    params, exp = experiment.load(args.config, args.experiment)
     cfg = params.cluster
+    if exp is not None:
+        experiment.assert_shar_language(params.shard.output_dir, exp.language)
 
     km = joblib.load(cfg.kmeans_output)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

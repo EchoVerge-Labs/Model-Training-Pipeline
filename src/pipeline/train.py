@@ -50,9 +50,11 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from transformers import Wav2Vec2FeatureExtractor
 from transformers.models.wavlm.modeling_wavlm import _compute_mask_indices
 
+from pipeline import experiment as experiment_guard
 from pipeline.callbacks import MaskedAccuracyStallDetector, MLflowLogger
 from pipeline.checkpoints import STATE_FILE, latest_checkpoint, list_checkpoints
 from pipeline.datamodule import create_dataloader
+from pipeline.experiment import ExperimentPaths
 from pipeline.schema import Params
 from pipeline.wavlm_model import WavLMForMaskedPrediction
 
@@ -171,8 +173,11 @@ def prediction_perplexity(prob_sum: torch.Tensor, n_frames: int) -> float:
 # ─── Training ──────────────────────────────────────────────────────────
 
 
-def train(params: Params):
+def train(params: Params, experiment: ExperimentPaths | None = None):
+    """experiment: a single-language run (params must come from experiment.resolve); its
+    shards and output directory are checked to be its own before anything is loaded."""
     cfg = params.pretrain
+    reports_dir = experiment.reports_dir if experiment else Path("reports")
     num_clusters = params.cluster.num_clusters
 
     # ── Distributed setup ──
@@ -204,6 +209,9 @@ def train(params: Params):
     if is_main:
         for stale in output_dir.glob("checkpoint-*.tmp"):  # a save that never finished
             shutil.rmtree(stale, ignore_errors=True)
+    if experiment is not None:
+        experiment_guard.check_resume(experiment, params, None, write=is_main)
+        experiment_guard.assert_shar_language(params.shard.output_dir, experiment.language)
     resume = latest_checkpoint(output_dir)
     resume_step = resume[0] if resume else 0
     if world_size > 1:
@@ -317,7 +325,11 @@ def train(params: Params):
             mlflow_logger = MLflowLogger(
                 tracking_uri=mlflow_cfg.get("tracking_uri", ""),
                 experiment_name=mlflow_cfg.get("experiment_name", "ssl-pretraining"),
-                run_name=f"wavlm-large-si-ta-{cfg.target_batch_seconds}s",
+                run_name=(
+                    experiment.mlflow_run_name
+                    if experiment
+                    else f"wavlm-large-si-ta-{cfg.target_batch_seconds}s"
+                ),
             )
             # Log all params
             flat_params = {
@@ -342,6 +354,9 @@ def train(params: Params):
                 "utterance_mix_prob": cfg.utterance_mix_prob,
                 "resumed_from_step": resume_step,
             }
+            if experiment:
+                flat_params["experiment"] = experiment.name
+                flat_params["train_language"] = experiment.language
             mlflow_logger.log_params(flat_params)
         except Exception as e:  # noqa: BLE001 -- experiment tracking must never kill a training run
             print(f"WARNING: MLflow setup failed: {e}")
@@ -373,7 +388,7 @@ def train(params: Params):
     log_start_time = time.perf_counter()
 
     # CSV for loss curves
-    curves_path = Path("reports/pretrain_curves.csv")
+    curves_path = reports_dir / "pretrain_curves.csv"
     curves_path.parent.mkdir(parents=True, exist_ok=True)
     if is_main and not (resume and curves_path.exists()):
         with open(curves_path, "w") as f:
@@ -596,7 +611,8 @@ def train(params: Params):
             else None,
             "completed": global_step >= cfg.max_updates,
         }
-        with open("reports/pretrain_metrics.json", "w") as f:
+        reports_dir.mkdir(parents=True, exist_ok=True)
+        with open(reports_dir / "pretrain_metrics.json", "w") as f:
             json.dump(final_metrics, f, indent=2)
 
         if mlflow_logger:
@@ -616,10 +632,15 @@ def train(params: Params):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="params.yaml")
+    parser.add_argument(
+        "--experiment",
+        default=None,
+        help="single-language run from params.yaml `experiments` (default: the joint run)",
+    )
     args = parser.parse_args()
 
-    params = Params.from_yaml(args.config)
-    train(params)
+    params, exp = experiment_guard.load(args.config, args.experiment)
+    train(params, exp)
 
 
 if __name__ == "__main__":

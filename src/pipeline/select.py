@@ -9,9 +9,10 @@ import sys
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
+from types import SimpleNamespace
 
+from pipeline import experiment
 from pipeline.drive_index import load_index
-from pipeline.schema import Params
 
 
 @dataclass
@@ -249,6 +250,11 @@ def select(
     return train_segments, holdout_segments
 
 
+def keep_language(segments: list[Segment], language: str) -> list[Segment]:
+    """The segments of one language (catalog spelling, compared case-insensitively)."""
+    return [s for s in segments if s.language.lower() == language.lower()]
+
+
 def write_manifest(segments: list[Segment], path: Path):
     """Write a simple JSONL manifest (Lhotse-compatible structure)."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -405,13 +411,73 @@ def write_report(
     return stats
 
 
+def slice_joint_manifests(exp, params) -> None:
+    """Write a single-language run's manifests as the `exp.language` rows of the joint run's.
+
+    The joint manifests (data/manifests/{train,dev}.jsonl) are what the joint model was
+    trained on, so filtering them gives exactly that language's half -- same clips, same
+    ids, same holdout -- with no need for the catalog, the Drive index or a re-run of the
+    selection (which would only reproduce them from the same catalog snapshot)."""
+    rows = {}
+    for split in ("train", "dev"):
+        path = Path(f"data/manifests/{split}.jsonl")
+        if not path.exists():
+            sys.exit(f"ERROR: {path} not found -- the joint run's manifests are the source")
+        with open(path, encoding="utf-8") as f:
+            rows[split] = [json.loads(line) for line in f if line.strip()]
+    joint_train = rows["train"]
+    keep = {s: [r for r in v if r["language"].lower() == exp.language] for s, v in rows.items()}
+    if not keep["train"]:
+        sys.exit(f"ERROR: no {exp.language} clips in the joint training manifest")
+    if not keep["dev"]:
+        print(f"WARNING: the joint holdout has no {exp.language} clips; dev manifest is empty")
+
+    exp.manifest_dir.mkdir(parents=True, exist_ok=True)
+    for split, path in (("train", exp.train_manifest), ("dev", exp.dev_manifest)):
+        with open(path, "w", encoding="utf-8") as f:
+            f.writelines(json.dumps(r, ensure_ascii=False) + "\n" for r in keep[split])
+        experiment.assert_manifest_language(path, exp.language)
+
+    def as_segments(entries):
+        return [
+            SimpleNamespace(
+                language=r["language"],
+                genre=r["genre"],
+                duration_seconds=r["duration"],
+                channel_id=r["channel_id"],
+                title="",
+            )
+            for r in entries
+        ]
+
+    train, holdout = as_segments(keep["train"]), as_segments(keep["dev"])
+    write_report(
+        train,
+        holdout,
+        as_segments(joint_train),
+        SimpleNamespace(target_hours=exp.target_hours),
+        report_path=exp.selection_report,
+        stats_path=exp.selection_stats,
+    )
+    print(f"Sliced {len(train)} {exp.language} clips out of {len(joint_train)} joint clips")
+    print("\n" + experiment.summary_text(train, exp, params))
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="params.yaml")
+    parser.add_argument(
+        "--experiment",
+        default=None,
+        help="single-language run from params.yaml `experiments` (default: the joint selection)",
+    )
     args = parser.parse_args()
 
-    params = Params.from_yaml(args.config)
+    params, exp = experiment.load(args.config, args.experiment)
+    if exp is not None:
+        return slice_joint_manifests(exp, params)
     cfg = params.select
+    unresolved_path = Path("reports/unresolved_clips.csv")
 
     segments = load_catalog(cfg.catalog_path)
     if not segments:
@@ -433,7 +499,7 @@ def main():
         build_path_lookup(drive_index),
         build_name_lookup(drive_index),
     )
-    write_unresolved(unresolved, Path("reports/unresolved_clips.csv"))
+    write_unresolved(unresolved, unresolved_path)
     reasons = [reason for _, reason in unresolved]
     cleaning = {
         "to_train_rows": n_rows,

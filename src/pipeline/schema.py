@@ -1,5 +1,6 @@
 """Pydantic schema for params.yaml validation."""
 
+import re
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -125,11 +126,62 @@ class PretrainConfig(BaseModel):
         return v
 
 
+class ExperimentRun(BaseModel):
+    """One single-language ablation run: the joint selection restricted to one language."""
+
+    language: str
+    # Nominal hours of that language in the joint selection (select.target_hours x its mix
+    # share). The hours actually realised can fall short; selection_stats.json records them.
+    target_hours: float = Field(gt=0)
+
+    @field_validator("language")
+    @classmethod
+    def lowercase_language(cls, v):
+        if v != v.strip().lower() or not v:
+            raise ValueError(f"language must be lowercase, as in the catalog: {v!r}")
+        return v
+
+
+class ExperimentsConfig(BaseModel):
+    """Single-language runs. Optional: without it the pipeline is the joint one."""
+
+    backbone_tag: str  # prefix of every output name, e.g. xlsr300m / wavlm-large
+    runs: dict[str, ExperimentRun]
+
+    @field_validator("runs")
+    @classmethod
+    def run_names_are_path_safe(cls, v):
+        for name in v:
+            if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", name):
+                raise ValueError(f"experiment name {name!r} must match [a-z0-9][a-z0-9-]*")
+        return v
+
+
 class Params(BaseModel):
     select: SelectConfig
     shard: ShardConfig
     cluster: ClusterConfig
     pretrain: PretrainConfig
+    experiments: ExperimentsConfig | None = None
+
+    @model_validator(mode="after")
+    def experiments_slice_the_joint_selection(self):
+        # A run keeps one language of the joint selection, so the language must be in
+        # the mix and its nominal hours must be what the mix gives it.
+        for name, run in (self.experiments.runs if self.experiments else {}).items():
+            share = self.select.language_mix.get(run.language)
+            if share is None:
+                raise ValueError(
+                    f"experiments.runs.{name}: language {run.language!r} is not in "
+                    f"select.language_mix {sorted(self.select.language_mix)}"
+                )
+            expected = self.select.target_hours * share
+            if abs(run.target_hours - expected) > 1e-6:
+                raise ValueError(
+                    f"experiments.runs.{name}: target_hours {run.target_hours} != "
+                    f"select.target_hours x language_mix[{run.language}] = {expected}"
+                )
+        return self
 
     @classmethod
     def from_yaml(cls, path: str = "params.yaml") -> "Params":
