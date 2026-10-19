@@ -3,6 +3,7 @@
 /data/shars/
 /data/catalog/*.csv
 /data/catalog/*.json
+/data/shars_single/
 !/data/**/.gitkeep
 
 # Models (DVC-tracked)
