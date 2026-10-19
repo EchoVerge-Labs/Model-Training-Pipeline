@@ -69,7 +69,7 @@ pretrain:
   gumbel_temperature_decay: 0.999995
 
   # checkpointing
-  save_every_updates: 1500
+  save_every_updates: 500          # was 1500; only how often a restart point is written (power cuts), no effect on training
   eval_every_updates: 500
   keep_last_n_checkpoints: 5
   milestone_checkpoints: [4500, 9000, 13500]   # 10, 20, 30 passes
