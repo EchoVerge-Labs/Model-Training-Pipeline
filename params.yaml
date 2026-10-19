@@ -105,10 +105,19 @@ benchmark:
     wavlm_large:
       path: microsoft/wavlm-large
       name: "WavLM Large"
+      adaptation_mode: frozen
     wavlm_large_adapted:
       path: models/selected
       name: "WavLM Large (Si/Ta 200h)"
       is_local: true
+      adaptation_mode: joint_200h_mixed_batch
+    # Same 200h, same everything, but each optimizer update is one language
+    # (configs/language_homogeneous.yaml; models/selected-homogeneous).
+    wavlm_large_si_ta_200h_homogeneous:
+      path: models/selected-homogeneous
+      name: "WavLM Large (Si/Ta 200h, language-homogeneous updates)"
+      is_local: true
+      adaptation_mode: joint_200h_language_homogeneous
 
 # ── MLflow ──────────────────────────────────────────
 mlflow:

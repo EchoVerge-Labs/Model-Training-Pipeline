@@ -1,4 +1,5 @@
-.PHONY: setup lint test phase0 snapshot index select pull shard fit-kmeans labels train ckpt bench report all clean help
+.PHONY: setup lint test phase0 snapshot index select pull shard fit-kmeans labels train ckpt bench report all clean help \
+        check-homogeneous train-homogeneous ckpt-homogeneous bench-homogeneous run-homogeneous
 
 # Load local credentials/config for recipes. Values already supplied by the
 # shell or command line take precedence over .env.
@@ -64,6 +65,31 @@ bench:  ## run SLSB benchmark on selected checkpoint
 
 report:  ## generate results table
 	$(PYTHON) -m pipeline.report --config params.yaml
+
+# ── Joint 200h with language-homogeneous updates ────
+# Same data, labels and settings as `make train`/`ckpt`/`bench`; only batching differs (see README
+# "Joint 200h CoPT with Language-Homogeneous Updates"). Overlay = configs/language_homogeneous.yaml.
+HOMOGENEOUS_OVERLAY = configs/language_homogeneous.yaml
+variant_get = $$($(PYTHON) -m pipeline.variant get $(1) --overlay $(HOMOGENEOUS_OVERLAY))
+
+check-homogeneous:  ## [homogeneous] verify the clips are exactly the original 200h run's
+	$(PYTHON) -m pipeline.language_batching --overlay $(HOMOGENEOUS_OVERLAY)
+
+train-homogeneous: check-homogeneous  ## [homogeneous] launch pre-training (GPU, resumes automatically)
+	bash scripts/launch_pretrain.sh --overlay $(HOMOGENEOUS_OVERLAY)
+
+ckpt-homogeneous:  ## [homogeneous] select the best checkpoint (same method as `make ckpt`)
+	$(PYTHON) -m pipeline.select_checkpoint --config params.yaml --overlay $(HOMOGENEOUS_OVERLAY)
+
+bench-homogeneous:  ## [homogeneous] SLSB on the selected checkpoint (same settings as `make bench`)
+	bash scripts/run_benchmark.sh \
+	  $(call variant_get,checkpoint_selection.output_dir) \
+	  $(call variant_get,benchmark.tasks) \
+	  $(call variant_get,benchmark.seeds) \
+	  $(call variant_get,benchmark.out_dir) \
+	  $(call variant_get,benchmark.mlflow_uri)
+
+run-homogeneous: train-homogeneous ckpt-homogeneous bench-homogeneous  ## [homogeneous] check -> train -> ckpt -> bench
 
 # ── Full pipeline ───────────────────────────────────
 

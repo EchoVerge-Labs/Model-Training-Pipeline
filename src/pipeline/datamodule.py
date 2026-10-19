@@ -161,6 +161,11 @@ def pack_batches(
     return batches
 
 
+def _cut_language(cut) -> str | None:
+    lang = (getattr(cut, "custom", None) or {}).get("language")
+    return str(lang).lower() if lang is not None else None
+
+
 class SharPretrainingDataset(IterableDataset):
     """Streams padded, seconds-budgeted batches from Shar tarballs.
 
@@ -180,6 +185,7 @@ class SharPretrainingDataset(IterableDataset):
         labels_by_id: dict[str, list[int]] | None = None,
         normalize: bool = False,
         utterance_mix_prob: float = 0.0,
+        language: str | None = None,
     ):
         super().__init__()
         if not HAS_LHOTSE:
@@ -192,6 +198,12 @@ class SharPretrainingDataset(IterableDataset):
         self.labels_by_id = labels_by_id
         self.normalize = normalize
         self.utterance_mix_prob = utterance_mix_prob
+        # With a language, only that language's cuts are read (matched on the cut's
+        # `language` field, which shard.py takes from the manifest) and every batch
+        # is tagged with it -- so utterance mixing, which draws its second utterance
+        # from the same batch, only ever mixes within that language. None: the
+        # original mixed stream, batches untagged.
+        self.language = language.lower() if language else None
         # Advances on every __iter__. Persistent DataLoader workers keep their
         # copy of the dataset alive, so each epoch reshuffles shards differently.
         self._epoch = 0
@@ -211,8 +223,15 @@ class SharPretrainingDataset(IterableDataset):
             stateful_shuffle=False,
         )
 
+        if self.language:
+            cuts = cuts.filter(lambda c: _cut_language(c) == self.language)
+
         buffer: list[tuple[torch.Tensor, str]] = []
         for cut in cuts:
+            if self.language and _cut_language(cut) != self.language:
+                raise ValueError(
+                    f"{cut.id}: language {_cut_language(cut)!r} in the {self.language} stream"
+                )
             if cut.sampling_rate != SAMPLE_RATE:
                 raise ValueError(
                     f"{cut.id}: expected {SAMPLE_RATE} Hz audio, got {cut.sampling_rate}"
@@ -230,7 +249,10 @@ class SharPretrainingDataset(IterableDataset):
         ):
             waveforms = [w for w, _ in batch]
             if self.labels_by_id is None:
-                yield pad_batch(waveforms, None, self.normalize, self.utterance_mix_prob, rng)
+                tagged = pad_batch(waveforms, None, self.normalize, self.utterance_mix_prob, rng)
+                if self.language:
+                    tagged["languages"] = [self.language] * len(batch)
+                yield tagged
                 continue
             label_seqs = []
             for _, cut_id in batch:
@@ -240,7 +262,10 @@ class SharPretrainingDataset(IterableDataset):
                         f"re-run `make labels` after the last `make shard`"
                     )
                 label_seqs.append(self.labels_by_id[cut_id])
-            yield pad_batch(waveforms, label_seqs, self.normalize, self.utterance_mix_prob, rng)
+            padded = pad_batch(waveforms, label_seqs, self.normalize, self.utterance_mix_prob, rng)
+            if self.language:
+                padded["languages"] = [self.language] * len(batch)
+            yield padded
 
 
 def create_dataloader(
@@ -251,6 +276,8 @@ def create_dataloader(
     labels_path: str | None = None,
     normalize: bool = False,
     utterance_mix_prob: float = 0.0,
+    language: str | None = None,
+    labels_by_id: dict[str, list[int]] | None = None,
 ) -> DataLoader:
     """DataLoader over padded batches of at most per_device_max_seconds each.
 
@@ -259,6 +286,8 @@ def create_dataloader(
     normalize applies per-utterance zero-mean/unit-variance (the base model's
     do_normalize flag -- the caller reads it). utterance_mix_prob > 0 mixes a
     second utterance from the same batch into each one (WavLM; mix_utterances).
+    language restricts the stream to one language and tags its batches (see
+    SharPretrainingDataset). labels_by_id: already-loaded labels, to share between streams.
     """
     shar_dir = Path(shar_dir)
     world_size = dist.get_world_size() if dist.is_available() and dist.is_initialized() else 1
@@ -270,7 +299,8 @@ def create_dataloader(
             f"worker(s) need at least {needed} (each gets its own subset) -- "
             f"lower num_workers or shard with a smaller shard_size"
         )
-    labels_by_id = load_labels(labels_path) if labels_path else None
+    if labels_by_id is None and labels_path:
+        labels_by_id = load_labels(labels_path)
     dataset = SharPretrainingDataset(
         str(shar_dir),
         max_batch_seconds=per_device_max_seconds,
@@ -278,6 +308,7 @@ def create_dataloader(
         labels_by_id=labels_by_id,
         normalize=normalize,
         utterance_mix_prob=utterance_mix_prob,
+        language=language,
     )
     return DataLoader(
         dataset,
@@ -286,3 +317,34 @@ def create_dataloader(
         pin_memory=True,
         persistent_workers=num_workers > 0,
     )
+
+
+def create_language_dataloaders(
+    shar_dir: str,
+    languages: list[str],
+    per_device_max_seconds: float,
+    num_workers: int = 4,
+    seed: int = 0,
+    labels_path: str | None = None,
+    normalize: bool = False,
+    utterance_mix_prob: float = 0.0,
+) -> dict[str, DataLoader]:
+    """One single-language stream per language over the SAME shar directory, each with
+    the same per-device audio-seconds budget as the mixed stream -- so a homogeneous
+    micro-batch is the same size as a mixed one, just one language. The cluster labels
+    are loaded once and shared. Only the stream a given update uses is read from."""
+    labels_by_id = load_labels(labels_path) if labels_path else None
+    return {
+        lang: create_dataloader(
+            shar_dir,
+            per_device_max_seconds,
+            num_workers,
+            seed,
+            None,
+            normalize,
+            utterance_mix_prob,
+            language=lang,
+            labels_by_id=labels_by_id,
+        )
+        for lang in languages
+    }

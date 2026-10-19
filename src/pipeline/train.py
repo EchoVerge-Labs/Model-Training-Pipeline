@@ -38,6 +38,7 @@ Usage:
 
 import argparse
 import json
+import math
 import os
 import shutil
 import time
@@ -52,8 +53,17 @@ from transformers.models.wavlm.modeling_wavlm import _compute_mask_indices
 
 from pipeline.callbacks import MaskedAccuracyStallDetector, MLflowLogger
 from pipeline.checkpoints import STATE_FILE, latest_checkpoint, list_checkpoints
-from pipeline.datamodule import create_dataloader
+from pipeline.datamodule import create_dataloader, create_language_dataloaders
+from pipeline.language_batching import (
+    LanguageBatchSource,
+    LanguageSchedule,
+    LanguageTracker,
+    assert_ranks_agree,
+    check_dataset,
+    write_dataset_report,
+)
 from pipeline.schema import Params
+from pipeline.variant import assert_isolated, load_raw
 from pipeline.wavlm_model import WavLMForMaskedPrediction
 
 # Must be set before the first CUDA allocation. Less fragmentation on the GB10's
@@ -144,7 +154,14 @@ def compute_mask(
 # ─── Checkpointing ───────────────────────────────────────────────────────
 
 
-def save_checkpoint(raw_model, feature_extractor, optimizer, global_step: int, ckpt_dir: Path):
+def save_checkpoint(
+    raw_model,
+    feature_extractor,
+    optimizer,
+    global_step: int,
+    ckpt_dir: Path,
+    extra_state: dict | None = None,
+):
     """Writes ckpt_dir atomically: everything goes to <ckpt_dir>.tmp, then one
     rename, so a crash mid-save can't leave a directory that looks complete."""
     tmp = ckpt_dir.with_name(ckpt_dir.name + ".tmp")
@@ -153,7 +170,10 @@ def save_checkpoint(raw_model, feature_extractor, optimizer, global_step: int, c
     tmp.mkdir(parents=True)
     raw_model.save_pretrained(tmp)
     feature_extractor.save_pretrained(tmp)
-    torch.save({"optimizer": optimizer.state_dict(), "global_step": global_step}, tmp / STATE_FILE)
+    state = {"optimizer": optimizer.state_dict(), "global_step": global_step}
+    if extra_state:
+        state["language_stats"] = extra_state
+    torch.save(state, tmp / STATE_FILE)
     if ckpt_dir.exists():
         shutil.rmtree(ckpt_dir)
     os.replace(tmp, ckpt_dir)
@@ -171,9 +191,41 @@ def prediction_perplexity(prob_sum: torch.Tensor, n_frames: int) -> float:
 # ─── Training ──────────────────────────────────────────────────────────
 
 
-def train(params: Params):
+def language_curves_header(languages: list[str]) -> str:
+    cols = [
+        "step",
+        "current_language",
+        "mixed_microbatch_violations",
+        "mixed_accumulation_violations",
+    ]
+    for lang in languages:
+        cols += [
+            f"{lang}_updates",
+            f"{lang}_update_share_pct",
+            f"{lang}_audio_hours",
+            f"{lang}_loss",
+        ]
+    return ",".join(cols)
+
+
+def train(
+    params: Params,
+    *,
+    config_path: str = "params.yaml",
+    reports_dir: str | Path = "reports",
+    dataloader=None,
+    use_mlflow: bool = True,
+):
+    """Run (or resume) pre-training.
+
+    dataloader / use_mlflow / reports_dir: seams for tests; a real run uses the shard
+    loader (a dict of per-language loaders when language_batching is on), MLflow and ./reports.
+    """
     cfg = params.pretrain
     num_clusters = params.cluster.num_clusters
+    lb = cfg.language_batching
+    homogeneous = lb.enabled
+    reports_dir = Path(reports_dir)
 
     # ── Distributed setup ──
     local_rank = int(os.environ.get("LOCAL_RANK", "0"))
@@ -197,6 +249,33 @@ def train(params: Params):
         print(f"Peak LR: {cfg.peak_lr}")
         print(f"Num clusters: {num_clusters}")
         print(f"Target batch seconds: {cfg.target_batch_seconds}")
+
+    # ── Language-homogeneous updates: provenance check + schedule ──
+    # Before any GPU work, so a wrong dataset costs seconds, not a training run.
+    schedule = tracker = None
+    if homogeneous:
+        if lb.reference_manifest:
+            report = check_dataset(
+                "data/manifests/train.jsonl",
+                lb.reference_manifest,
+                lb.languages,
+                params.shard.output_dir if Path(params.shard.output_dir).is_dir() else None,
+            )
+            if is_main:
+                write_dataset_report(report, lb.dataset_check_report)
+            if not report["ok"]:
+                raise RuntimeError(
+                    f"language_batching: the training data differs from {lb.reference_manifest} "
+                    f"({report['total_mismatches']} mismatch(es), see {lb.dataset_check_report}) -- "
+                    f"this would not be a like-for-like batching ablation"
+                )
+        schedule = LanguageSchedule(lb)
+        tracker = LanguageTracker(lb.languages)
+        if is_main:
+            print(
+                f"Language-homogeneous updates: {lb.mode}, languages={lb.languages}, "
+                f"p={lb.probabilities}, window={lb.window}, seed={lb.seed}"
+            )
 
     # ── Resume point ──
     output_dir = Path(cfg.output_dir)
@@ -279,16 +358,37 @@ def train(params: Params):
         optimizer.load_state_dict(state["optimizer"])
 
     # ── Data ──
-    dataloader = create_dataloader(
-        shar_dir=params.shard.output_dir,
-        per_device_max_seconds=cfg.per_device_max_seconds,
-        num_workers=cfg.num_workers,
-        seed=0,
-        labels_path=cfg.labels_path,
-        normalize=normalize,
-        utterance_mix_prob=cfg.utterance_mix_prob,
-    )
-    data_iter = iter(dataloader)
+    if homogeneous:
+        if dataloader is None:
+            dataloader = create_language_dataloaders(
+                shar_dir=params.shard.output_dir,
+                languages=lb.languages,
+                per_device_max_seconds=cfg.per_device_max_seconds,
+                num_workers=cfg.num_workers,
+                seed=0,
+                labels_path=cfg.labels_path,
+                normalize=normalize,
+                utterance_mix_prob=cfg.utterance_mix_prob,
+            )
+        batch_source = LanguageBatchSource(dataloader)
+        saved_stats = None
+        if resume:
+            saved_stats = torch.load(resume[1] / STATE_FILE, map_location="cpu").get(
+                "language_stats"
+            )
+        tracker.load_state(saved_stats, schedule.counts_before(resume_step))
+    else:
+        if dataloader is None:
+            dataloader = create_dataloader(
+                shar_dir=params.shard.output_dir,
+                per_device_max_seconds=cfg.per_device_max_seconds,
+                num_workers=cfg.num_workers,
+                seed=0,
+                labels_path=cfg.labels_path,
+                normalize=normalize,
+                utterance_mix_prob=cfg.utterance_mix_prob,
+            )
+        data_iter = iter(dataloader)
 
     loss_fn = nn.CrossEntropyLoss(ignore_index=-100)
 
@@ -307,17 +407,18 @@ def train(params: Params):
     # ── Logging ──
     mlflow_logger = None
     stall_detector = None
-    if is_main:
+    if is_main and use_mlflow:
         try:
             import yaml
 
-            with open("params.yaml") as f:
+            with open(config_path) as f:
                 raw_params = yaml.safe_load(f)
             mlflow_cfg = raw_params.get("mlflow", {})
             mlflow_logger = MLflowLogger(
                 tracking_uri=mlflow_cfg.get("tracking_uri", ""),
                 experiment_name=mlflow_cfg.get("experiment_name", "ssl-pretraining"),
-                run_name=f"wavlm-large-si-ta-{cfg.target_batch_seconds}s",
+                run_name=params.experiment.mlflow_run_name
+                or f"wavlm-large-si-ta-{cfg.target_batch_seconds}s",
             )
             # Log all params
             flat_params = {
@@ -341,12 +442,24 @@ def train(params: Params):
                 "normalize": normalize,
                 "utterance_mix_prob": cfg.utterance_mix_prob,
                 "resumed_from_step": resume_step,
+                "language_batching": homogeneous,
             }
+            if homogeneous:
+                flat_params.update(
+                    {
+                        "language_batching_mode": lb.mode,
+                        "language_batching_languages": ",".join(lb.languages),
+                        "language_batching_probabilities": json.dumps(lb.probabilities),
+                        "language_batching_window": lb.window,
+                        "language_batching_seed": lb.seed,
+                    }
+                )
             mlflow_logger.log_params(flat_params)
         except Exception as e:  # noqa: BLE001 -- experiment tracking must never kill a training run
             print(f"WARNING: MLflow setup failed: {e}")
             mlflow_logger = None
 
+    if is_main:
         # Kill only after ~a fifth of the run (at least 3 checks) sits at chance
         # or collapsed, so the threshold is reachable within max_updates.
         stall_detector = MaskedAccuracyStallDetector(
@@ -373,7 +486,8 @@ def train(params: Params):
     log_start_time = time.perf_counter()
 
     # CSV for loss curves
-    curves_path = Path("reports/pretrain_curves.csv")
+    curves_path = reports_dir / "pretrain_curves.csv"
+    lang_curves_path = reports_dir / "pretrain_language_curves.csv"
     curves_path.parent.mkdir(parents=True, exist_ok=True)
     if is_main and not (resume and curves_path.exists()):
         with open(curves_path, "w") as f:
@@ -381,6 +495,9 @@ def train(params: Params):
                 "step,loss,masked_accuracy,unmasked_accuracy,pred_perplexity,"
                 "grad_norm,lr,audio_sec_per_wall_sec\n"
             )
+    if is_main and homogeneous and not (resume and lang_curves_path.exists()):
+        with open(lang_curves_path, "w") as f:
+            f.write(language_curves_header(lb.languages) + "\n")
 
     if is_main:
         print(f"\n{'=' * 60}")
@@ -396,13 +513,25 @@ def train(params: Params):
     while global_step < cfg.max_updates:
         optimizer.zero_grad()
 
+        # One language for the whole update: a pure function of (seed, step), so
+        # every rank agrees without talking -- and the check below proves it.
+        update_language = None
+        if homogeneous:
+            update_language = schedule.language_at(global_step)
+            assert_ranks_agree(update_language, lb.languages, device, tracker)
+            tracker.begin_update()
+
         for accum_step in range(grad_accum_steps):
-            # Get batch (restart iterator if exhausted = new epoch)
-            try:
-                batch = next(data_iter)
-            except StopIteration:
-                data_iter = iter(dataloader)
-                batch = next(data_iter)
+            if homogeneous:
+                batch = batch_source.next(update_language)
+                tracker.check_microbatch(batch, update_language)
+            else:
+                # Get batch (restart iterator if exhausted = new epoch)
+                try:
+                    batch = next(data_iter)
+                except StopIteration:
+                    data_iter = iter(dataloader)
+                    batch = next(data_iter)
 
             input_values = batch["input_values"].to(device)
             attention_mask = batch["attention_mask"].to(device)
@@ -465,6 +594,16 @@ def train(params: Params):
                 accum_loss += loss.item()
                 accum_num_losses += 1
                 accum_audio_seconds += attention_mask.sum().item() / 16000.0  # 16kHz
+                if homogeneous:
+                    tracker.add_microbatch(
+                        update_language,
+                        attention_mask.sum().item() / 16000.0,
+                        loss.item(),
+                        0.0,
+                    )
+
+        if homogeneous:
+            tracker.end_update(update_language)
 
         # Gradient clipping
         if cfg.max_grad_norm > 0:
@@ -490,6 +629,13 @@ def train(params: Params):
         # Optimizer step
         optimizer.step()
         global_step += 1
+
+        # Audio-hours totals are summed over ranks: a collective, so every rank takes
+        # part, at the same (step-determined) moments.
+        if homogeneous and (
+            global_step % cfg.eval_every_updates == 0 or global_step % cfg.save_every_updates == 0
+        ):
+            tracker.reduce_seconds(device)
 
         # ── Logging ──
         if is_main and global_step % cfg.eval_every_updates == 0:
@@ -522,6 +668,43 @@ def train(params: Params):
                 f"lr={lr:.2e} | "
                 f"{audio_throughput:.0f} aud-s/wall-s"
             )
+
+            if homogeneous:
+                summary = tracker.summary()
+                window = tracker.window_metrics()
+                metrics.update(summary)
+                metrics["lang/current_language_index"] = lb.languages.index(update_language)
+                for lang in lb.languages:
+                    value = window[f"{lang}/loss"]
+                    if not math.isnan(value):  # NaN: language not seen in this window
+                        metrics[f"lang/{lang}/loss"] = round(value, 4)
+                shares = ", ".join(
+                    f"{lang}: {summary[f'lang/{lang}/updates']:.0f} upd "
+                    f"({summary[f'lang/{lang}/update_share_pct']:.1f}%) "
+                    f"{summary[f'lang/{lang}/audio_hours']:.2f}h"
+                    for lang in lb.languages
+                )
+                print(
+                    f"  languages | {shares} | last update: {update_language} | "
+                    f"mixed-batch violations={tracker.microbatch_violations} "
+                    f"mixed-accum windows={tracker.accumulation_violations}"
+                )
+                row = [
+                    str(global_step),
+                    update_language,
+                    str(tracker.microbatch_violations),
+                    str(tracker.accumulation_violations),
+                ]
+                for lang in lb.languages:
+                    row += [
+                        f"{summary[f'lang/{lang}/updates']:.0f}",
+                        f"{summary[f'lang/{lang}/update_share_pct']:.3f}",
+                        f"{summary[f'lang/{lang}/audio_hours']:.4f}",
+                        f"{window[f'{lang}/loss']:.6f}",
+                    ]
+                with open(lang_curves_path, "a") as f:
+                    f.write(",".join(row) + "\n")
+                tracker.reset_window()
 
             if mlflow_logger:
                 mlflow_logger.log_metrics(metrics, step=global_step)
@@ -566,7 +749,14 @@ def train(params: Params):
         # ── Checkpointing ──
         if is_main and global_step % cfg.save_every_updates == 0:
             ckpt_dir = output_dir / f"checkpoint-{global_step}"
-            save_checkpoint(raw_model, feature_extractor, optimizer, global_step, ckpt_dir)
+            save_checkpoint(
+                raw_model,
+                feature_extractor,
+                optimizer,
+                global_step,
+                ckpt_dir,
+                extra_state=tracker.state_dict() if homogeneous else None,
+            )
             print(f"  Saved checkpoint: {ckpt_dir}")
 
             # Manage checkpoint retention
@@ -596,7 +786,10 @@ def train(params: Params):
             else None,
             "completed": global_step >= cfg.max_updates,
         }
-        with open("reports/pretrain_metrics.json", "w") as f:
+        if homogeneous:
+            final_metrics.update(tracker.summary())
+        reports_dir.mkdir(parents=True, exist_ok=True)
+        with open(reports_dir / "pretrain_metrics.json", "w") as f:
             json.dump(final_metrics, f, indent=2)
 
         if mlflow_logger:
@@ -616,10 +809,17 @@ def train(params: Params):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="params.yaml")
+    parser.add_argument(
+        "--overlay",
+        default=None,
+        help="YAML of overrides deep-merged over --config (e.g. configs/language_homogeneous.yaml)",
+    )
     args = parser.parse_args()
 
-    params = Params.from_yaml(args.config)
-    train(params)
+    raw = load_raw(args.config, args.overlay)
+    assert_isolated(raw)  # a homogeneous run must not write over the baseline
+    params = Params(**raw)
+    train(params, config_path=args.config, reports_dir=params.experiment.reports_dir)
 
 
 if __name__ == "__main__":

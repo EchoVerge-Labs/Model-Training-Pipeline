@@ -8,6 +8,7 @@ from pathlib import Path
 
 from pipeline.checkpoints import list_checkpoints
 from pipeline.schema import Params
+from pipeline.variant import assert_isolated, load_raw
 
 # Mirrors slsb's own per-family primary metric (see SLSB-benchmark's
 # configs/tasks/*.yaml / scripts/run_all.py PRIMARY_METRIC). Lower is better
@@ -31,7 +32,7 @@ def evaluate_checkpoint(
     used by the dvc.yaml `benchmark` stage.
     """
     upstream = str(ckpt_path)
-    out_dir = Path(f"/tmp/ckpt_eval/{ckpt_path.name}")
+    out_dir = Path(f"/tmp/ckpt_eval/{ckpt_path.parent.name}/{ckpt_path.name}")
     cmd = [
         "slsb",
         "run",
@@ -87,14 +88,13 @@ def evaluate_checkpoint(
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="params.yaml")
+    parser.add_argument("--overlay", default=None, help="variant overrides (see pipeline.variant)")
     args = parser.parse_args()
 
-    params = Params.from_yaml(args.config)
+    raw = load_raw(args.config, args.overlay)
+    assert_isolated(raw)
+    params = Params(**raw)
     cfg = params.pretrain
-    import yaml
-
-    with open(args.config) as f:
-        raw = yaml.safe_load(f)
     sel_cfg = raw.get("checkpoint_selection", {})
 
     proxy_task = sel_cfg.get("proxy_task", "asr")
@@ -141,7 +141,9 @@ def main():
         "best_score": results[best_name],
         "all_scores": results,
     }
-    with open("reports/checkpoint_selection.json", "w") as f:
+    report_path = Path(sel_cfg.get("report_path", "reports/checkpoint_selection.json"))
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(report_path, "w") as f:
         json.dump(report, f, indent=2)
 
 
