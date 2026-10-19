@@ -53,6 +53,9 @@ if [ -n "$MLFLOW_URI" ] && [ -n "$RUN_PREFIX" ] && [ -n "${DAGSHUB_TOKEN:-}" ]; 
     # models/selected is a copy of whichever checkpoint select_checkpoint picked.
     if [ "$UPSTREAM" = "models/selected" ]; then
         LABEL_ARGS+=(--selection-report reports/checkpoint_selection.json)
+    elif [ -n "${SELECTION_REPORT:-}" ]; then
+        # a variant's selected checkpoint, with its own selection report
+        LABEL_ARGS+=(--selection-report "$SELECTION_REPORT")
     fi
     # The scores are already on disk and in MLflow; a failed rename is not worth
     # failing a multi-hour stage over, and the command can simply be run again.

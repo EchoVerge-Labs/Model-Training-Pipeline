@@ -1,4 +1,5 @@
-.PHONY: setup lint test phase0 snapshot index select pull shard train ckpt bench report all clean help
+.PHONY: setup lint test phase0 snapshot index select pull shard train ckpt bench report all clean help \
+        check-homogeneous train-homogeneous ckpt-homogeneous bench-homogeneous run-homogeneous
 
 help:  ## show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | \
@@ -45,6 +46,35 @@ bench:  ## run SLSB benchmark on selected checkpoint
 
 report:  ## generate results table
 	python -m pipeline.report --config params.yaml
+
+# ── Joint 200h with language-homogeneous updates ────
+# Same data and settings as `make train`/`ckpt`/`bench`; only batching differs (see README
+# "Joint 200h CoPT with Language-Homogeneous Updates"). Overlay = configs/language_homogeneous.yaml.
+HOMOGENEOUS_OVERLAY = configs/language_homogeneous.yaml
+HOMOGENEOUS_OUT = $(shell python -m pipeline.variant get benchmark.out_dir --overlay $(HOMOGENEOUS_OVERLAY))
+
+check-homogeneous:  ## [homogeneous] verify the clips are exactly the original 200h run's
+	python -m pipeline.language_batching --overlay $(HOMOGENEOUS_OVERLAY)
+
+train-homogeneous: check-homogeneous  ## [homogeneous] launch pre-training (GPU, resumes automatically)
+	bash scripts/launch_pretrain.sh --overlay $(HOMOGENEOUS_OVERLAY)
+
+ckpt-homogeneous:  ## [homogeneous] select the best checkpoint (same method as `make ckpt`)
+	python -m pipeline.select_checkpoint --config params.yaml --overlay $(HOMOGENEOUS_OVERLAY)
+
+bench-homogeneous:  ## [homogeneous] SLSB on the selected checkpoint (same settings as `make bench`)
+	SELECTION_REPORT=$$(python -m pipeline.variant get checkpoint_selection.report_path --overlay $(HOMOGENEOUS_OVERLAY)) \
+	bash scripts/run_benchmark.sh \
+	  $$(python -m pipeline.variant get checkpoint_selection.output_dir --overlay $(HOMOGENEOUS_OVERLAY)) \
+	  $$(python -m pipeline.variant get benchmark.tasks --overlay $(HOMOGENEOUS_OVERLAY)) \
+	  $$(python -m pipeline.variant get benchmark.seeds --overlay $(HOMOGENEOUS_OVERLAY)) \
+	  $(HOMOGENEOUS_OUT) \
+	  $$(python -m pipeline.variant get benchmark.mlflow_uri --overlay $(HOMOGENEOUS_OVERLAY)) \
+	  $$(python -m pipeline.variant get benchmark.slsb_data_dir --overlay $(HOMOGENEOUS_OVERLAY)) \
+	  $$(python -m pipeline.variant get benchmark.mlflow_run_prefix --overlay $(HOMOGENEOUS_OVERLAY)) \
+	  "$$(python -m pipeline.variant get benchmark.mlflow_run_tags --overlay $(HOMOGENEOUS_OVERLAY))"
+
+run-homogeneous: train-homogeneous ckpt-homogeneous bench-homogeneous  ## [homogeneous] check -> train -> ckpt -> bench
 
 # ── Full pipeline ───────────────────────────────────
 

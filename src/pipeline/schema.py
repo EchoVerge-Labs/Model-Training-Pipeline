@@ -54,6 +54,78 @@ class ShardConfig(BaseModel):
         return self
 
 
+class LanguageBatchingConfig(BaseModel):
+    """Language-homogeneous optimizer updates (see pipeline.language_batching).
+
+    Off by default, which leaves the original mixed-language batching untouched.
+    When on, every optimizer update -- all of its gradient-accumulation
+    micro-batches, on every DDP rank -- is built from ONE language, chosen by a
+    schedule that is a pure function of (seed, update index).
+    """
+
+    enabled: bool = False
+    mode: Literal["balanced_random", "alternate"] = "balanced_random"
+    # lower-case, as in the manifests' `language` field
+    languages: list[str] = Field(default_factory=lambda: ["sinhala", "tamil"])
+    probabilities: dict[str, float] | None = None  # default: uniform over `languages`
+    # balanced_random: every block of `window` consecutive updates holds each
+    # language in proportion to its probability (50/50 at 0.5/0.5), in random order.
+    window: int = Field(default=20, gt=0)
+    seed: int = 1337
+    # These two are the point of the experiment; they exist as settings so the
+    # config documents them, but turning either off is refused rather than
+    # silently producing mixed-language gradients.
+    synchronize_across_ranks: bool = True
+    keep_language_across_gradient_accumulation: bool = True
+    # Optional guard: refuse to train unless data/manifests/train.jsonl has exactly
+    # the same clip ids as this manifest -- a path, or "git:<rev>:<path>".
+    reference_manifest: str | None = None
+    dataset_check_report: str = "reports/language_batching_dataset_check.json"
+
+    @field_validator("languages")
+    @classmethod
+    def _normalise_languages(cls, v):
+        langs = [x.strip().lower() for x in v]
+        if len(langs) < 2 or len(set(langs)) != len(langs):
+            raise ValueError(f"languages needs at least two distinct entries, got {v}")
+        return langs
+
+    @model_validator(mode="after")
+    def _consistent(self):
+        if self.probabilities is None:
+            self.probabilities = {lang: 1 / len(self.languages) for lang in self.languages}
+        else:
+            self.probabilities = {
+                k.strip().lower(): float(v) for k, v in self.probabilities.items()
+            }
+        if set(self.probabilities) != set(self.languages):
+            raise ValueError(
+                f"probabilities keys {sorted(self.probabilities)} must match languages "
+                f"{sorted(self.languages)}"
+            )
+        if any(p <= 0 for p in self.probabilities.values()) or not (
+            0.999 <= sum(self.probabilities.values()) <= 1.001
+        ):
+            raise ValueError(f"probabilities must be positive and sum to 1: {self.probabilities}")
+        if self.enabled and not (
+            self.synchronize_across_ranks and self.keep_language_across_gradient_accumulation
+        ):
+            raise ValueError(
+                "language_batching.enabled requires synchronize_across_ranks and "
+                "keep_language_across_gradient_accumulation to be true -- without them an "
+                "optimizer update can still mix languages"
+            )
+        return self
+
+
+class ExperimentConfig(BaseModel):
+    """Where a run writes its reports and what it is called. The defaults are the
+    original joint run's, so params.yaml needs no such section."""
+
+    reports_dir: str = "reports"
+    mlflow_run_name: str | None = None  # default: the original xlsr300m-si-ta-<batch>s name
+
+
 class PretrainConfig(BaseModel):
     base_model: str
     precision: Literal["bf16", "fp16", "fp32"] = "bf16"
@@ -93,6 +165,8 @@ class PretrainConfig(BaseModel):
 
     output_dir: str
 
+    language_batching: LanguageBatchingConfig = Field(default_factory=LanguageBatchingConfig)
+
     @field_validator("precision")
     @classmethod
     def no_fp16_on_blackwell(cls, v):
@@ -121,11 +195,12 @@ class Params(BaseModel):
     shard: ShardConfig
     pretrain: PretrainConfig
     monitoring: MonitoringConfig = Field(default_factory=MonitoringConfig)
+    experiment: ExperimentConfig = Field(default_factory=ExperimentConfig)
 
     @classmethod
-    def from_yaml(cls, path: str = "params.yaml") -> "Params":
-        import yaml
+    def from_yaml(cls, path: str = "params.yaml", overlay: str | None = None) -> "Params":
+        """Load params.yaml; `overlay` (a YAML holding only the keys a variant changes)
+        is deep-merged on top -- see pipeline.variant."""
+        from pipeline.variant import load_raw
 
-        with open(path) as f:
-            raw = yaml.safe_load(f)
-        return cls(**raw)
+        return cls(**load_raw(path, overlay))

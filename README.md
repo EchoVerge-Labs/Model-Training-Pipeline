@@ -106,6 +106,88 @@ bash scripts/run_benchmark.sh microsoft/wavlm-large        asr,sid,er,asv 0,1,2 
 `report.py` renders `—` for any upstream it can't find a `metrics.json` for,
 rather than fabricating a score.
 
+## Joint 200h CoPT with Language-Homogeneous Updates
+
+**Question:** does keeping every optimizer update single-language improve joint
+Sinhala–Sri Lankan Tamil continued pre-training, compared with the original mixed-language batches?
+
+The model is still **one shared backbone with one optimizer, trained on both languages**. The
+only change is how an update's batch is built:
+
+```
+ORIGINAL                         NEW (language-homogeneous)
+update 1: Sinhala + Tamil clips  update 1: Sinhala clips only
+update 2: Sinhala + Tamil clips  update 2: Tamil clips only
+update 3: Sinhala + Tamil clips  update 3: Tamil clips only   (balanced random order)
+```
+
+Everything else is the original run's by construction: the run is `params.yaml` plus a small
+overlay, [configs/language_homogeneous.yaml](configs/language_homogeneous.yaml), which only sets
+batching and output locations. Same clips (the shards in `data/shars/` are reused as is, nothing is
+re-selected or re-sharded), same preprocessing, optimizer, LR schedule, masking, native wav2vec2
+objective, audio-seconds per update, `max_updates`, checkpoint/eval frequency, seed, checkpoint
+selection and SLSB settings. The original path is untouched: `language_batching.enabled` defaults to
+`false`, and `make train` / `ckpt` / `bench` behave as before.
+
+**Branch:** `experiment/xlsr-200h-language-homogeneous-batches` (from `main`).
+
+```bash
+make check-homogeneous     # clips == original run's? writes reports/language_batching_dataset_check.json
+make train-homogeneous     # check + launch (GPU; resumes automatically). On two nodes set NNODES/NODE_RANK/MASTER_ADDR as for `make train`
+make ckpt-homogeneous      # same proxy-eval selection as `make ckpt`
+make bench-homogeneous     # same SLSB tasks/seeds/data as `make bench` (asr,sid,er,asv; Sinhala and Tamil)
+python -m pipeline.report  # frozen vs joint mixed vs joint language-homogeneous, with deltas
+```
+
+| Output | Path |
+|---|---|
+| model, checkpoints | `models/xlsr300m-si-ta-200h-homogeneous/` |
+| selected checkpoint | `models/selected-homogeneous/` |
+| curves, per-language curves, metrics | `reports/language_homogeneous/` (`pretrain_curves.csv`, `pretrain_language_curves.csv`, `pretrain_metrics.json`, `checkpoint_selection.json`) |
+| benchmark | `reports/bench/xlsr300m_si_ta_200h_homogeneous/` |
+| MLflow run | `xlsr300m-copt-si-ta-200h-homogeneous-batches` |
+
+`pipeline.variant.assert_isolated` refuses to start if any of these would point at the original
+run's paths.
+
+### How it works
+
+- **Streams.** One stream per language reads the *same* shar directory and keeps only cuts whose
+  `language` matches (set from the manifest by `shard.py`). Each stream packs batches with the
+  same `per_device_max_seconds` budget as the mixed one, so a homogeneous micro-batch is the same
+  size as a mixed one. Streaming is preserved; nothing is loaded into RAM or duplicated on disk.
+  (A stream skips over the other language's tar entries, so it reads about twice the bytes it uses.)
+- **Schedule.** `balanced_random` (default): updates are grouped in blocks of `window` (20), each
+  block holds exactly 10 Sinhala + 10 Tamil updates in a seeded random order — so the split is
+  exactly 50/50 over any whole number of blocks and a run of one language is at most 20 updates.
+  `alternate` is strict round-robin. Both are a pure function of `(seed, update index)`.
+- **DDP.** Every rank computes the same language for update *N* from `(seed, N)` — no
+  communication needed — and each update starts with a tiny all-reduce (min/max of the language
+  index) that stops *all* ranks with `MixedLanguageError` if any rank disagrees.
+- **Gradient accumulation.** The language is chosen once per optimizer update and all
+  `grad_accum_steps` micro-batches (4 on two nodes, 8 on one) are pulled from that language's
+  stream. Each micro-batch's `languages` tag is checked against the update's language, and the
+  accumulation window is checked again before `optimizer.step()`; any violation stops training.
+- **Resume.** The language for step *N* depends only on the global step and the seed, so a resumed
+  run continues the exact sequence an uninterrupted run would have; the per-language update counts
+  are recomputed from the step, and audio-hours totals are stored in `training_state.pt`. As in the
+  original run, the data loader position is *not* restored (see Known gaps).
+- **Same-clips guard.** At launch, `data/manifests/train.jsonl` is compared by clip id, per language,
+  with `git:main:data/manifests/train.jsonl`, and per-language hours in the shars are compared with
+  the manifest. Any difference stops the run before any GPU work.
+
+The selected data is ~94.5 h Sinhala and ~99.2 h Tamil (not exactly 100/100), so with 50/50
+updates the *update* and audio-seconds-per-update exposure is balanced, while an epoch of the
+smaller language comes round slightly more often.
+
+### Verifying no mixed update occurred
+
+`reports/language_homogeneous/pretrain_language_curves.csv` (and MLflow `lang/*`) log, every
+`eval_every_updates`: current language, per-language update counts / share % / audio hours / mean
+loss, and `mixed_microbatch_violations` / `mixed_accumulation_violations`. Both must be 0 — and
+since a violation raises, a finished run with `completed: true` in `pretrain_metrics.json` had none.
+`lang/rank_disagreements` is the DDP counterpart.
+
 ## Configuration
 
 `params.yaml` is the single source of truth; every stage reads its own

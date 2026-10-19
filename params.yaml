@@ -94,6 +94,7 @@ benchmark:
     xlsr300m_vanilla:
       path: facebook/wav2vec2-xls-r-300m
       name: "XLS-R 300M (vanilla)"
+      adaptation_mode: frozen
     mhubert147:
       path: utter-project/mHuBERT-147
       name: "mHuBERT-147"
@@ -107,14 +108,24 @@ benchmark:
       path: models/xlsr300m-si-ta-200h/checkpoint-9000
       name: "XLS-R 300M (Si/Ta 200h, raw-trained, norm eval)"
       is_local: true
+      adaptation_mode: joint_200h_mixed_batch_raw_trained
     xlsr300m_adapted_raw:
       path: models/selected_raw
       name: "XLS-R 300M (Si/Ta 200h, raw-trained, raw eval)"
       is_local: true
+      adaptation_mode: joint_200h_mixed_batch_raw_trained
     xlsr300m_adapted_norm:
       path: models/selected
       name: "XLS-R 300M (Si/Ta 200h)"
       is_local: true
+      adaptation_mode: joint_200h_mixed_batch
+    # Same 200h, same everything, but each optimizer update is one language
+    # (configs/language_homogeneous.yaml; models/selected-homogeneous).
+    xlsr300m_si_ta_200h_homogeneous:
+      path: models/selected-homogeneous
+      name: "XLS-R 300M (Si/Ta 200h, language-homogeneous updates)"
+      is_local: true
+      adaptation_mode: joint_200h_language_homogeneous
 
 # ── MLflow ──────────────────────────────────────────
 mlflow:

@@ -1,0 +1,39 @@
+# Joint 200h CoPT with language-homogeneous optimizer updates (XLS-R 300M).
+#
+# An OVERLAY on params.yaml: deep-merged over it (--overlay), so everything not
+# listed here -- data selection, sharding, preprocessing, optimizer, LR schedule,
+# masking, batch audio-seconds, max_updates, checkpoint/eval frequency, seed,
+# checkpoint selection and benchmark settings -- is the original joint run's.
+# Only batching (and the output locations that keep this run from overwriting it)
+# differ. See README "Joint 200h CoPT with Language-Homogeneous Updates".
+
+pretrain:
+  output_dir: models/xlsr300m-si-ta-200h-homogeneous
+  language_batching:
+    enabled: true
+    mode: balanced_random          # or: alternate (strict Sinhala/Tamil/Sinhala/...)
+    languages: [sinhala, tamil]    # as spelled in the manifests' `language` field
+    probabilities:
+      sinhala: 0.5
+      tamil: 0.5
+    window: 20                     # every 20 consecutive updates: exactly 10 + 10, shuffled
+    seed: 1337                     # = select.seed
+    synchronize_across_ranks: true
+    keep_language_across_gradient_accumulation: true
+    # train/pull refuse to start if the clip ids differ from the original joint run's
+    reference_manifest: "git:main:data/manifests/train.jsonl"
+    dataset_check_report: reports/language_batching_dataset_check.json
+
+experiment:
+  reports_dir: reports/language_homogeneous
+  mlflow_run_name: xlsr300m-copt-si-ta-200h-homogeneous-batches
+
+# Same proxy task, seed and data as the original -- only where results are written.
+checkpoint_selection:
+  output_dir: models/selected-homogeneous
+  report_path: reports/language_homogeneous/checkpoint_selection.json
+
+benchmark:
+  out_dir: reports/bench/xlsr300m_si_ta_200h_homogeneous
+  mlflow_run_prefix: xlsr_200h_CoPT_homogeneous
+  mlflow_run_tags: "model=xlsr300m,base_model=facebook/wav2vec2-xls-r-300m,stage=continued-pretraining,copt_data=si-ta-200h,copt_run=xlsr300m-si-ta-200h-homogeneous,train_normalize=true,variant=homogeneous,batching=language_homogeneous"
