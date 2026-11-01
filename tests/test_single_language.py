@@ -177,7 +177,7 @@ def test_slicing_the_joint_manifests_gives_each_language_exactly_its_half(params
 
 
 def test_repo_params_define_both_runs_and_still_validate_as_joint(params):
-    assert set(params.experiments.runs) == {"si-100h", "ta-100h"}
+    assert set(params.experiments.runs) == {"si-100h", "ta-100h", "si-100h-p30", "ta-100h-p30"}
     assert params.select.language_mix == {"sinhala": 0.5, "tamil": 0.5}
     assert params.pretrain.output_dir == "models/xlsr300m-si-ta-200h-norm"  # joint untouched
 
@@ -452,3 +452,91 @@ def test_ablation_row_reports_hours_and_checkpoint_of_its_experiment(in_tmp):
     )
     row = next(r for r in ablation_table(_cfg())[1] if r[1] == "single")
     assert row[3] == "94.5" and row[4] == "checkpoint-9000"
+
+
+# ── equal-exposure variants (same clips, shorter schedule) ──────────────
+
+
+def test_p30_variants_change_only_the_schedule_length(params):
+    base, _ = experiment.resolve(params, "si-100h")
+    p30, exp = experiment.resolve(params, "si-100h-p30")
+    before, after = base.pretrain.model_dump(), p30.pretrain.model_dump()
+    changed = {k for k in before if before[k] != after[k]}
+    assert changed == {
+        "output_dir",
+        "max_updates",
+        "warmup_updates",
+        "milestone_checkpoints",
+        "save_every_updates",
+    }
+    assert (p30.pretrain.max_updates, p30.pretrain.milestone_checkpoints) == (
+        6750,
+        [2250, 4500, 6750],
+    )
+    assert p30.pretrain.peak_lr == base.pretrain.peak_lr and p30.select == base.select
+    assert exp.model_dir == Path("models/xlsr300m-si-100h-p30")
+
+
+def test_p30_gives_each_language_about_the_passes_the_joint_run_gave_it(params):
+    joint_passes = 13500 * 1600 / 3600 / 193.63  # passes over the joint training set
+    for name, hours in (("si-100h-p30", 94.48), ("ta-100h-p30", 99.16)):
+        p = params.experiments and experiment.resolve(params, name)[0].pretrain
+        passes = p.max_updates * p.target_batch_seconds / 3600 / hours
+        assert passes == pytest.approx(joint_passes, rel=0.03)
+    assert params.experiments.runs["si-100h"].pretrain_overrides == {}  # standard runs untouched
+
+
+def test_only_schedule_settings_may_be_overridden(params):
+    for key in ("peak_lr", "mask_time_prob", "target_batch_seconds", "base_model"):
+        runs = {
+            "si": {"language": "sinhala", "target_hours": 100.0, "pretrain_overrides": {key: 1}}
+        }
+        with pytest.raises(ValidationError, match="may only set"):
+            Params(**_with_runs(params, runs))
+
+
+def test_override_schedule_must_be_consistent(params):
+    def make(**o):
+        runs = {"si": {"language": "sinhala", "target_hours": 100.0, "pretrain_overrides": o}}
+        return Params(**_with_runs(params, runs))
+
+    with pytest.raises(ValidationError, match="not multiples of save_every_updates"):
+        make(max_updates=6750, milestone_checkpoints=[2250, 6750], save_every_updates=500)
+    with pytest.raises(ValidationError, match="exceed max_updates"):
+        make(max_updates=3000)  # inherited milestones 4500+ would never be reached
+    with pytest.raises(ValidationError, match="warmup_updates must be below"):
+        make(max_updates=900, milestone_checkpoints=[300], save_every_updates=300)
+
+
+def test_p30_and_standard_runs_use_the_same_clips(params, in_tmp):
+    from pipeline.select import slice_joint_manifests
+
+    rows = [
+        {
+            "id": f"s{i}",
+            "filename": f"s/{i}.wav",
+            "language": "sinhala",
+            "duration": 60.0,
+            "genre": "drama",
+            "channel_id": f"c{i % 3}",
+        }
+        for i in range(6)
+    ] + [
+        {
+            "id": "d0",
+            "filename": "s/d.wav",
+            "language": "sinhala",
+            "duration": 60.0,
+            "genre": "drama",
+            "channel_id": "dev_c",
+        }
+    ]
+    Path("data/manifests").mkdir(parents=True)
+    Path("data/manifests/train.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows[:6]))
+    Path("data/manifests/dev.jsonl").write_text(json.dumps(rows[6]) + "\n")
+    outs = {}
+    for name in ("si-100h", "si-100h-p30"):
+        _, exp = experiment.resolve(params, name)
+        slice_joint_manifests(exp, params)
+        outs[name] = exp.train_manifest.read_text()
+    assert outs["si-100h"] == outs["si-100h-p30"]

@@ -1,5 +1,5 @@
 # Single-language ablation runs: keys of `experiments.runs` in params.yaml.
-EXPERIMENTS := si-100h ta-100h
+EXPERIMENTS := si-100h ta-100h si-100h-p30 ta-100h-p30
 
 .PHONY: setup lint test phase0 snapshot index select pull shard train ckpt bench report all clean help \
         $(foreach e,$(EXPERIMENTS),select-$(e) pull-$(e) shard-$(e) train-$(e) ckpt-$(e) bench-$(e) heldout-$(e) run-$(e))

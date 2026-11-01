@@ -117,6 +117,10 @@ class MonitoringConfig(BaseModel):
     consecutive_alerts: int = Field(default=5, gt=0)
 
 
+# pretrain settings a run may override: how long it trains, and when it saves/is judged.
+SCHEDULE_KEYS = {"max_updates", "warmup_updates", "milestone_checkpoints", "save_every_updates"}
+
+
 class ExperimentRun(BaseModel):
     """One single-language ablation run: the joint selection restricted to one language."""
 
@@ -124,6 +128,18 @@ class ExperimentRun(BaseModel):
     # Nominal hours of that language in the joint selection (select.target_hours x its mix
     # share). The hours actually realised can fall short; selection_stats.json records them.
     target_hours: float = Field(gt=0)
+    # Schedule length only -- the one thing an equal-exposure variant changes (e.g. half the
+    # updates, so each language gets the passes over its audio the joint run gave it).
+    # Anything else (LR, batch, masking, ...) is refused: it would confound the comparison.
+    pretrain_overrides: dict[str, int | list[int]] = Field(default_factory=dict)
+
+    @field_validator("pretrain_overrides")
+    @classmethod
+    def only_schedule_length(cls, v):
+        bad = sorted(set(v) - SCHEDULE_KEYS)
+        if bad:
+            raise ValueError(f"pretrain_overrides may only set {sorted(SCHEDULE_KEYS)}, got {bad}")
+        return v
 
     @field_validator("language")
     @classmethod
@@ -172,7 +188,27 @@ class Params(BaseModel):
                     f"experiments.runs.{name}: target_hours {run.target_hours} != "
                     f"select.target_hours x language_mix[{run.language}] = {expected}"
                 )
+            if run.pretrain_overrides:
+                self.effective_pretrain(name)  # validates the combined schedule
         return self
+
+    def effective_pretrain(self, name: str) -> "PretrainConfig":
+        """The pretrain config of run `name`: the shared recipe plus its schedule overrides.
+        Raises if the schedule is inconsistent (warmup, milestones, save interval)."""
+        run = self.experiments.runs[name]
+        cfg = self.pretrain.model_copy(update=run.pretrain_overrides)
+        if cfg.warmup_updates >= cfg.max_updates:
+            raise ValueError(f"{name}: warmup_updates must be below max_updates")
+        late = [m for m in cfg.milestone_checkpoints if m > cfg.max_updates]
+        if late:
+            raise ValueError(f"{name}: milestone_checkpoints {late} exceed max_updates")
+        off = [m for m in cfg.milestone_checkpoints if m % cfg.save_every_updates]
+        if off:
+            raise ValueError(
+                f"{name}: milestones {off} are not multiples of save_every_updates "
+                f"({cfg.save_every_updates}), so they would never be saved"
+            )
+        return cfg
 
     @classmethod
     def from_yaml(cls, path: str = "params.yaml") -> "Params":

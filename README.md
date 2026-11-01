@@ -142,6 +142,23 @@ and `milestone_checkpoints: [2250, 4500, 6750]` for the single-language runs onl
 its own params file / branch — `pretrain` is shared by all runs here) and say so when
 comparing.
 
+**Equal-exposure variants (`si-100h-p30`, `ta-100h-p30`).** The standard runs double each language's
+exposure (63 passes vs the joint model's 31). These variants train on the *same clips* for
+**6,750 updates** (half), so each language gets about the passes over its own audio that the joint
+run gave it: 31.8 passes of the 94.5h Sinhala and 30.3 of the 99.2h Tamil, against 31.0 in the
+joint run (13,500 updates x 1,600 s / 193.6h). Only the schedule length differs: warmup 500 (same 7.4%
+share), the tri-stage LR scales with `max_updates`, milestones 2250 / 4500 / 6750 (same 1/3, 2/3, 3/3
+positions) and a checkpoint every 250 updates (it must divide every milestone). This is set per
+run in `params.yaml` under `pretrain_overrides`; the schema accepts only `max_updates`,
+`warmup_updates`, `milestone_checkpoints` and `save_every_updates`, so nothing else can drift.
+They are independent runs with their own manifests, shards, models and reports (`xlsr300m-si-100h-p30`
+etc.; the manifests are byte-identical to the standard run's, which a test checks).
+Run them like any other: `make run-si-100h-p30`, `make train-ta-100h-p30`. About 40 hours each.
+`results_ablation.md` lists both, so the comparison reads: frozen / joint 200h / single (equal
+compute: same updates) / single (equal exposure: same passes). Reading it: if the equal-exposure
+model matches the 13,500-update one, the extra passes were not helping; if the joint model beats
+the equal-exposure single-language models on a language, adding the other language helped it.
+
 **Configuration** (`params.yaml`):
 
 ```yaml

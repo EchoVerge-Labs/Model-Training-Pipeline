@@ -223,6 +223,7 @@ stages:
       params:
         - checkpoint_selection
         - pretrain.milestone_checkpoints
+        - experiments.runs.${key}
       outs:
         - models/selected_single/${experiments.backbone_tag}-${key}/:
             persist: true
