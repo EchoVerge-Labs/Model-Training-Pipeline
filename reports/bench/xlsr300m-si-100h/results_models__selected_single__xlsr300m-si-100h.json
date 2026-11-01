@@ -1,0 +1,582 @@
+{
+  "upstream": "models/selected_single/xlsr300m-si-100h",
+  "families": [
+    "asr",
+    "sid",
+    "er",
+    "asv"
+  ],
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "protocol": "v0.5",
+  "slsb_version": "0.5.0",
+  "slsb_commit": "681129e6b430bef057e08f07fd4f47fe1391142d",
+  "layer_norm": true,
+  "params": {
+    "upstream": {
+      "layer_norm": true
+    },
+    "utterance": {
+      "batch_size": 32,
+      "lr_grid": [
+        0.01,
+        0.001,
+        0.0001
+      ],
+      "max_epochs": 200,
+      "patience": 20
+    },
+    "asr": {
+      "hidden_size": 1024,
+      "rnn_layers": 2,
+      "dropout": 0.2,
+      "max_items": 32,
+      "max_frames": 12000,
+      "grad_clip": 1.0,
+      "lr_grid": [
+        0.001,
+        0.0001
+      ],
+      "max_epochs": 60,
+      "patience": 8
+    },
+    "sd": {
+      "head": "stats",
+      "embedding_size": 256,
+      "margin": 0.4,
+      "scale": 30.0,
+      "window_seconds": 1.5,
+      "hop_seconds": 0.75,
+      "min_train_seconds": 1.0,
+      "batch_size": 64,
+      "lr_grid": [
+        0.001,
+        0.0001
+      ],
+      "max_epochs": 30,
+      "patience": 5,
+      "collar": 0.25,
+      "thresholds": {
+        "start": 0.05,
+        "stop": 1.0,
+        "num": 20
+      },
+      "layer_mix": {
+        "batch_size": 32,
+        "lr_grid": [
+          0.001
+        ],
+        "max_epochs": 100,
+        "patience": 10
+      }
+    },
+    "asv": {
+      "head": "stats",
+      "embedding_size": 256,
+      "margin": 0.4,
+      "scale": 30.0,
+      "crop_frames": 200,
+      "batch_size": 64,
+      "lr_grid": [
+        0.001,
+        0.0001
+      ],
+      "max_epochs": 40,
+      "patience": 6,
+      "layer_mix_clips_per_speaker": 30,
+      "layer_mix": {
+        "batch_size": 32,
+        "lr_grid": [
+          0.001
+        ],
+        "max_epochs": 100,
+        "patience": 10
+      }
+    }
+  },
+  "results": [
+    {
+      "upstream": "models/selected_single/xlsr300m-si-100h",
+      "task": "asr",
+      "language": "sinhala",
+      "name": "asr_sinhala",
+      "kind": "asr",
+      "seed": 0,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.6052018633540373,
+        "cer": 0.1555670503038924
+      },
+      "perf": {
+        "train_seconds": 1033.2125842571259,
+        "peak_gpu_gb": 5.82769152,
+        "feature_seconds": 74.61193251609802
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 13,
+        "dev_cer": 0.15221077344463285
+      }
+    },
+    {
+      "upstream": "models/selected_single/xlsr300m-si-100h",
+      "task": "asr",
+      "language": "sinhala",
+      "name": "asr_sinhala",
+      "kind": "asr",
+      "seed": 1,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.6075310559006211,
+        "cer": 0.15343333764386397
+      },
+      "perf": {
+        "train_seconds": 424.71462774276733,
+        "peak_gpu_gb": 5.48929024,
+        "feature_seconds": 74.61193251609802
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 11,
+        "dev_cer": 0.15677579235685404
+      }
+    },
+    {
+      "upstream": "models/selected_single/xlsr300m-si-100h",
+      "task": "asr",
+      "language": "sinhala",
+      "name": "asr_sinhala",
+      "kind": "asr",
+      "seed": 2,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.6067546583850931,
+        "cer": 0.15317470580628476
+      },
+      "perf": {
+        "train_seconds": 591.4974482059479,
+        "peak_gpu_gb": 5.490835968,
+        "feature_seconds": 74.61193251609802
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 18,
+        "dev_cer": 0.15834094169818705
+      }
+    },
+    {
+      "upstream": "models/selected_single/xlsr300m-si-100h",
+      "task": "asr",
+      "language": "tamil",
+      "name": "asr_tamil",
+      "kind": "asr",
+      "seed": 0,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.8253125,
+        "cer": 0.302009707911096
+      },
+      "perf": {
+        "train_seconds": 920.9692409038544,
+        "peak_gpu_gb": 5.91319296,
+        "feature_seconds": 32.297330141067505
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 31,
+        "dev_cer": 0.2829678154371974
+      }
+    },
+    {
+      "upstream": "models/selected_single/xlsr300m-si-100h",
+      "task": "asr",
+      "language": "tamil",
+      "name": "asr_tamil",
+      "kind": "asr",
+      "seed": 1,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.8153125,
+        "cer": 0.29366431065315507
+      },
+      "perf": {
+        "train_seconds": 343.86899495124817,
+        "peak_gpu_gb": 5.57677824,
+        "feature_seconds": 32.297330141067505
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 27,
+        "dev_cer": 0.2671603531757334
+      }
+    },
+    {
+      "upstream": "models/selected_single/xlsr300m-si-100h",
+      "task": "asr",
+      "language": "tamil",
+      "name": "asr_tamil",
+      "kind": "asr",
+      "seed": 2,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.815,
+        "cer": 0.29664480967384826
+      },
+      "perf": {
+        "train_seconds": 381.3516466617584,
+        "peak_gpu_gb": 5.577437184,
+        "feature_seconds": 32.297330141067505
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 31,
+        "dev_cer": 0.2771290230703503
+      }
+    },
+    {
+      "upstream": "models/selected_single/xlsr300m-si-100h",
+      "task": "asv",
+      "language": "tamil",
+      "name": "asv_tamil",
+      "kind": "verification",
+      "seed": 0,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "eer": 0.15872216330858957
+      },
+      "perf": {
+        "train_seconds": 143.20062637329102,
+        "peak_gpu_gb": 1.4769664,
+        "feature_seconds": 931.3186626434326
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.001,
+        "best_epoch": 17,
+        "dev_eer": 0.12129629629629632,
+        "train_speakers": 80,
+        "layer_weights": [
+          0.06,
+          0.1119,
+          0.1173,
+          0.1071,
+          0.1269,
+          0.1582,
+          0.1156,
+          0.033,
+          0.0169,
+          0.0113,
+          0.009,
+          0.0087,
+          0.0089,
+          0.009,
+          0.009,
+          0.009,
+          0.009,
+          0.009,
+          0.0093,
+          0.0085,
+          0.0093,
+          0.0097,
+          0.011,
+          0.0111,
+          0.0112
+        ]
+      }
+    },
+    {
+      "upstream": "models/selected_single/xlsr300m-si-100h",
+      "task": "asv",
+      "language": "tamil",
+      "name": "asv_tamil",
+      "kind": "verification",
+      "seed": 1,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "eer": 0.11977730646871687
+      },
+      "perf": {
+        "train_seconds": 54.577661991119385,
+        "peak_gpu_gb": 1.4769664,
+        "feature_seconds": 931.3186626434326
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.001,
+        "best_epoch": 8,
+        "dev_eer": 0.12092592592592591,
+        "train_speakers": 80,
+        "layer_weights": [
+          0.06,
+          0.1119,
+          0.1173,
+          0.1071,
+          0.1269,
+          0.1582,
+          0.1156,
+          0.033,
+          0.0169,
+          0.0113,
+          0.009,
+          0.0087,
+          0.0089,
+          0.009,
+          0.009,
+          0.009,
+          0.009,
+          0.009,
+          0.0093,
+          0.0085,
+          0.0093,
+          0.0097,
+          0.011,
+          0.0111,
+          0.0112
+        ]
+      }
+    },
+    {
+      "upstream": "models/selected_single/xlsr300m-si-100h",
+      "task": "asv",
+      "language": "tamil",
+      "name": "asv_tamil",
+      "kind": "verification",
+      "seed": 2,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "eer": 0.1423913043478261
+      },
+      "perf": {
+        "train_seconds": 64.96845436096191,
+        "peak_gpu_gb": 1.481326592,
+        "feature_seconds": 931.3186626434326
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.001,
+        "best_epoch": 11,
+        "dev_eer": 0.11185185185185187,
+        "train_speakers": 80,
+        "layer_weights": [
+          0.06,
+          0.1119,
+          0.1173,
+          0.1071,
+          0.1269,
+          0.1582,
+          0.1156,
+          0.033,
+          0.0169,
+          0.0113,
+          0.009,
+          0.0087,
+          0.0089,
+          0.009,
+          0.009,
+          0.009,
+          0.009,
+          0.009,
+          0.0093,
+          0.0085,
+          0.0093,
+          0.0097,
+          0.011,
+          0.0111,
+          0.0112
+        ]
+      }
+    },
+    {
+      "upstream": "models/selected_single/xlsr300m-si-100h",
+      "task": "er",
+      "language": "tamil",
+      "name": "er_tamil",
+      "kind": "classification",
+      "seed": 0,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.3797519050700357,
+        "macro_f1": 0.3673437555954572
+      },
+      "perf": {
+        "train_seconds": 17.9894015789032,
+        "peak_gpu_gb": 1.472825344,
+        "feature_seconds": 11.795300722122192
+      },
+      "details": {
+        "fold_accuracy": [
+          0.4032,
+          0.2941,
+          0.3119,
+          0.3837,
+          0.5058
+        ],
+        "fold_accuracy_std": 0.07536322395285877,
+        "fold_lr": [
+          0.01,
+          0.01,
+          0.01,
+          0.01,
+          0.01
+        ]
+      }
+    },
+    {
+      "upstream": "models/selected_single/xlsr300m-si-100h",
+      "task": "er",
+      "language": "tamil",
+      "name": "er_tamil",
+      "kind": "classification",
+      "seed": 1,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.38565808458521156,
+        "macro_f1": 0.3721920533180402
+      },
+      "perf": {
+        "train_seconds": 4.734896183013916,
+        "peak_gpu_gb": 1.472782336,
+        "feature_seconds": 11.795300722122192
+      },
+      "details": {
+        "fold_accuracy": [
+          0.3763,
+          0.2941,
+          0.3218,
+          0.4128,
+          0.5233
+        ],
+        "fold_accuracy_std": 0.08026935592911778,
+        "fold_lr": [
+          0.01,
+          0.01,
+          0.01,
+          0.01,
+          0.01
+        ]
+      }
+    },
+    {
+      "upstream": "models/selected_single/xlsr300m-si-100h",
+      "task": "er",
+      "language": "tamil",
+      "name": "er_tamil",
+      "kind": "classification",
+      "seed": 2,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.4211852031149895,
+        "macro_f1": 0.3986241363376951
+      },
+      "perf": {
+        "train_seconds": 4.71367883682251,
+        "peak_gpu_gb": 1.472782336,
+        "feature_seconds": 11.795300722122192
+      },
+      "details": {
+        "fold_accuracy": [
+          0.3978,
+          0.3971,
+          0.3168,
+          0.4942,
+          0.5
+        ],
+        "fold_accuracy_std": 0.06863991762544168,
+        "fold_lr": [
+          0.01,
+          0.01,
+          0.01,
+          0.01,
+          0.01
+        ]
+      }
+    },
+    {
+      "upstream": "models/selected_single/xlsr300m-si-100h",
+      "task": "sid",
+      "language": "multilingual",
+      "name": "sid",
+      "kind": "classification",
+      "seed": 0,
+      "status": "ok",
+      "split": "video_disjoint_closed_set",
+      "metrics": {
+        "accuracy": 0.8855359001040582,
+        "macro_f1": 0.8701909325131165
+      },
+      "perf": {
+        "train_seconds": 79.04757356643677,
+        "peak_gpu_gb": 1.861658112,
+        "feature_seconds": 251.51369643211365
+      },
+      "details": {
+        "lr": 0.01,
+        "best_epoch": 197,
+        "dev_accuracy": 0.8201701093560145
+      }
+    },
+    {
+      "upstream": "models/selected_single/xlsr300m-si-100h",
+      "task": "sid",
+      "language": "multilingual",
+      "name": "sid",
+      "kind": "classification",
+      "seed": 1,
+      "status": "ok",
+      "split": "video_disjoint_closed_set",
+      "metrics": {
+        "accuracy": 0.8876170655567117,
+        "macro_f1": 0.8744177704386458
+      },
+      "perf": {
+        "train_seconds": 26.44391417503357,
+        "peak_gpu_gb": 1.861008896,
+        "feature_seconds": 251.51369643211365
+      },
+      "details": {
+        "lr": 0.01,
+        "best_epoch": 194,
+        "dev_accuracy": 0.8213851761846902
+      }
+    },
+    {
+      "upstream": "models/selected_single/xlsr300m-si-100h",
+      "task": "sid",
+      "language": "multilingual",
+      "name": "sid",
+      "kind": "classification",
+      "seed": 2,
+      "status": "ok",
+      "split": "video_disjoint_closed_set",
+      "metrics": {
+        "accuracy": 0.8855359001040582,
+        "macro_f1": 0.8694294734525133
+      },
+      "perf": {
+        "train_seconds": 26.454120874404907,
+        "peak_gpu_gb": 1.861008896,
+        "feature_seconds": 251.51369643211365
+      },
+      "details": {
+        "lr": 0.01,
+        "best_epoch": 193,
+        "dev_accuracy": 0.8250303766707169
+      }
+    }
+  ]
+}
