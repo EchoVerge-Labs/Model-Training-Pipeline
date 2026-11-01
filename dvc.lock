@@ -164,3 +164,33 @@ stages:
       hash: md5
       md5: 289b5e0c5013e29233306c956d80e584
       size: 8965
+  benchmark_single@si-100h:
+    cmd: "bash scripts/run_benchmark.sh models/selected_single/xlsr300m-si-100h asr,sid,er,asv
+      0,1,2 reports/bench/xlsr300m-si-100h https://dagshub.com/EchoVerge-LABS/Model-Training-Pipeline.mlflow
+      ../SLSB-benchmark/data xlsr300m-si-100h-CoPT-norm model=xlsr300m,base_model=facebook/wav2vec2-xls-r-300m,stage=continued-pretraining,copt_data=si-100h,copt_run=xlsr300m-si-100h,train_language=sinhala,train_normalize=true,variant=norm
+      reports/si-100h/checkpoint_selection.json\n"
+    deps:
+    - path: models/selected_single/xlsr300m-si-100h/
+      hash: md5
+      md5: 4d5b21ed462845d92af7537623ee656d.dir
+      size: 3775408679
+      nfiles: 4
+    - path: scripts/label_benchmark_runs.py
+      hash: md5
+      md5: 4e632bb3c5718e28ea9bf3b5ec40b1b3
+      size: 5623
+    - path: scripts/run_benchmark.sh
+      hash: md5
+      md5: 37eb83cdba5c591a69ab323475ccc4ca
+      size: 3173
+      isexec: true
+    params:
+      params.yaml:
+        benchmark.seeds: 0,1,2
+        benchmark.slsb_data_dir: ../SLSB-benchmark/data
+        benchmark.tasks: asr,sid,er,asv
+    outs:
+    - path: reports/bench/xlsr300m-si-100h/metrics.json
+      hash: md5
+      md5: f9b0daa842605758f8f5ef2d6cbb6357
+      size: 13218
