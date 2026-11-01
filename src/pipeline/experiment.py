@@ -3,7 +3,9 @@ the runs apart from each other and from the joint Sinhala+Tamil run.
 
 A run is the joint selection restricted to ONE language (select.py runs its normal
 algorithm unchanged and keeps that language), trained with the unchanged `pretrain`
-recipe. Only locations differ, so `resolve()` rewrites paths and nothing else.
+recipe. Only locations differ, so `resolve()` rewrites paths and nothing else -- except that
+an equal-exposure variant may set the schedule length (`pretrain_overrides`: max_updates,
+warmup_updates, milestones, save interval; the schema refuses any other key).
 
 Backbone-agnostic: this file is identical on every branch.
 """
@@ -113,7 +115,7 @@ def resolve(params: Params, name: str) -> tuple[Params, ExperimentPaths]:
     )
     _check_isolated(params, cfg.runs.keys(), tag)
 
-    pretrain_update = {"output_dir": str(exp.model_dir)}
+    pretrain_update = {"output_dir": str(exp.model_dir), **run.pretrain_overrides}
     update = {"shard": params.shard.model_copy(update={"output_dir": str(exp.shar_dir)})}
     cluster = getattr(params, "cluster", None)
     if cluster is not None:
@@ -285,11 +287,15 @@ def main():
         raise SystemExit("params.yaml has no `experiments` section")
     for name in params.experiments.runs:
         resolved, exp = resolve(params, name)
-        locations = {"output_dir", "labels_path"}
+        overrides = params.experiments.runs[name].pretrain_overrides
+        locations = {"output_dir", "labels_path"} | set(overrides)
         before, after = params.pretrain.model_dump(), resolved.pretrain.model_dump()
         changed = {k for k in before if before[k] != after[k]} - locations
         assert not changed, f"resolve() changed training hyperparameters: {changed}"
-        print(f"{name}: {exp.language} {exp.target_hours:g}h")
+        print(
+            f"{name}: {exp.language} {exp.target_hours:g}h"
+            + (f"  schedule {overrides}" if overrides else "")
+        )
         for label, value in (
             ("manifests", exp.manifest_dir),
             ("shards", exp.shar_dir),

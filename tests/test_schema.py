@@ -86,7 +86,7 @@ MAIN_SHARED = {
     "num_workers": 4,
     "mask_time_prob": 0.65,
     "mask_time_length": 10,
-    "save_every_updates": 1500,
+    "save_every_updates": 500,
     "eval_every_updates": 500,
     "keep_last_n_checkpoints": 5,
     "milestone_checkpoints": [4500, 9000, 13500],
