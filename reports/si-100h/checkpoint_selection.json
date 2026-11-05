@@ -1,0 +1,16 @@
+{
+  "proxy_task": "asr",
+  "proxy_seed": 0,
+  "best_checkpoint": "checkpoint-4500",
+  "best_score": Infinity,
+  "all_scores": {
+    "checkpoint-4500": Infinity,
+    "checkpoint-9000": Infinity,
+    "checkpoint-11000": Infinity,
+    "checkpoint-11500": Infinity,
+    "checkpoint-12000": Infinity,
+    "checkpoint-12500": Infinity,
+    "checkpoint-13000": Infinity,
+    "checkpoint-13500": Infinity
+  }
+}

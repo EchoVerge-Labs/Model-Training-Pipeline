@@ -135,3 +135,282 @@ stages:
       hash: md5
       md5: 2a39f8c8d6424d04a43b31e0160bc0b7
       size: 4872
+  select_single@si-100h:
+    cmd: python -m pipeline.select --config params.yaml --experiment si-100h
+    deps:
+    - path: data/manifests/dev.jsonl
+      hash: md5
+      md5: d7cecb51c5198b413435680a1b278859
+      size: 130079
+    - path: data/manifests/train.jsonl
+      hash: md5
+      md5: 462e51b871428b868370ec50f4da0e56
+      size: 13856869
+    - path: src/pipeline/experiment.py
+      hash: md5
+      md5: 5f54222c9b1f25eab8179993489895bb
+      size: 12355
+    - path: src/pipeline/select.py
+      hash: md5
+      md5: acb351f36f41989e8dd9b8a1b3b27172
+      size: 21017
+    params:
+      params.yaml:
+        experiments.runs.si-100h:
+          language: sinhala
+          target_hours: 100.0
+    outs:
+    - path: data/manifests/si-100h/dev.jsonl
+      hash: md5
+      md5: 1c5f252d2da43d90be5583ec56ec1c87
+      size: 59717
+    - path: data/manifests/si-100h/train.jsonl
+      hash: md5
+      md5: af4d8e7bc1688df601278962597e2e58
+      size: 7928840
+    - path: reports/si-100h/selection_report.md
+      hash: md5
+      md5: b1043c23a24545e83b75c2bc5be07b59
+      size: 1110
+    - path: reports/si-100h/selection_stats.json
+      hash: md5
+      md5: b40f89570a15c05465f4ea3eb52b8925
+      size: 587
+  materialise_single@si-100h:
+    cmd: python -m pipeline.materialise --config params.yaml --experiment 
+      si-100h
+    deps:
+    - path: data/manifests/si-100h/dev.jsonl
+      hash: md5
+      md5: 1c5f252d2da43d90be5583ec56ec1c87
+      size: 59717
+    - path: data/manifests/si-100h/train.jsonl
+      hash: md5
+      md5: af4d8e7bc1688df601278962597e2e58
+      size: 7928840
+    - path: src/pipeline/materialise.py
+      hash: md5
+      md5: 242dee4a94a88032d94e277fcb58dcab
+      size: 5253
+    params:
+      params.yaml:
+        select.drive_root: ~/google-drive/Pre Processed Data
+    outs:
+    - path: reports/si-100h/materialise.json
+      hash: md5
+      md5: 3a1fc7911329c217c66e6c7545aa3aea
+      size: 188
+  shard_single@si-100h:
+    cmd: python -m pipeline.shard --config params.yaml --experiment si-100h
+    deps:
+    - path: data/manifests/si-100h/train.jsonl
+      hash: md5
+      md5: af4d8e7bc1688df601278962597e2e58
+      size: 7928840
+    - path: reports/si-100h/materialise.json
+      hash: md5
+      md5: 3a1fc7911329c217c66e6c7545aa3aea
+      size: 188
+    - path: src/pipeline/experiment.py
+      hash: md5
+      md5: 5f54222c9b1f25eab8179993489895bb
+      size: 12355
+    - path: src/pipeline/shard.py
+      hash: md5
+      md5: 0d4b3ff32dd157e07208103ab8f72d2b
+      size: 8350
+    params:
+      params.yaml:
+        experiments.runs.si-100h:
+          language: sinhala
+          target_hours: 100.0
+        select.seed: 1337
+        shard:
+          format: flac
+          shard_size: 1000
+          min_cut_seconds: 5.0
+          target_cut_seconds: 15.0
+          max_cut_seconds: 30.0
+          output_dir: data/shars
+    outs:
+    - path: data/shars_single/si-100h/
+      hash: md5
+      md5: ca9a8d2370b420f78e42610081a89cc3.dir
+      size: 6248176004
+      nfiles: 38
+  assign_cluster_labels_single@si-100h:
+    cmd: python -m pipeline.assign_cluster_labels --config params.yaml 
+      --experiment si-100h
+    deps:
+    - path: data/shars_single/si-100h/
+      hash: md5
+      md5: ca9a8d2370b420f78e42610081a89cc3.dir
+      size: 6248176004
+      nfiles: 38
+    - path: models/kmeans/wavlm-large-L18-k500.joblib
+      hash: md5
+      md5: 7d6823d4123cc3e60c735c81b105a652
+      size: 10046647
+    - path: src/pipeline/assign_cluster_labels.py
+      hash: md5
+      md5: d0c3de553cb2a43329abea8204f27716
+      size: 2670
+    - path: src/pipeline/datamodule.py
+      hash: md5
+      md5: 1b0adfb25200e8800a4789b0471a90ed
+      size: 11396
+    - path: src/pipeline/experiment.py
+      hash: md5
+      md5: 5f54222c9b1f25eab8179993489895bb
+      size: 12355
+    - path: src/pipeline/layer_features.py
+      hash: md5
+      md5: 52139fe58eff3d11f46854d08e7a7b2d
+      size: 3970
+    params:
+      params.yaml:
+        cluster:
+          layer: 18
+          num_clusters: 500
+          seed: 1337
+          sample_hours: 40.0
+          max_frames: 2000000
+          kmeans_output: models/kmeans/wavlm-large-L18-k500.joblib
+          labels_output: data/labels/wavlm_train_labels.jsonl.gz
+        experiments.runs.si-100h:
+          language: sinhala
+          target_hours: 100.0
+        pretrain.base_model: microsoft/wavlm-large
+    outs:
+    - path: data/labels/si-100h/wavlm_train_labels.jsonl.gz
+      hash: md5
+      md5: facb64777e43aaa2e8922b303563f3dc
+      size: 19549727
+  pretrain_single@si-100h:
+    cmd: bash scripts/launch_pretrain.sh --experiment si-100h
+    deps:
+    - path: data/labels/si-100h/wavlm_train_labels.jsonl.gz
+      hash: md5
+      md5: facb64777e43aaa2e8922b303563f3dc
+      size: 19549727
+    - path: data/shars_single/si-100h/
+      hash: md5
+      md5: ca9a8d2370b420f78e42610081a89cc3.dir
+      size: 6248176004
+      nfiles: 38
+    - path: src/pipeline/callbacks.py
+      hash: md5
+      md5: 0cf8ca6b9255c0d6f0a50987b1add6b7
+      size: 3340
+    - path: src/pipeline/checkpoints.py
+      hash: md5
+      md5: 6b54ea20efc2fb91bcae2af20f924ef6
+      size: 1476
+    - path: src/pipeline/datamodule.py
+      hash: md5
+      md5: 1b0adfb25200e8800a4789b0471a90ed
+      size: 11396
+    - path: src/pipeline/experiment.py
+      hash: md5
+      md5: 5f54222c9b1f25eab8179993489895bb
+      size: 12355
+    - path: src/pipeline/train.py
+      hash: md5
+      md5: d25bad179c198f584eb969b6dba203d6
+      size: 26611
+    - path: src/pipeline/wavlm_model.py
+      hash: md5
+      md5: ff72173070b2271499920d0271418620
+      size: 3699
+    params:
+      params.yaml:
+        cluster.num_clusters: 500
+        experiments.runs.si-100h:
+          language: sinhala
+          target_hours: 100.0
+        pretrain:
+          base_model: microsoft/wavlm-large
+          precision: bf16
+          freeze_feature_encoder: true
+          layerdrop: 0.1
+          max_updates: 13500
+          warmup_updates: 1000
+          peak_lr: 5e-05
+          lr_schedule: tri_stage
+          hold_ratio: 0.4
+          optimizer: adamw
+          adam_betas:
+          - 0.9
+          - 0.98
+          adam_eps: 1e-06
+          weight_decay: 0.01
+          max_grad_norm: 1.0
+          head_lr_mult: 1.0
+          target_batch_seconds: 1600
+          per_device_max_seconds: 200
+          num_workers: 4
+          max_gpu_memory_fraction: 0.8
+          mask_time_prob: 0.65
+          mask_time_length: 10
+          utterance_mix_prob: 0.2
+          labels_path: data/labels/wavlm_train_labels.jsonl.gz
+          save_every_updates: 500
+          eval_every_updates: 500
+          keep_last_n_checkpoints: 5
+          milestone_checkpoints:
+          - 4500
+          - 9000
+          - 13500
+          output_dir: models/wavlm-large-si-ta-200h
+    outs:
+    - path: models/wavlm-large-si-100h/
+      hash: md5
+      md5: 1eb21407a3128ff882dc381d2a53dff0.dir
+      size: 31331084701
+      nfiles: 45
+    - path: reports/si-100h/pretrain_curves.csv
+      hash: md5
+      md5: 4b9952f849ea7c715f3bb4a5667813b6
+      size: 1049
+    - path: reports/si-100h/pretrain_metrics.json
+      hash: md5
+      md5: fab0913082d749d8addb6049799cb97d
+      size: 68
+  select_checkpoint_single@si-100h:
+    cmd: python -m pipeline.select_checkpoint --config params.yaml --experiment 
+      si-100h
+    deps:
+    - path: models/wavlm-large-si-100h/
+      hash: md5
+      md5: 1eb21407a3128ff882dc381d2a53dff0.dir
+      size: 31331084701
+      nfiles: 45
+    - path: src/pipeline/experiment.py
+      hash: md5
+      md5: 5f54222c9b1f25eab8179993489895bb
+      size: 12355
+    - path: src/pipeline/select_checkpoint.py
+      hash: md5
+      md5: 9ac0912df2c2c771c96cbc0db2c2e00a
+      size: 5620
+    params:
+      params.yaml:
+        checkpoint_selection:
+          proxy_task: asr
+          proxy_data_dir: /home/anas22/EchoVerge-LABS/SLSB-benchmark/data
+          proxy_seed: 0
+          output_dir: models/selected
+        pretrain.milestone_checkpoints:
+        - 4500
+        - 9000
+        - 13500
+    outs:
+    - path: models/selected_single/wavlm-large-si-100h/
+      hash: md5
+      md5: e72c2583cf38206c718e20ac7d38bd65.dir
+      size: 3758395089
+      nfiles: 5
+    - path: reports/si-100h/checkpoint_selection.json
+      hash: md5
+      md5: eadd5ac554b7bafa25a5110a57e92527
+      size: 402

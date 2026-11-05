@@ -8,6 +8,14 @@ CONFIG="params.yaml"
 # Source NCCL env for GB10
 source configs/nccl-env.sh
 
+# DagsHub credentials (DAGSHUB_USER / DAGSHUB_TOKEN) for MLflow logging, if present.
+# Values already in the environment (e.g. MASTER_ADDR) take precedence, as in the Makefile.
+if [ -f .env ]; then
+    _shell_env=$(export -p)
+    set -a; source .env; set +a
+    eval "$_shell_env"
+fi
+
 # ─── Detect number of nodes ──────────────────────────
 NNODES=${NNODES:-1}
 NODE_RANK=${NODE_RANK:-0}
@@ -25,6 +33,7 @@ torchrun \
     --rdzv_backend=c10d \
     --rdzv_endpoint=$MASTER_ADDR:$MASTER_PORT \
     $SCRIPT \
-    --config $CONFIG
+    --config $CONFIG \
+    "$@"
 
 echo "Pre-training complete."
