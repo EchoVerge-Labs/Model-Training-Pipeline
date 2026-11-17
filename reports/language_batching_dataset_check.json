@@ -1,0 +1,34 @@
+{
+  "manifest": "data/manifests/train.jsonl",
+  "reference": "git:main:data/manifests/train.jsonl",
+  "languages": {
+    "sinhala": {
+      "original_clip_count": 17079,
+      "new_clip_count": 17079,
+      "matching_ids": 17079,
+      "missing_from_new": 0,
+      "extra_in_new": 0,
+      "original_hours": 94.4777,
+      "new_hours": 94.4777,
+      "mismatch_count": 0,
+      "shar_cuts": 18884,
+      "shar_hours": 94.3515,
+      "shar_hours_ok": true
+    },
+    "tamil": {
+      "original_clip_count": 13886,
+      "new_clip_count": 13886,
+      "matching_ids": 13886,
+      "missing_from_new": 0,
+      "extra_in_new": 0,
+      "original_hours": 99.1557,
+      "new_hours": 99.1557,
+      "mismatch_count": 0,
+      "shar_cuts": 17598,
+      "shar_hours": 98.9118,
+      "shar_hours_ok": true
+    }
+  },
+  "total_mismatches": 0,
+  "ok": true
+}

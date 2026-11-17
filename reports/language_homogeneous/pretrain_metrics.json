@@ -1,0 +1,14 @@
+{
+  "final_step": 13500,
+  "final_loss": null,
+  "completed": true,
+  "lang/sinhala/updates": 6750,
+  "lang/sinhala/audio_hours": 2699.2684,
+  "lang/sinhala/update_share_pct": 50.0,
+  "lang/tamil/updates": 6750,
+  "lang/tamil/audio_hours": 2707.4317,
+  "lang/tamil/update_share_pct": 50.0,
+  "lang/mixed_microbatch_violations": 0,
+  "lang/mixed_accumulation_violations": 0,
+  "lang/rank_disagreements": 0
+}

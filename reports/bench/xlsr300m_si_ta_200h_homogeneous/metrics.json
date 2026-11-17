@@ -1,0 +1,582 @@
+{
+  "upstream": "models/selected-homogeneous",
+  "families": [
+    "asr",
+    "sid",
+    "er",
+    "asv"
+  ],
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "protocol": "v0.5",
+  "slsb_version": "0.5.0",
+  "slsb_commit": "681129e6b430bef057e08f07fd4f47fe1391142d",
+  "layer_norm": true,
+  "params": {
+    "upstream": {
+      "layer_norm": true
+    },
+    "utterance": {
+      "batch_size": 32,
+      "lr_grid": [
+        0.01,
+        0.001,
+        0.0001
+      ],
+      "max_epochs": 200,
+      "patience": 20
+    },
+    "asr": {
+      "hidden_size": 1024,
+      "rnn_layers": 2,
+      "dropout": 0.2,
+      "max_items": 32,
+      "max_frames": 12000,
+      "grad_clip": 1.0,
+      "lr_grid": [
+        0.001,
+        0.0001
+      ],
+      "max_epochs": 60,
+      "patience": 8
+    },
+    "sd": {
+      "head": "stats",
+      "embedding_size": 256,
+      "margin": 0.4,
+      "scale": 30.0,
+      "window_seconds": 1.5,
+      "hop_seconds": 0.75,
+      "min_train_seconds": 1.0,
+      "batch_size": 64,
+      "lr_grid": [
+        0.001,
+        0.0001
+      ],
+      "max_epochs": 30,
+      "patience": 5,
+      "collar": 0.25,
+      "thresholds": {
+        "start": 0.05,
+        "stop": 1.0,
+        "num": 20
+      },
+      "layer_mix": {
+        "batch_size": 32,
+        "lr_grid": [
+          0.001
+        ],
+        "max_epochs": 100,
+        "patience": 10
+      }
+    },
+    "asv": {
+      "head": "stats",
+      "embedding_size": 256,
+      "margin": 0.4,
+      "scale": 30.0,
+      "crop_frames": 200,
+      "batch_size": 64,
+      "lr_grid": [
+        0.001,
+        0.0001
+      ],
+      "max_epochs": 40,
+      "patience": 6,
+      "layer_mix_clips_per_speaker": 30,
+      "layer_mix": {
+        "batch_size": 32,
+        "lr_grid": [
+          0.001
+        ],
+        "max_epochs": 100,
+        "patience": 10
+      }
+    }
+  },
+  "results": [
+    {
+      "upstream": "models/selected-homogeneous",
+      "task": "asr",
+      "language": "sinhala",
+      "name": "asr_sinhala",
+      "kind": "asr",
+      "seed": 0,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.6063664596273292,
+        "cer": 0.15323936376567956
+      },
+      "perf": {
+        "train_seconds": 1388.7500722408295,
+        "peak_gpu_gb": 5.82769152,
+        "feature_seconds": 73.03729510307312
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 27,
+        "dev_cer": 0.15377592278596583
+      }
+    },
+    {
+      "upstream": "models/selected-homogeneous",
+      "task": "asr",
+      "language": "sinhala",
+      "name": "asr_sinhala",
+      "kind": "asr",
+      "seed": 1,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.6300465838509317,
+        "cer": 0.16300271563429458
+      },
+      "perf": {
+        "train_seconds": 447.27811002731323,
+        "peak_gpu_gb": 5.489226752,
+        "feature_seconds": 73.03729510307312
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 12,
+        "dev_cer": 0.1601669492630755
+      }
+    },
+    {
+      "upstream": "models/selected-homogeneous",
+      "task": "asr",
+      "language": "sinhala",
+      "name": "asr_sinhala",
+      "kind": "asr",
+      "seed": 2,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.6125776397515528,
+        "cer": 0.15666623561360404
+      },
+      "perf": {
+        "train_seconds": 547.8158822059631,
+        "peak_gpu_gb": 5.490835968,
+        "feature_seconds": 73.03729510307312
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 16,
+        "dev_cer": 0.16368853528107474
+      }
+    },
+    {
+      "upstream": "models/selected-homogeneous",
+      "task": "asr",
+      "language": "tamil",
+      "name": "asr_tamil",
+      "kind": "asr",
+      "seed": 0,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.79125,
+        "cer": 0.2875755769394533
+      },
+      "perf": {
+        "train_seconds": 820.0589106082916,
+        "peak_gpu_gb": 5.91319296,
+        "feature_seconds": 32.44342589378357
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 24,
+        "dev_cer": 0.2616775847336941
+      }
+    },
+    {
+      "upstream": "models/selected-homogeneous",
+      "task": "asr",
+      "language": "tamil",
+      "name": "asr_tamil",
+      "kind": "asr",
+      "seed": 1,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.7834375,
+        "cer": 0.27769735161372733
+      },
+      "perf": {
+        "train_seconds": 263.99717831611633,
+        "peak_gpu_gb": 5.57677824,
+        "feature_seconds": 32.44342589378357
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 19,
+        "dev_cer": 0.25583879236684703
+      }
+    },
+    {
+      "upstream": "models/selected-homogeneous",
+      "task": "asr",
+      "language": "tamil",
+      "name": "asr_tamil",
+      "kind": "asr",
+      "seed": 2,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.7915625,
+        "cer": 0.28238099293195945
+      },
+      "perf": {
+        "train_seconds": 412.9977774620056,
+        "peak_gpu_gb": 5.577217536,
+        "feature_seconds": 32.44342589378357
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 34,
+        "dev_cer": 0.26260324693819426
+      }
+    },
+    {
+      "upstream": "models/selected-homogeneous",
+      "task": "asv",
+      "language": "tamil",
+      "name": "asv_tamil",
+      "kind": "verification",
+      "seed": 0,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "eer": 0.1322640509013786
+      },
+      "perf": {
+        "train_seconds": 119.55475282669067,
+        "peak_gpu_gb": 1.4769664,
+        "feature_seconds": 931.8473017215729
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.0001,
+        "best_epoch": 4,
+        "dev_eer": 0.12444444444444447,
+        "train_speakers": 80,
+        "layer_weights": [
+          0.0487,
+          0.1136,
+          0.125,
+          0.1118,
+          0.1363,
+          0.1889,
+          0.1153,
+          0.023,
+          0.012,
+          0.0085,
+          0.0072,
+          0.0071,
+          0.0072,
+          0.0073,
+          0.0073,
+          0.0074,
+          0.0074,
+          0.0074,
+          0.0075,
+          0.0069,
+          0.0077,
+          0.0081,
+          0.0094,
+          0.0094,
+          0.0095
+        ]
+      }
+    },
+    {
+      "upstream": "models/selected-homogeneous",
+      "task": "asv",
+      "language": "tamil",
+      "name": "asv_tamil",
+      "kind": "verification",
+      "seed": 1,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "eer": 0.1457051961823966
+      },
+      "perf": {
+        "train_seconds": 54.577224254608154,
+        "peak_gpu_gb": 1.4769664,
+        "feature_seconds": 931.8473017215729
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.0001,
+        "best_epoch": 8,
+        "dev_eer": 0.12796296296296295,
+        "train_speakers": 80,
+        "layer_weights": [
+          0.0487,
+          0.1136,
+          0.125,
+          0.1118,
+          0.1363,
+          0.1889,
+          0.1153,
+          0.023,
+          0.012,
+          0.0085,
+          0.0072,
+          0.0071,
+          0.0072,
+          0.0073,
+          0.0073,
+          0.0074,
+          0.0074,
+          0.0074,
+          0.0075,
+          0.0069,
+          0.0077,
+          0.0081,
+          0.0094,
+          0.0094,
+          0.0095
+        ]
+      }
+    },
+    {
+      "upstream": "models/selected-homogeneous",
+      "task": "asv",
+      "language": "tamil",
+      "name": "asv_tamil",
+      "kind": "verification",
+      "seed": 2,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "eer": 0.13234358430540827
+      },
+      "perf": {
+        "train_seconds": 77.71169137954712,
+        "peak_gpu_gb": 1.481326592,
+        "feature_seconds": 931.8473017215729
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.0001,
+        "best_epoch": 14,
+        "dev_eer": 0.12185185185185188,
+        "train_speakers": 80,
+        "layer_weights": [
+          0.0487,
+          0.1136,
+          0.125,
+          0.1118,
+          0.1363,
+          0.1889,
+          0.1153,
+          0.023,
+          0.012,
+          0.0085,
+          0.0072,
+          0.0071,
+          0.0072,
+          0.0073,
+          0.0073,
+          0.0074,
+          0.0074,
+          0.0074,
+          0.0075,
+          0.0069,
+          0.0077,
+          0.0081,
+          0.0094,
+          0.0094,
+          0.0095
+        ]
+      }
+    },
+    {
+      "upstream": "models/selected-homogeneous",
+      "task": "er",
+      "language": "tamil",
+      "name": "er_tamil",
+      "kind": "classification",
+      "seed": 0,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.3746990183771919,
+        "macro_f1": 0.3553809771063402
+      },
+      "perf": {
+        "train_seconds": 20.172531843185425,
+        "peak_gpu_gb": 1.472825344,
+        "feature_seconds": 11.697325706481934
+      },
+      "details": {
+        "fold_accuracy": [
+          0.3925,
+          0.2598,
+          0.3317,
+          0.3953,
+          0.4942
+        ],
+        "fold_accuracy_std": 0.07755092541627466,
+        "fold_lr": [
+          0.01,
+          0.01,
+          0.01,
+          0.01,
+          0.01
+        ]
+      }
+    },
+    {
+      "upstream": "models/selected-homogeneous",
+      "task": "er",
+      "language": "tamil",
+      "name": "er_tamil",
+      "kind": "classification",
+      "seed": 1,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.41988825686328396,
+        "macro_f1": 0.40292087218628303
+      },
+      "perf": {
+        "train_seconds": 4.364545583724976,
+        "peak_gpu_gb": 1.472782336,
+        "feature_seconds": 11.697325706481934
+      },
+      "details": {
+        "fold_accuracy": [
+          0.3925,
+          0.3578,
+          0.3317,
+          0.4884,
+          0.5291
+        ],
+        "fold_accuracy_std": 0.07614717644624239,
+        "fold_lr": [
+          0.01,
+          0.01,
+          0.01,
+          0.01,
+          0.01
+        ]
+      }
+    },
+    {
+      "upstream": "models/selected-homogeneous",
+      "task": "er",
+      "language": "tamil",
+      "name": "er_tamil",
+      "kind": "classification",
+      "seed": 2,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.39421830559561843,
+        "macro_f1": 0.3627102735786881
+      },
+      "perf": {
+        "train_seconds": 6.063136100769043,
+        "peak_gpu_gb": 1.472782336,
+        "feature_seconds": 11.697325706481934
+      },
+      "details": {
+        "fold_accuracy": [
+          0.3871,
+          0.2549,
+          0.3465,
+          0.5116,
+          0.4709
+        ],
+        "fold_accuracy_std": 0.09099804949157078,
+        "fold_lr": [
+          0.01,
+          0.01,
+          0.01,
+          0.01,
+          0.01
+        ]
+      }
+    },
+    {
+      "upstream": "models/selected-homogeneous",
+      "task": "sid",
+      "language": "multilingual",
+      "name": "sid",
+      "kind": "classification",
+      "seed": 0,
+      "status": "ok",
+      "split": "video_disjoint_closed_set",
+      "metrics": {
+        "accuracy": 0.8668054110301769,
+        "macro_f1": 0.8502648068546816
+      },
+      "perf": {
+        "train_seconds": 51.36576199531555,
+        "peak_gpu_gb": 1.861658112,
+        "feature_seconds": 251.72617030143738
+      },
+      "details": {
+        "lr": 0.01,
+        "best_epoch": 172,
+        "dev_accuracy": 0.7982989064398542
+      }
+    },
+    {
+      "upstream": "models/selected-homogeneous",
+      "task": "sid",
+      "language": "multilingual",
+      "name": "sid",
+      "kind": "classification",
+      "seed": 1,
+      "status": "ok",
+      "split": "video_disjoint_closed_set",
+      "metrics": {
+        "accuracy": 0.8720083246618107,
+        "macro_f1": 0.8548378018930395
+      },
+      "perf": {
+        "train_seconds": 23.95294976234436,
+        "peak_gpu_gb": 1.861008896,
+        "feature_seconds": 251.72617030143738
+      },
+      "details": {
+        "lr": 0.01,
+        "best_epoch": 200,
+        "dev_accuracy": 0.8080194410692588
+      }
+    },
+    {
+      "upstream": "models/selected-homogeneous",
+      "task": "sid",
+      "language": "multilingual",
+      "name": "sid",
+      "kind": "classification",
+      "seed": 2,
+      "status": "ok",
+      "split": "video_disjoint_closed_set",
+      "metrics": {
+        "accuracy": 0.8761706555671176,
+        "macro_f1": 0.8603687599325838
+      },
+      "perf": {
+        "train_seconds": 21.14137625694275,
+        "peak_gpu_gb": 1.861008896,
+        "feature_seconds": 251.72617030143738
+      },
+      "details": {
+        "lr": 0.01,
+        "best_epoch": 194,
+        "dev_accuracy": 0.8116646415552855
+      }
+    }
+  ]
+}
