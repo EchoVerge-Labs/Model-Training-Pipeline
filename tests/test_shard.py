@@ -147,3 +147,14 @@ def test_shuffle_is_seeded_and_mixes_sources_without_losing_clips(tmp_path):
     assert [c.id for c in shuffled] != [c.id for c in shuffle_cuts(cuts, seed=8)]
     first_shard = [c.custom["channel_id"] for c in list(shuffled)[:8]]
     assert set(first_shard) == {"srcA", "srcB"}  # no longer one source per shard
+
+
+def test_leftover_audio_too_short_to_keep_is_reported(tmp_path, capsys):
+    manifest, raw = _make(
+        tmp_path,
+        [("a", "a.wav", 2.0, "ch1"), ("b", "b.wav", 7.0, "ch2")],
+    )
+    cuts = load_manifest_as_cuts(str(manifest), str(raw))
+    out = concatenate_short_cuts(cuts, min_sec=5.0, target_sec=15.0)
+    assert [c.id for c in out] == ["b"]  # the 2 s leftover of ch1 cannot reach 5 s
+    assert "dropped 1 leftover cuts" in capsys.readouterr().out

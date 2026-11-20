@@ -1,0 +1,55 @@
+# WavLM Large.
+#
+# Objective: HuBERT-style masked prediction of k-means cluster ids (no quantizer), plus
+# WavLM's utterance mixing (pipeline/models/wavlm/trainer.py). The cluster ids come from
+# layer 18 (3/4 of the 24 layers) of the ORIGINAL checkpoint, run once offline over the
+# training audio; training then continues that same model against them. Not distillation.
+#
+# Training settings that the models share (batch, schedule, masking, LR, ...) are
+# params.yaml's, unchanged -- a fair comparison needs them identical. params.yaml's
+# Gumbel / quantizer settings are simply unused by this trainer.
+#
+# Run (labels first, once):
+#   python -m pipeline.labels.fit_kmeans --model wavlm
+#   python -m pipeline.labels.assign_cluster_labels --model wavlm
+#   torchrun --nproc_per_node=1 -m pipeline.train --model wavlm
+model:
+  trainer: wavlm
+  tag: wavlm-large
+  reports_dir: reports/wavlm
+  family: wavlm
+  run_name: wavlm-large-copt200h
+  frozen_name: wavlm-large
+
+cluster:
+  layer: 18                   # 3/4 of the way through the 24 layers of WavLM Large
+  num_clusters: 500           # fairseq HuBERT iteration >= 2
+  seed: 1337
+  sample_hours: 40.0          # audio streamed for the k-means fit
+  max_frames: 2000000         # frames kept for the fit (2M x 1024 fp32 = ~8 GB RAM)
+  kmeans_output: models/kmeans/wavlm-large-L18-k500.joblib
+  labels_output: data/labels/wavlm_train_labels.jsonl.gz
+
+pretrain:
+  base_model: microsoft/wavlm-large
+  layerdrop: 0.1              # HF-conversion default; fairseq Large pre-training used 0.0 (kept at 0.1 as a deliberate CoPT choice)
+  head_lr_mult: 1.0           # same LR as everything else (the head is new; raise to warm it up faster)
+  # WavLM utterance mixing (method, not tuning): 20% of utterances get another
+  # utterance from the batch mixed in (<=50% overlap, -5..+5 dB). Labels stay clean.
+  utterance_mix_prob: 0.2
+  labels_path: data/labels/wavlm_train_labels.jsonl.gz
+  output_dir: models/wavlm-large-si-ta-200h
+
+checkpoint_selection:
+  output_dir: models/selected_wavlm
+
+benchmark:
+  upstreams:
+    # what `make bench` / `make bench-frozen` write by default: reports/bench/<run_name|frozen_name>/
+    wavlm-large-copt200h:
+      path: models/selected_wavlm
+      name: "WavLM Large (Si/Ta 200h)"
+      is_local: true
+    wavlm-large:
+      path: microsoft/wavlm-large
+      name: "WavLM Large (vanilla)"

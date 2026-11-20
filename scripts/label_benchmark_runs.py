@@ -1,6 +1,6 @@
 """Give slsb's MLflow runs a readable name and tags.
 
-slsb (pinned at v0.1.0) names every run "<upstream>_<task>_<language>". For a
+slsb names every run "<upstream>_<task>_<language>". For a
 local upstream that is "models/selected_asr_tamil": identical for every seed and
 for every model that was ever copied to models/selected. This renames the runs of
 one benchmark to

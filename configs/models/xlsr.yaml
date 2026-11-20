@@ -1,0 +1,7 @@
+# XLS-R 300M -- the model params.yaml itself describes. This file only names it, so
+# `--model xlsr` works like the other models; it overrides nothing.
+#
+# Trainer: wav2vec2 contrastive loss + Gumbel quantizer (pipeline/models/xlsr/trainer.py).
+model:
+  trainer: xlsr
+  tag: xlsr300m

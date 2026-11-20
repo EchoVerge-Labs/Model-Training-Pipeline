@@ -109,8 +109,19 @@ def build_path_lookup(index: list[tuple[str, int]]) -> dict[tuple, list[str]]:
     return lookup
 
 
+def build_name_lookup(index: list[tuple[str, int]]) -> dict[tuple, list[str]]:
+    """Build a fallback lookup for catalogs that do not contain file sizes."""
+    lookup: dict[tuple, list[str]] = defaultdict(list)
+    for rel, _size in index:
+        parts = rel.split("/")
+        if len(parts) < 4:
+            continue
+        lookup[(parts[0].lower(), parts[1], parts[-1])].append(rel)
+    return lookup
+
+
 def resolve_paths(
-    segments: list[Segment], lookup: dict[tuple, list[str]]
+    segments: list[Segment], lookup: dict[tuple, list[str]], name_lookup=None
 ) -> tuple[list[Segment], list[tuple[Segment, str]]]:
     """Attach each segment's Drive relpath. Rows that can't be pinned to exactly
     one file are set aside with a reason -- never guessed:
@@ -121,6 +132,8 @@ def resolve_paths(
     resolved, unresolved, used = [], [], set()
     for s in segments:
         candidates = lookup.get((s.language.lower(), s.genre, s.filename, s.size_bytes), [])
+        if not candidates and not s.size_bytes and name_lookup is not None:
+            candidates = name_lookup.get((s.language.lower(), s.genre, s.filename), [])
         if not candidates:
             unresolved.append((s, "no_match"))
         elif len(candidates) > 1:
@@ -132,6 +145,25 @@ def resolve_paths(
             used.add(candidates[0])
             resolved.append(s)
     return resolved, unresolved
+
+
+def load_blocklist(path: Path) -> tuple[set[str], dict]:
+    """Channels that must stay out of training (evaluation-contaminating sources), one per line.
+
+    A configured blocklist that does not exist is a hard error: it is the only guard against SLSB
+    evaluation audio leaking into the CoPT data, and a warning is too easy to miss in a long log.
+    To run deliberately without one, set select.exclude_channels_file to "" (empty) in the config.
+    """
+    if str(path) in ("", "."):  # explicitly disabled
+        return set(), {"path": "", "found": False, "channels": 0, "disabled": True}
+    if not path.exists():
+        raise SystemExit(
+            f"ERROR: blocklist {path} not found. It lists the SLSB evaluation source_ids to keep "
+            f"out of training (one per line); without it, selection cannot guarantee a leakage-free "
+            f'split. Create it, or set select.exclude_channels_file to "" to opt out deliberately.'
+        )
+    channels = {line.strip() for line in path.read_text().splitlines() if line.strip()}
+    return channels, {"path": str(path), "found": True, "channels": len(channels)}
 
 
 def write_unresolved(unresolved: list[tuple[Segment, str]], path: Path):
@@ -362,7 +394,19 @@ def write_report(
                 f"{sum(u.values())} (ambiguous {u['ambiguous']}, no_match {u['no_match']}, "
                 f"duplicate_path {u['duplicate_path']})\n"
             )
-            f.write(f"- candidates for selection: {len(all_segments):,}\n\n")
+            f.write(f"- candidates for selection: {len(all_segments):,}\n")
+            bl = cleaning.get("blocklist")
+            if bl:
+                f.write(
+                    f"- blocklist {bl['path']}: "
+                    + (
+                        f"{bl['channels']} channels excluded"
+                        if bl["found"]
+                        else "NOT FOUND, none excluded"
+                    )
+                    + "\n"
+                )
+            f.write("\n")
         f.write("## By Language\n\n")
         f.writelines(f"- {lang}: {hours:.1f}h\n" for lang, hours in sorted(train_by_lang.items()))
         f.write("\n## By Genre (top 10)\n\n")
@@ -414,7 +458,12 @@ def main():
     if not index_path.exists():
         print(f"ERROR: {index_path} not found -- run `python -m pipeline.drive_index` first")
         sys.exit(1)
-    segments, unresolved = resolve_paths(segments, build_path_lookup(load_index(index_path)))
+    drive_index = load_index(index_path)
+    segments, unresolved = resolve_paths(
+        segments,
+        build_path_lookup(drive_index),
+        build_name_lookup(drive_index),
+    )
     write_unresolved(unresolved, Path("reports/unresolved_clips.csv"))
     reasons = [reason for _, reason in unresolved]
     cleaning = {
@@ -430,11 +479,8 @@ def main():
         print("ERROR: no clip could be resolved to a file on the Drive")
         sys.exit(1)
 
-    # Load blocklist if it exists
-    blocklist = set()
-    bl_path = Path(cfg.exclude_channels_file)
-    if bl_path.exists():
-        blocklist = {line.strip() for line in bl_path.read_text().splitlines() if line.strip()}
+    blocklist, blocklist_info = load_blocklist(Path(cfg.exclude_channels_file))
+    cleaning["blocklist"] = blocklist_info
 
     train, holdout = select(segments, cfg, blocklist)
 

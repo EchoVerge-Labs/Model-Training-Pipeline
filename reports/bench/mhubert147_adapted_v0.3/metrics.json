@@ -1,0 +1,1020 @@
+{
+  "upstream": "models/mhubert147-si-ta-200h/checkpoint-9000",
+  "families": [
+    "asr",
+    "sid",
+    "er",
+    "sd",
+    "asv",
+    "ic"
+  ],
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "results": [
+    {
+      "upstream": "models/mhubert147-si-ta-200h/checkpoint-9000",
+      "task": "asr",
+      "language": "sinhala",
+      "name": "asr_sinhala",
+      "kind": "asr",
+      "seed": 0,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.578416149068323,
+        "cer": 0.1502004396741239
+      },
+      "perf": {
+        "train_seconds": 818.7500250339508,
+        "peak_gpu_gb": 4.108232704,
+        "feature_seconds": 28.940653562545776
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 11,
+        "dev_cer": 0.1553410721272988
+      }
+    },
+    {
+      "upstream": "models/mhubert147-si-ta-200h/checkpoint-9000",
+      "task": "asr",
+      "language": "sinhala",
+      "name": "asr_sinhala",
+      "kind": "asr",
+      "seed": 1,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.5881211180124224,
+        "cer": 0.14987714987714987
+      },
+      "perf": {
+        "train_seconds": 343.0637466907501,
+        "peak_gpu_gb": 3.787268096,
+        "feature_seconds": 28.940653562545776
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 10,
+        "dev_cer": 0.1540367810095213
+      }
+    },
+    {
+      "upstream": "models/mhubert147-si-ta-200h/checkpoint-9000",
+      "task": "asr",
+      "language": "sinhala",
+      "name": "asr_sinhala",
+      "kind": "asr",
+      "seed": 2,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.5865683229813664,
+        "cer": 0.14877796456743825
+      },
+      "perf": {
+        "train_seconds": 326.8677399158478,
+        "peak_gpu_gb": 3.787363328,
+        "feature_seconds": 28.940653562545776
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 9,
+        "dev_cer": 0.15494978479196556
+      }
+    },
+    {
+      "upstream": "models/mhubert147-si-ta-200h/checkpoint-9000",
+      "task": "asr",
+      "language": "tamil",
+      "name": "asr_tamil",
+      "kind": "asr",
+      "seed": 0,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.7846875,
+        "cer": 0.2829345141786596
+      },
+      "perf": {
+        "train_seconds": 545.0160069465637,
+        "peak_gpu_gb": 4.190485504,
+        "feature_seconds": 12.255255460739136
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 15,
+        "dev_cer": 0.25
+      }
+    },
+    {
+      "upstream": "models/mhubert147-si-ta-200h/checkpoint-9000",
+      "task": "asr",
+      "language": "tamil",
+      "name": "asr_tamil",
+      "kind": "asr",
+      "seed": 1,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.7859375,
+        "cer": 0.2806778506344205
+      },
+      "perf": {
+        "train_seconds": 283.3549733161926,
+        "peak_gpu_gb": 3.870232064,
+        "feature_seconds": 12.255255460739136
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 26,
+        "dev_cer": 0.25178011962403873
+      }
+    },
+    {
+      "upstream": "models/mhubert147-si-ta-200h/checkpoint-9000",
+      "task": "asr",
+      "language": "tamil",
+      "name": "asr_tamil",
+      "kind": "asr",
+      "seed": 2,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.788125,
+        "cer": 0.28600017031422975
+      },
+      "perf": {
+        "train_seconds": 257.42062735557556,
+        "peak_gpu_gb": 3.870232064,
+        "feature_seconds": 12.255255460739136
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 23,
+        "dev_cer": 0.2490031330105383
+      }
+    },
+    {
+      "upstream": "models/mhubert147-si-ta-200h/checkpoint-9000",
+      "task": "asv",
+      "language": "tamil",
+      "name": "asv_tamil",
+      "kind": "verification",
+      "seed": 0,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "eer": 0.19761399787910924
+      },
+      "perf": {
+        "train_seconds": 146.01712942123413,
+        "peak_gpu_gb": 0.560520192,
+        "feature_seconds": 356.0958573818207
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.0001,
+        "best_epoch": 10,
+        "dev_eer": 0.14888888888888885,
+        "train_speakers": 80,
+        "layer_weights": [
+          0.3977,
+          0.2267,
+          0.1547,
+          0.0641,
+          0.0386,
+          0.0192,
+          0.0136,
+          0.0136,
+          0.0135,
+          0.0135,
+          0.0143,
+          0.0163,
+          0.0142
+        ]
+      }
+    },
+    {
+      "upstream": "models/mhubert147-si-ta-200h/checkpoint-9000",
+      "task": "asv",
+      "language": "tamil",
+      "name": "asv_tamil",
+      "kind": "verification",
+      "seed": 1,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "eer": 0.20352598091198304
+      },
+      "perf": {
+        "train_seconds": 58.29815483093262,
+        "peak_gpu_gb": 0.560520192,
+        "feature_seconds": 356.0958573818207
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.0001,
+        "best_epoch": 8,
+        "dev_eer": 0.1464814814814815,
+        "train_speakers": 80,
+        "layer_weights": [
+          0.3977,
+          0.2267,
+          0.1547,
+          0.0641,
+          0.0386,
+          0.0192,
+          0.0136,
+          0.0136,
+          0.0135,
+          0.0135,
+          0.0143,
+          0.0163,
+          0.0142
+        ]
+      }
+    },
+    {
+      "upstream": "models/mhubert147-si-ta-200h/checkpoint-9000",
+      "task": "asv",
+      "language": "tamil",
+      "name": "asv_tamil",
+      "kind": "verification",
+      "seed": 2,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "eer": 0.20060975609756096
+      },
+      "perf": {
+        "train_seconds": 57.39099383354187,
+        "peak_gpu_gb": 0.564880384,
+        "feature_seconds": 356.0958573818207
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.0001,
+        "best_epoch": 8,
+        "dev_eer": 0.15407407407407406,
+        "train_speakers": 80,
+        "layer_weights": [
+          0.3977,
+          0.2267,
+          0.1547,
+          0.0641,
+          0.0386,
+          0.0192,
+          0.0136,
+          0.0136,
+          0.0135,
+          0.0135,
+          0.0143,
+          0.0163,
+          0.0142
+        ]
+      }
+    },
+    {
+      "upstream": "models/mhubert147-si-ta-200h/checkpoint-9000",
+      "task": "er",
+      "language": "tamil",
+      "name": "er_tamil",
+      "kind": "classification",
+      "seed": 0,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.40850128810595193,
+        "macro_f1": 0.36735117439955156
+      },
+      "perf": {
+        "train_seconds": 20.276649236679077,
+        "peak_gpu_gb": 0.511142912,
+        "feature_seconds": 4.497882843017578
+      },
+      "details": {
+        "fold_accuracy": [
+          0.4355,
+          0.3186,
+          0.3465,
+          0.5058,
+          0.436
+        ],
+        "fold_accuracy_std": 0.06763686031884188,
+        "fold_lr": [
+          0.001,
+          0.001,
+          0.01,
+          0.01,
+          0.01
+        ]
+      }
+    },
+    {
+      "upstream": "models/mhubert147-si-ta-200h/checkpoint-9000",
+      "task": "er",
+      "language": "tamil",
+      "name": "er_tamil",
+      "kind": "classification",
+      "seed": 1,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.4058601866541183,
+        "macro_f1": 0.39228944887385286
+      },
+      "perf": {
+        "train_seconds": 4.960845947265625,
+        "peak_gpu_gb": 0.511110144,
+        "feature_seconds": 4.497882843017578
+      },
+      "details": {
+        "fold_accuracy": [
+          0.4409,
+          0.3873,
+          0.3465,
+          0.436,
+          0.4186
+        ],
+        "fold_accuracy_std": 0.035112143442587,
+        "fold_lr": [
+          0.001,
+          0.001,
+          0.01,
+          0.01,
+          0.01
+        ]
+      }
+    },
+    {
+      "upstream": "models/mhubert147-si-ta-200h/checkpoint-9000",
+      "task": "er",
+      "language": "tamil",
+      "name": "er_tamil",
+      "kind": "classification",
+      "seed": 2,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.3780372146035927,
+        "macro_f1": 0.358213922401898
+      },
+      "perf": {
+        "train_seconds": 4.677268028259277,
+        "peak_gpu_gb": 0.511110144,
+        "feature_seconds": 4.497882843017578
+      },
+      "details": {
+        "fold_accuracy": [
+          0.4247,
+          0.3088,
+          0.302,
+          0.4419,
+          0.4128
+        ],
+        "fold_accuracy_std": 0.06006120635908876,
+        "fold_lr": [
+          0.001,
+          0.001,
+          0.01,
+          0.01,
+          0.01
+        ]
+      }
+    },
+    {
+      "upstream": "models/mhubert147-si-ta-200h/checkpoint-9000",
+      "task": "ic_banking",
+      "language": "sinhala",
+      "name": "ic_banking_sinhala",
+      "kind": "classification",
+      "seed": 0,
+      "status": "ok",
+      "split": "random_stratified_no_speaker_ids",
+      "metrics": {
+        "accuracy": 0.9927536231884058,
+        "macro_f1": 0.9922838427107279
+      },
+      "perf": {
+        "train_seconds": 55.06431531906128,
+        "peak_gpu_gb": 0.755265536,
+        "feature_seconds": 40.73961353302002
+      },
+      "details": {
+        "lr": 0.01,
+        "best_epoch": 20,
+        "dev_accuracy": 1.0
+      }
+    },
+    {
+      "upstream": "models/mhubert147-si-ta-200h/checkpoint-9000",
+      "task": "ic_banking",
+      "language": "sinhala",
+      "name": "ic_banking_sinhala",
+      "kind": "classification",
+      "seed": 1,
+      "status": "ok",
+      "split": "random_stratified_no_speaker_ids",
+      "metrics": {
+        "accuracy": 0.9934123847167325,
+        "macro_f1": 0.9932717652577806
+      },
+      "perf": {
+        "train_seconds": 19.12432074546814,
+        "peak_gpu_gb": 0.755226624,
+        "feature_seconds": 40.73961353302002
+      },
+      "details": {
+        "lr": 0.01,
+        "best_epoch": 26,
+        "dev_accuracy": 1.0
+      }
+    },
+    {
+      "upstream": "models/mhubert147-si-ta-200h/checkpoint-9000",
+      "task": "ic_banking",
+      "language": "sinhala",
+      "name": "ic_banking_sinhala",
+      "kind": "classification",
+      "seed": 2,
+      "status": "ok",
+      "split": "random_stratified_no_speaker_ids",
+      "metrics": {
+        "accuracy": 0.9934123847167325,
+        "macro_f1": 0.9929166929748005
+      },
+      "perf": {
+        "train_seconds": 12.898733139038086,
+        "peak_gpu_gb": 0.755226624,
+        "feature_seconds": 40.73961353302002
+      },
+      "details": {
+        "lr": 0.01,
+        "best_epoch": 22,
+        "dev_accuracy": 1.0
+      }
+    },
+    {
+      "upstream": "models/mhubert147-si-ta-200h/checkpoint-9000",
+      "task": "ic_banking",
+      "language": "tamil",
+      "name": "ic_banking_tamil",
+      "kind": "classification",
+      "seed": 0,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.9199914049070166,
+        "macro_f1": 0.9106301148347583
+      },
+      "perf": {
+        "train_seconds": 10.315386056900024,
+        "peak_gpu_gb": 0.48179712,
+        "feature_seconds": 2.512439012527466
+      },
+      "details": {
+        "fold_accuracy": [
+          0.9241,
+          0.875,
+          0.963,
+          0.9012,
+          0.9367
+        ],
+        "fold_accuracy_std": 0.030061772781707952,
+        "fold_lr": [
+          0.01,
+          0.01,
+          0.01,
+          0.01,
+          0.01
+        ]
+      }
+    },
+    {
+      "upstream": "models/mhubert147-si-ta-200h/checkpoint-9000",
+      "task": "ic_banking",
+      "language": "tamil",
+      "name": "ic_banking_tamil",
+      "kind": "classification",
+      "seed": 1,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.9223972495702453,
+        "macro_f1": 0.9075566976609413
+      },
+      "perf": {
+        "train_seconds": 3.433013677597046,
+        "peak_gpu_gb": 0.481758208,
+        "feature_seconds": 2.512439012527466
+      },
+      "details": {
+        "fold_accuracy": [
+          0.9241,
+          0.9,
+          0.9753,
+          0.9012,
+          0.9114
+        ],
+        "fold_accuracy_std": 0.02783146280407608,
+        "fold_lr": [
+          0.01,
+          0.01,
+          0.01,
+          0.01,
+          0.01
+        ]
+      }
+    },
+    {
+      "upstream": "models/mhubert147-si-ta-200h/checkpoint-9000",
+      "task": "ic_banking",
+      "language": "tamil",
+      "name": "ic_banking_tamil",
+      "kind": "classification",
+      "seed": 2,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.9177090170339115,
+        "macro_f1": 0.9091454052508856
+      },
+      "perf": {
+        "train_seconds": 1.9913439750671387,
+        "peak_gpu_gb": 0.481758208,
+        "feature_seconds": 2.512439012527466
+      },
+      "details": {
+        "fold_accuracy": [
+          0.9241,
+          0.9,
+          0.963,
+          0.8395,
+          0.962
+        ],
+        "fold_accuracy_std": 0.0457850723116828,
+        "fold_lr": [
+          0.01,
+          0.01,
+          0.01,
+          0.01,
+          0.01
+        ]
+      }
+    },
+    {
+      "upstream": "models/mhubert147-si-ta-200h/checkpoint-9000",
+      "task": "ic_health",
+      "language": "tamil",
+      "name": "ic_health_tamil",
+      "kind": "classification",
+      "seed": 0,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.7563668681123356,
+        "macro_f1": 0.7531187290630674
+      },
+      "perf": {
+        "train_seconds": 85.93470311164856,
+        "peak_gpu_gb": 0.533991424,
+        "feature_seconds": 12.653614044189453
+      },
+      "details": {
+        "fold_accuracy": [
+          0.7835,
+          0.7491,
+          0.7354,
+          0.8172,
+          0.6966
+        ],
+        "fold_accuracy_std": 0.04126032038667426,
+        "fold_lr": [
+          0.001,
+          0.01,
+          0.01,
+          0.01,
+          0.001
+        ]
+      }
+    },
+    {
+      "upstream": "models/mhubert147-si-ta-200h/checkpoint-9000",
+      "task": "ic_health",
+      "language": "tamil",
+      "name": "ic_health_tamil",
+      "kind": "classification",
+      "seed": 1,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.7425974641545207,
+        "macro_f1": 0.7375719054737712
+      },
+      "perf": {
+        "train_seconds": 27.932984828948975,
+        "peak_gpu_gb": 0.533891072,
+        "feature_seconds": 12.653614044189453
+      },
+      "details": {
+        "fold_accuracy": [
+          0.7973,
+          0.6873,
+          0.7491,
+          0.7793,
+          0.7
+        ],
+        "fold_accuracy_std": 0.043015424181489084,
+        "fold_lr": [
+          0.001,
+          0.01,
+          0.01,
+          0.01,
+          0.001
+        ]
+      }
+    },
+    {
+      "upstream": "models/mhubert147-si-ta-200h/checkpoint-9000",
+      "task": "ic_health",
+      "language": "tamil",
+      "name": "ic_health_tamil",
+      "kind": "classification",
+      "seed": 2,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.7439744045503022,
+        "macro_f1": 0.738933264010574
+      },
+      "perf": {
+        "train_seconds": 39.528706073760986,
+        "peak_gpu_gb": 0.533891072,
+        "feature_seconds": 12.653614044189453
+      },
+      "details": {
+        "fold_accuracy": [
+          0.8144,
+          0.6735,
+          0.7491,
+          0.7862,
+          0.6966
+        ],
+        "fold_accuracy_std": 0.052886050982129604,
+        "fold_lr": [
+          0.001,
+          0.01,
+          0.01,
+          0.01,
+          0.001
+        ]
+      }
+    },
+    {
+      "upstream": "models/mhubert147-si-ta-200h/checkpoint-9000",
+      "task": "sd",
+      "language": "sinhala",
+      "name": "sd_sinhala",
+      "kind": "diarization",
+      "seed": 0,
+      "status": "ok",
+      "split": "recording_disjoint",
+      "metrics": {
+        "der": 0.11533586655181988
+      },
+      "perf": {
+        "train_seconds": 508.27725887298584,
+        "peak_gpu_gb": 0.633690112,
+        "feature_seconds": 142.44140887260437
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.0001,
+        "best_epoch": 15,
+        "threshold": 0.6,
+        "dev_der": 0.09235678136667823,
+        "missed": 0.009475171951916802,
+        "false_alarm": 0.0,
+        "confusion": 0.10586069459990309,
+        "test_recordings": 24,
+        "train_classes": 95,
+        "layer_weights": [
+          0.5165,
+          0.3688,
+          0.0359,
+          0.016,
+          0.0101,
+          0.0065,
+          0.006,
+          0.0063,
+          0.0064,
+          0.0063,
+          0.0069,
+          0.0082,
+          0.0062
+        ]
+      }
+    },
+    {
+      "upstream": "models/mhubert147-si-ta-200h/checkpoint-9000",
+      "task": "sd",
+      "language": "sinhala",
+      "name": "sd_sinhala",
+      "kind": "diarization",
+      "seed": 1,
+      "status": "ok",
+      "split": "recording_disjoint",
+      "metrics": {
+        "der": 0.17123869080797716
+      },
+      "perf": {
+        "train_seconds": 154.02451968193054,
+        "peak_gpu_gb": 0.633690112,
+        "feature_seconds": 142.44140887260437
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.0001,
+        "best_epoch": 3,
+        "threshold": 0.65,
+        "dev_der": 0.11559422481861756,
+        "missed": 0.009475171951916802,
+        "false_alarm": 0.0,
+        "confusion": 0.16176351885606036,
+        "test_recordings": 24,
+        "train_classes": 95,
+        "layer_weights": [
+          0.5165,
+          0.3688,
+          0.0359,
+          0.016,
+          0.0101,
+          0.0065,
+          0.006,
+          0.0063,
+          0.0064,
+          0.0063,
+          0.0069,
+          0.0082,
+          0.0062
+        ]
+      }
+    },
+    {
+      "upstream": "models/mhubert147-si-ta-200h/checkpoint-9000",
+      "task": "sd",
+      "language": "sinhala",
+      "name": "sd_sinhala",
+      "kind": "diarization",
+      "seed": 2,
+      "status": "ok",
+      "split": "recording_disjoint",
+      "metrics": {
+        "der": 0.17125977706029896
+      },
+      "perf": {
+        "train_seconds": 136.7793846130371,
+        "peak_gpu_gb": 0.638081024,
+        "feature_seconds": 142.44140887260437
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.0001,
+        "best_epoch": 2,
+        "threshold": 0.7,
+        "dev_der": 0.11529117609127013,
+        "missed": 0.009475171951916802,
+        "false_alarm": 0.0,
+        "confusion": 0.16178460510838213,
+        "test_recordings": 24,
+        "train_classes": 95,
+        "layer_weights": [
+          0.5165,
+          0.3688,
+          0.0359,
+          0.016,
+          0.0101,
+          0.0065,
+          0.006,
+          0.0063,
+          0.0064,
+          0.0063,
+          0.0069,
+          0.0082,
+          0.0062
+        ]
+      }
+    },
+    {
+      "upstream": "models/mhubert147-si-ta-200h/checkpoint-9000",
+      "task": "sd",
+      "language": "tamil",
+      "name": "sd_tamil",
+      "kind": "diarization",
+      "seed": 0,
+      "status": "ok",
+      "split": "recording_disjoint",
+      "metrics": {
+        "der": 0.08076274860334276
+      },
+      "perf": {
+        "train_seconds": 508.27725887298584,
+        "peak_gpu_gb": 0.623080448,
+        "feature_seconds": 3.409385681152344e-05
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.0001,
+        "best_epoch": 15,
+        "threshold": 0.49999999999999994,
+        "dev_der": 0.16809309038820786,
+        "missed": 0.008886534574915582,
+        "false_alarm": 0.0,
+        "confusion": 0.07187621402842717,
+        "test_recordings": 5,
+        "train_classes": 95,
+        "layer_weights": [
+          0.5165,
+          0.3688,
+          0.0359,
+          0.016,
+          0.0101,
+          0.0065,
+          0.006,
+          0.0063,
+          0.0064,
+          0.0063,
+          0.0069,
+          0.0082,
+          0.0062
+        ]
+      }
+    },
+    {
+      "upstream": "models/mhubert147-si-ta-200h/checkpoint-9000",
+      "task": "sd",
+      "language": "tamil",
+      "name": "sd_tamil",
+      "kind": "diarization",
+      "seed": 1,
+      "status": "ok",
+      "split": "recording_disjoint",
+      "metrics": {
+        "der": 0.19566648395261663
+      },
+      "perf": {
+        "train_seconds": 154.02451968193054,
+        "peak_gpu_gb": 0.623080448,
+        "feature_seconds": 3.409385681152344e-05
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.0001,
+        "best_epoch": 3,
+        "threshold": 0.44999999999999996,
+        "dev_der": 0.15054201917838428,
+        "missed": 0.008886534574915582,
+        "false_alarm": 0.0,
+        "confusion": 0.18677994937770104,
+        "test_recordings": 5,
+        "train_classes": 95,
+        "layer_weights": [
+          0.5165,
+          0.3688,
+          0.0359,
+          0.016,
+          0.0101,
+          0.0065,
+          0.006,
+          0.0063,
+          0.0064,
+          0.0063,
+          0.0069,
+          0.0082,
+          0.0062
+        ]
+      }
+    },
+    {
+      "upstream": "models/mhubert147-si-ta-200h/checkpoint-9000",
+      "task": "sd",
+      "language": "tamil",
+      "name": "sd_tamil",
+      "kind": "diarization",
+      "seed": 2,
+      "status": "ok",
+      "split": "recording_disjoint",
+      "metrics": {
+        "der": 0.15313286368044493
+      },
+      "perf": {
+        "train_seconds": 136.7793846130371,
+        "peak_gpu_gb": 0.623080448,
+        "feature_seconds": 3.409385681152344e-05
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.0001,
+        "best_epoch": 2,
+        "threshold": 0.49999999999999994,
+        "dev_der": 0.09825728469626935,
+        "missed": 0.008886534574915582,
+        "false_alarm": 0.0,
+        "confusion": 0.14424632910552934,
+        "test_recordings": 5,
+        "train_classes": 95,
+        "layer_weights": [
+          0.5165,
+          0.3688,
+          0.0359,
+          0.016,
+          0.0101,
+          0.0065,
+          0.006,
+          0.0063,
+          0.0064,
+          0.0063,
+          0.0069,
+          0.0082,
+          0.0062
+        ]
+      }
+    },
+    {
+      "upstream": "models/mhubert147-si-ta-200h/checkpoint-9000",
+      "task": "sid",
+      "language": "multilingual",
+      "name": "sid",
+      "kind": "classification",
+      "seed": 0,
+      "status": "ok",
+      "split": "stratified_closed_set",
+      "metrics": {
+        "accuracy": 0.994994994994995,
+        "macro_f1": 0.9951021344182142
+      },
+      "perf": {
+        "train_seconds": 39.95252513885498,
+        "peak_gpu_gb": 0.675714048,
+        "feature_seconds": 94.83342337608337
+      },
+      "details": {
+        "lr": 0.01,
+        "best_epoch": 7,
+        "dev_accuracy": 1.0
+      }
+    },
+    {
+      "upstream": "models/mhubert147-si-ta-200h/checkpoint-9000",
+      "task": "sid",
+      "language": "multilingual",
+      "name": "sid",
+      "kind": "classification",
+      "seed": 1,
+      "status": "ok",
+      "split": "stratified_closed_set",
+      "metrics": {
+        "accuracy": 0.990990990990991,
+        "macro_f1": 0.9911846996050062
+      },
+      "perf": {
+        "train_seconds": 3.3590567111968994,
+        "peak_gpu_gb": 0.675226624,
+        "feature_seconds": 94.83342337608337
+      },
+      "details": {
+        "lr": 0.01,
+        "best_epoch": 4,
+        "dev_accuracy": 0.998
+      }
+    },
+    {
+      "upstream": "models/mhubert147-si-ta-200h/checkpoint-9000",
+      "task": "sid",
+      "language": "multilingual",
+      "name": "sid",
+      "kind": "classification",
+      "seed": 2,
+      "status": "ok",
+      "split": "stratified_closed_set",
+      "metrics": {
+        "accuracy": 0.994994994994995,
+        "macro_f1": 0.9949343005874276
+      },
+      "perf": {
+        "train_seconds": 3.6369893550872803,
+        "peak_gpu_gb": 0.675226624,
+        "feature_seconds": 94.83342337608337
+      },
+      "details": {
+        "lr": 0.01,
+        "best_epoch": 6,
+        "dev_accuracy": 1.0
+      }
+    }
+  ]
+}

@@ -1,0 +1,1128 @@
+{
+  "upstream": "/home/anas22/models/wavlm-large-si-ta-200h-ckpt10500",
+  "families": [
+    "asr",
+    "er",
+    "sid",
+    "asv",
+    "sd",
+    "ic"
+  ],
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "results": [
+    {
+      "upstream": "/home/anas22/models/wavlm-large-si-ta-200h-ckpt10500",
+      "task": "asr",
+      "language": "sinhala",
+      "name": "asr_sinhala",
+      "kind": "asr",
+      "seed": 0,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.6191770186335404,
+        "cer": 0.1507177033492823
+      },
+      "perf": {
+        "train_seconds": 1249.3230369091034,
+        "peak_gpu_gb": 5.828557824,
+        "feature_seconds": 125.86020612716675
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 16,
+        "dev_cer": 0.15938437459240903
+      }
+    },
+    {
+      "upstream": "/home/anas22/models/wavlm-large-si-ta-200h-ckpt10500",
+      "task": "asr",
+      "language": "sinhala",
+      "name": "asr_sinhala",
+      "kind": "asr",
+      "seed": 1,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.5962732919254659,
+        "cer": 0.14897193844562265
+      },
+      "perf": {
+        "train_seconds": 517.5927526950836,
+        "peak_gpu_gb": 5.488992768,
+        "feature_seconds": 125.86020612716675
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 15,
+        "dev_cer": 0.15821051258640928
+      }
+    },
+    {
+      "upstream": "/home/anas22/models/wavlm-large-si-ta-200h-ckpt10500",
+      "task": "asr",
+      "language": "sinhala",
+      "name": "asr_sinhala",
+      "kind": "asr",
+      "seed": 2,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.593555900621118,
+        "cer": 0.14955386008017588
+      },
+      "perf": {
+        "train_seconds": 438.9288067817688,
+        "peak_gpu_gb": 5.49091584,
+        "feature_seconds": 125.86020612716675
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 11,
+        "dev_cer": 0.16134081126907526
+      }
+    },
+    {
+      "upstream": "/home/anas22/models/wavlm-large-si-ta-200h-ckpt10500",
+      "task": "asr",
+      "language": "tamil",
+      "name": "asr_tamil",
+      "kind": "asr",
+      "seed": 0,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.753125,
+        "cer": 0.26590309120327005
+      },
+      "perf": {
+        "train_seconds": 711.5351409912109,
+        "peak_gpu_gb": 5.913272832,
+        "feature_seconds": 55.60286092758179
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 25,
+        "dev_cer": 0.23796639134149816
+      }
+    },
+    {
+      "upstream": "/home/anas22/models/wavlm-large-si-ta-200h-ckpt10500",
+      "task": "asr",
+      "language": "tamil",
+      "name": "asr_tamil",
+      "kind": "asr",
+      "seed": 1,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.7465625,
+        "cer": 0.2630077492974538
+      },
+      "perf": {
+        "train_seconds": 359.05104088783264,
+        "peak_gpu_gb": 5.576858112,
+        "feature_seconds": 55.60286092758179
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 29,
+        "dev_cer": 0.23739675306180574
+      }
+    },
+    {
+      "upstream": "/home/anas22/models/wavlm-large-si-ta-200h-ckpt10500",
+      "task": "asr",
+      "language": "tamil",
+      "name": "asr_tamil",
+      "kind": "asr",
+      "seed": 2,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.743125,
+        "cer": 0.26185812824661503
+      },
+      "perf": {
+        "train_seconds": 369.2439966201782,
+        "peak_gpu_gb": 5.577297408,
+        "feature_seconds": 55.60286092758179
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 30,
+        "dev_cer": 0.23917687268584448
+      }
+    },
+    {
+      "upstream": "/home/anas22/models/wavlm-large-si-ta-200h-ckpt10500",
+      "task": "asv",
+      "language": "tamil",
+      "name": "asv_tamil",
+      "kind": "verification",
+      "seed": 0,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "eer": 0.14551961823966064
+      },
+      "perf": {
+        "train_seconds": 165.3120880126953,
+        "peak_gpu_gb": 1.477046272,
+        "feature_seconds": 2091.1515188217163
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.0001,
+        "best_epoch": 18,
+        "dev_eer": 0.09462962962962962,
+        "train_speakers": 80,
+        "layer_weights": [
+          0.013,
+          0.0531,
+          0.0773,
+          0.1233,
+          0.131,
+          0.1272,
+          0.135,
+          0.1088,
+          0.0394,
+          0.0354,
+          0.0171,
+          0.0104,
+          0.0091,
+          0.0095,
+          0.0098,
+          0.0099,
+          0.01,
+          0.0101,
+          0.0101,
+          0.0101,
+          0.01,
+          0.0099,
+          0.0098,
+          0.0102,
+          0.0106
+        ]
+      }
+    },
+    {
+      "upstream": "/home/anas22/models/wavlm-large-si-ta-200h-ckpt10500",
+      "task": "asv",
+      "language": "tamil",
+      "name": "asv_tamil",
+      "kind": "verification",
+      "seed": 1,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "eer": 0.1532343584305408
+      },
+      "perf": {
+        "train_seconds": 61.26497769355774,
+        "peak_gpu_gb": 1.477046272,
+        "feature_seconds": 2091.1515188217163
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.0001,
+        "best_epoch": 11,
+        "dev_eer": 0.09703703703703703,
+        "train_speakers": 80,
+        "layer_weights": [
+          0.013,
+          0.0531,
+          0.0773,
+          0.1233,
+          0.131,
+          0.1272,
+          0.135,
+          0.1088,
+          0.0394,
+          0.0354,
+          0.0171,
+          0.0104,
+          0.0091,
+          0.0095,
+          0.0098,
+          0.0099,
+          0.01,
+          0.0101,
+          0.0101,
+          0.0101,
+          0.01,
+          0.0099,
+          0.0098,
+          0.0102,
+          0.0106
+        ]
+      }
+    },
+    {
+      "upstream": "/home/anas22/models/wavlm-large-si-ta-200h-ckpt10500",
+      "task": "asv",
+      "language": "tamil",
+      "name": "asv_tamil",
+      "kind": "verification",
+      "seed": 2,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "eer": 0.14350477200424178
+      },
+      "perf": {
+        "train_seconds": 39.82550358772278,
+        "peak_gpu_gb": 1.481406464,
+        "feature_seconds": 2091.1515188217163
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.0001,
+        "best_epoch": 5,
+        "dev_eer": 0.10148148148148148,
+        "train_speakers": 80,
+        "layer_weights": [
+          0.013,
+          0.0531,
+          0.0773,
+          0.1233,
+          0.131,
+          0.1272,
+          0.135,
+          0.1088,
+          0.0394,
+          0.0354,
+          0.0171,
+          0.0104,
+          0.0091,
+          0.0095,
+          0.0098,
+          0.0099,
+          0.01,
+          0.0101,
+          0.0101,
+          0.0101,
+          0.01,
+          0.0099,
+          0.0098,
+          0.0102,
+          0.0106
+        ]
+      }
+    },
+    {
+      "upstream": "/home/anas22/models/wavlm-large-si-ta-200h-ckpt10500",
+      "task": "er",
+      "language": "tamil",
+      "name": "er_tamil",
+      "kind": "classification",
+      "seed": 0,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.42504321479321494,
+        "macro_f1": 0.40897926155737696
+      },
+      "perf": {
+        "train_seconds": 20.286606550216675,
+        "peak_gpu_gb": 1.472905216,
+        "feature_seconds": 20.307113647460938
+      },
+      "details": {
+        "fold_accuracy": [
+          0.4247,
+          0.3382,
+          0.3564,
+          0.5174,
+          0.4884
+        ],
+        "fold_accuracy_std": 0.07041415741991516,
+        "fold_lr": [
+          0.001,
+          0.01,
+          0.001,
+          0.001,
+          0.01
+        ]
+      }
+    },
+    {
+      "upstream": "/home/anas22/models/wavlm-large-si-ta-200h-ckpt10500",
+      "task": "er",
+      "language": "tamil",
+      "name": "er_tamil",
+      "kind": "classification",
+      "seed": 1,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.4120377648285106,
+        "macro_f1": 0.39674127530295517
+      },
+      "perf": {
+        "train_seconds": 4.952564239501953,
+        "peak_gpu_gb": 1.472862208,
+        "feature_seconds": 20.307113647460938
+      },
+      "details": {
+        "fold_accuracy": [
+          0.3817,
+          0.3235,
+          0.3317,
+          0.4884,
+          0.5349
+        ],
+        "fold_accuracy_std": 0.085003281252779,
+        "fold_lr": [
+          0.001,
+          0.01,
+          0.001,
+          0.001,
+          0.01
+        ]
+      }
+    },
+    {
+      "upstream": "/home/anas22/models/wavlm-large-si-ta-200h-ckpt10500",
+      "task": "er",
+      "language": "tamil",
+      "name": "er_tamil",
+      "kind": "classification",
+      "seed": 2,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.41744293819523604,
+        "macro_f1": 0.39687341111108176
+      },
+      "perf": {
+        "train_seconds": 5.543213844299316,
+        "peak_gpu_gb": 1.472862208,
+        "feature_seconds": 20.307113647460938
+      },
+      "details": {
+        "fold_accuracy": [
+          0.4032,
+          0.2892,
+          0.3366,
+          0.5116,
+          0.5465
+        ],
+        "fold_accuracy_std": 0.09869552054354724,
+        "fold_lr": [
+          0.001,
+          0.01,
+          0.001,
+          0.001,
+          0.01
+        ]
+      }
+    },
+    {
+      "upstream": "/home/anas22/models/wavlm-large-si-ta-200h-ckpt10500",
+      "task": "ic_banking",
+      "language": "sinhala",
+      "name": "ic_banking_sinhala",
+      "kind": "classification",
+      "seed": 0,
+      "status": "ok",
+      "split": "random_stratified_no_speaker_ids",
+      "metrics": {
+        "accuracy": 0.9920948616600791,
+        "macro_f1": 0.9916740626839444
+      },
+      "perf": {
+        "train_seconds": 52.51852464675903,
+        "peak_gpu_gb": 2.096910848,
+        "feature_seconds": 190.4272255897522
+      },
+      "details": {
+        "lr": 0.01,
+        "best_epoch": 5,
+        "dev_accuracy": 1.0
+      }
+    },
+    {
+      "upstream": "/home/anas22/models/wavlm-large-si-ta-200h-ckpt10500",
+      "task": "ic_banking",
+      "language": "sinhala",
+      "name": "ic_banking_sinhala",
+      "kind": "classification",
+      "seed": 1,
+      "status": "ok",
+      "split": "random_stratified_no_speaker_ids",
+      "metrics": {
+        "accuracy": 0.994729907773386,
+        "macro_f1": 0.9943846642296034
+      },
+      "perf": {
+        "train_seconds": 9.511688709259033,
+        "peak_gpu_gb": 2.096859648,
+        "feature_seconds": 190.4272255897522
+      },
+      "details": {
+        "lr": 0.01,
+        "best_epoch": 17,
+        "dev_accuracy": 1.0
+      }
+    },
+    {
+      "upstream": "/home/anas22/models/wavlm-large-si-ta-200h-ckpt10500",
+      "task": "ic_banking",
+      "language": "sinhala",
+      "name": "ic_banking_sinhala",
+      "kind": "classification",
+      "seed": 2,
+      "status": "ok",
+      "split": "random_stratified_no_speaker_ids",
+      "metrics": {
+        "accuracy": 0.9934123847167325,
+        "macro_f1": 0.9927457470627773
+      },
+      "perf": {
+        "train_seconds": 6.59494686126709,
+        "peak_gpu_gb": 2.096859648,
+        "feature_seconds": 190.4272255897522
+      },
+      "details": {
+        "lr": 0.01,
+        "best_epoch": 11,
+        "dev_accuracy": 1.0
+      }
+    },
+    {
+      "upstream": "/home/anas22/models/wavlm-large-si-ta-200h-ckpt10500",
+      "task": "ic_banking",
+      "language": "tamil",
+      "name": "ic_banking_tamil",
+      "kind": "classification",
+      "seed": 0,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.9250222691045475,
+        "macro_f1": 0.913593243843539
+      },
+      "perf": {
+        "train_seconds": 9.763136863708496,
+        "peak_gpu_gb": 1.398311424,
+        "feature_seconds": 11.989024639129639
+      },
+      "details": {
+        "fold_accuracy": [
+          0.9367,
+          0.9125,
+          0.963,
+          0.8889,
+          0.9241
+        ],
+        "fold_accuracy_std": 0.024655405659592646,
+        "fold_lr": [
+          0.01,
+          0.01,
+          0.01,
+          0.01,
+          0.01
+        ]
+      }
+    },
+    {
+      "upstream": "/home/anas22/models/wavlm-large-si-ta-200h-ckpt10500",
+      "task": "ic_banking",
+      "language": "tamil",
+      "name": "ic_banking_tamil",
+      "kind": "classification",
+      "seed": 1,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.9301480700109392,
+        "macro_f1": 0.9204280708453696
+      },
+      "perf": {
+        "train_seconds": 2.4359891414642334,
+        "peak_gpu_gb": 1.398260224,
+        "feature_seconds": 11.989024639129639
+      },
+      "details": {
+        "fold_accuracy": [
+          0.9367,
+          0.9125,
+          0.9753,
+          0.8642,
+          0.962
+        ],
+        "fold_accuracy_std": 0.03939443632075983,
+        "fold_lr": [
+          0.01,
+          0.01,
+          0.01,
+          0.01,
+          0.01
+        ]
+      }
+    },
+    {
+      "upstream": "/home/anas22/models/wavlm-large-si-ta-200h-ckpt10500",
+      "task": "ic_banking",
+      "language": "tamil",
+      "name": "ic_banking_tamil",
+      "kind": "classification",
+      "seed": 2,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.9274288951398656,
+        "macro_f1": 0.9154632851058111
+      },
+      "perf": {
+        "train_seconds": 3.0105695724487305,
+        "peak_gpu_gb": 1.398260224,
+        "feature_seconds": 11.989024639129639
+      },
+      "details": {
+        "fold_accuracy": [
+          0.9241,
+          0.9125,
+          0.9753,
+          0.9012,
+          0.9241
+        ],
+        "fold_accuracy_std": 0.025394133802815036,
+        "fold_lr": [
+          0.01,
+          0.01,
+          0.01,
+          0.01,
+          0.01
+        ]
+      }
+    },
+    {
+      "upstream": "/home/anas22/models/wavlm-large-si-ta-200h-ckpt10500",
+      "task": "ic_health",
+      "language": "tamil",
+      "name": "ic_health_tamil",
+      "kind": "classification",
+      "seed": 0,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.735061026187937,
+        "macro_f1": 0.7346068114765638
+      },
+      "perf": {
+        "train_seconds": 102.02699661254883,
+        "peak_gpu_gb": 1.531843584,
+        "feature_seconds": 63.802324533462524
+      },
+      "details": {
+        "fold_accuracy": [
+          0.7182,
+          0.7595,
+          0.6838,
+          0.7931,
+          0.7207
+        ],
+        "fold_accuracy_std": 0.03762136600939137,
+        "fold_lr": [
+          0.001,
+          0.01,
+          0.001,
+          0.01,
+          0.01
+        ]
+      }
+    },
+    {
+      "upstream": "/home/anas22/models/wavlm-large-si-ta-200h-ckpt10500",
+      "task": "ic_health",
+      "language": "tamil",
+      "name": "ic_health_tamil",
+      "kind": "classification",
+      "seed": 1,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.7254224434174665,
+        "macro_f1": 0.7266065557961195
+      },
+      "perf": {
+        "train_seconds": 29.724141597747803,
+        "peak_gpu_gb": 1.531710464,
+        "feature_seconds": 63.802324533462524
+      },
+      "details": {
+        "fold_accuracy": [
+          0.6976,
+          0.7526,
+          0.6873,
+          0.7897,
+          0.7
+        ],
+        "fold_accuracy_std": 0.03934049642744287,
+        "fold_lr": [
+          0.001,
+          0.01,
+          0.001,
+          0.01,
+          0.01
+        ]
+      }
+    },
+    {
+      "upstream": "/home/anas22/models/wavlm-large-si-ta-200h-ckpt10500",
+      "task": "ic_health",
+      "language": "tamil",
+      "name": "ic_health_tamil",
+      "kind": "classification",
+      "seed": 2,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.7144164000473989,
+        "macro_f1": 0.7148908287035967
+      },
+      "perf": {
+        "train_seconds": 15.419300079345703,
+        "peak_gpu_gb": 1.531710464,
+        "feature_seconds": 63.802324533462524
+      },
+      "details": {
+        "fold_accuracy": [
+          0.7148,
+          0.7388,
+          0.6426,
+          0.7862,
+          0.6897
+        ],
+        "fold_accuracy_std": 0.047998215685491556,
+        "fold_lr": [
+          0.001,
+          0.01,
+          0.001,
+          0.01,
+          0.01
+        ]
+      }
+    },
+    {
+      "upstream": "/home/anas22/models/wavlm-large-si-ta-200h-ckpt10500",
+      "task": "sd",
+      "language": "sinhala",
+      "name": "sd_sinhala",
+      "kind": "diarization",
+      "seed": 0,
+      "status": "ok",
+      "split": "recording_disjoint",
+      "metrics": {
+        "der": 0.06664596781037906
+      },
+      "perf": {
+        "train_seconds": 473.8031356334686,
+        "peak_gpu_gb": 1.570263552,
+        "feature_seconds": 910.8583614826202
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.0001,
+        "best_epoch": 14,
+        "threshold": 0.6,
+        "dev_der": 0.03885212680252687,
+        "missed": 0.009475171951916802,
+        "false_alarm": 0.0,
+        "confusion": 0.057170795858462256,
+        "test_recordings": 24,
+        "train_classes": 95,
+        "layer_weights": [
+          0.0102,
+          0.0591,
+          0.0847,
+          0.179,
+          0.1911,
+          0.1489,
+          0.1379,
+          0.0598,
+          0.0107,
+          0.0106,
+          0.0072,
+          0.0061,
+          0.0062,
+          0.0068,
+          0.0072,
+          0.0074,
+          0.0074,
+          0.0075,
+          0.0075,
+          0.0075,
+          0.0074,
+          0.0072,
+          0.0073,
+          0.0076,
+          0.0079
+        ]
+      }
+    },
+    {
+      "upstream": "/home/anas22/models/wavlm-large-si-ta-200h-ckpt10500",
+      "task": "sd",
+      "language": "sinhala",
+      "name": "sd_sinhala",
+      "kind": "diarization",
+      "seed": 1,
+      "status": "ok",
+      "split": "recording_disjoint",
+      "metrics": {
+        "der": 0.05026108047812208
+      },
+      "perf": {
+        "train_seconds": 271.6847016811371,
+        "peak_gpu_gb": 1.572465152,
+        "feature_seconds": 910.8583614826202
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.0001,
+        "best_epoch": 11,
+        "threshold": 0.5499999999999999,
+        "dev_der": 0.048061800723690415,
+        "missed": 0.009475171951916802,
+        "false_alarm": 0.0,
+        "confusion": 0.04078590852620528,
+        "test_recordings": 24,
+        "train_classes": 95,
+        "layer_weights": [
+          0.0102,
+          0.0591,
+          0.0847,
+          0.179,
+          0.1911,
+          0.1489,
+          0.1379,
+          0.0598,
+          0.0107,
+          0.0106,
+          0.0072,
+          0.0061,
+          0.0062,
+          0.0068,
+          0.0072,
+          0.0074,
+          0.0074,
+          0.0075,
+          0.0075,
+          0.0075,
+          0.0074,
+          0.0072,
+          0.0073,
+          0.0076,
+          0.0079
+        ]
+      }
+    },
+    {
+      "upstream": "/home/anas22/models/wavlm-large-si-ta-200h-ckpt10500",
+      "task": "sd",
+      "language": "sinhala",
+      "name": "sd_sinhala",
+      "kind": "diarization",
+      "seed": 2,
+      "status": "ok",
+      "split": "recording_disjoint",
+      "metrics": {
+        "der": 0.0752907896014697
+      },
+      "perf": {
+        "train_seconds": 173.8757758140564,
+        "peak_gpu_gb": 1.576856064,
+        "feature_seconds": 910.8583614826202
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.0001,
+        "best_epoch": 5,
+        "threshold": 0.6,
+        "dev_der": 0.041961445737777534,
+        "missed": 0.009475171951916802,
+        "false_alarm": 0.0,
+        "confusion": 0.0658156176495529,
+        "test_recordings": 24,
+        "train_classes": 95,
+        "layer_weights": [
+          0.0102,
+          0.0591,
+          0.0847,
+          0.179,
+          0.1911,
+          0.1489,
+          0.1379,
+          0.0598,
+          0.0107,
+          0.0106,
+          0.0072,
+          0.0061,
+          0.0062,
+          0.0068,
+          0.0072,
+          0.0074,
+          0.0074,
+          0.0075,
+          0.0075,
+          0.0075,
+          0.0074,
+          0.0072,
+          0.0073,
+          0.0076,
+          0.0079
+        ]
+      }
+    },
+    {
+      "upstream": "/home/anas22/models/wavlm-large-si-ta-200h-ckpt10500",
+      "task": "sd",
+      "language": "tamil",
+      "name": "sd_tamil",
+      "kind": "diarization",
+      "seed": 0,
+      "status": "ok",
+      "split": "recording_disjoint",
+      "metrics": {
+        "der": 0.022682400543311637
+      },
+      "perf": {
+        "train_seconds": 473.8031356334686,
+        "peak_gpu_gb": 1.5569024,
+        "feature_seconds": 1.1444091796875e-05
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.0001,
+        "best_epoch": 14,
+        "threshold": 0.49999999999999994,
+        "dev_der": 0.04955744289665011,
+        "missed": 0.008886534574915582,
+        "false_alarm": 0.0,
+        "confusion": 0.013795865968396053,
+        "test_recordings": 5,
+        "train_classes": 95,
+        "layer_weights": [
+          0.0102,
+          0.0591,
+          0.0847,
+          0.179,
+          0.1911,
+          0.1489,
+          0.1379,
+          0.0598,
+          0.0107,
+          0.0106,
+          0.0072,
+          0.0061,
+          0.0062,
+          0.0068,
+          0.0072,
+          0.0074,
+          0.0074,
+          0.0075,
+          0.0075,
+          0.0075,
+          0.0074,
+          0.0072,
+          0.0073,
+          0.0076,
+          0.0079
+        ]
+      }
+    },
+    {
+      "upstream": "/home/anas22/models/wavlm-large-si-ta-200h-ckpt10500",
+      "task": "sd",
+      "language": "tamil",
+      "name": "sd_tamil",
+      "kind": "diarization",
+      "seed": 1,
+      "status": "ok",
+      "split": "recording_disjoint",
+      "metrics": {
+        "der": 0.05235801419438452
+      },
+      "perf": {
+        "train_seconds": 271.6847016811371,
+        "peak_gpu_gb": 1.5569024,
+        "feature_seconds": 1.1444091796875e-05
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.0001,
+        "best_epoch": 11,
+        "threshold": 0.44999999999999996,
+        "dev_der": 0.05301514203642877,
+        "missed": 0.008886534574915582,
+        "false_alarm": 0.0,
+        "confusion": 0.043471479619468935,
+        "test_recordings": 5,
+        "train_classes": 95,
+        "layer_weights": [
+          0.0102,
+          0.0591,
+          0.0847,
+          0.179,
+          0.1911,
+          0.1489,
+          0.1379,
+          0.0598,
+          0.0107,
+          0.0106,
+          0.0072,
+          0.0061,
+          0.0062,
+          0.0068,
+          0.0072,
+          0.0074,
+          0.0074,
+          0.0075,
+          0.0075,
+          0.0075,
+          0.0074,
+          0.0072,
+          0.0073,
+          0.0076,
+          0.0079
+        ]
+      }
+    },
+    {
+      "upstream": "/home/anas22/models/wavlm-large-si-ta-200h-ckpt10500",
+      "task": "sd",
+      "language": "tamil",
+      "name": "sd_tamil",
+      "kind": "diarization",
+      "seed": 2,
+      "status": "ok",
+      "split": "recording_disjoint",
+      "metrics": {
+        "der": 0.07534027592141303
+      },
+      "perf": {
+        "train_seconds": 173.8757758140564,
+        "peak_gpu_gb": 1.5569024,
+        "feature_seconds": 1.1444091796875e-05
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.0001,
+        "best_epoch": 5,
+        "threshold": 0.44999999999999996,
+        "dev_der": 0.07082442159691772,
+        "missed": 0.008886534574915582,
+        "false_alarm": 0.0,
+        "confusion": 0.06645374134649744,
+        "test_recordings": 5,
+        "train_classes": 95,
+        "layer_weights": [
+          0.0102,
+          0.0591,
+          0.0847,
+          0.179,
+          0.1911,
+          0.1489,
+          0.1379,
+          0.0598,
+          0.0107,
+          0.0106,
+          0.0072,
+          0.0061,
+          0.0062,
+          0.0068,
+          0.0072,
+          0.0074,
+          0.0074,
+          0.0075,
+          0.0075,
+          0.0075,
+          0.0074,
+          0.0072,
+          0.0073,
+          0.0076,
+          0.0079
+        ]
+      }
+    },
+    {
+      "upstream": "/home/anas22/models/wavlm-large-si-ta-200h-ckpt10500",
+      "task": "sid",
+      "language": "multilingual",
+      "name": "sid",
+      "kind": "classification",
+      "seed": 0,
+      "status": "ok",
+      "split": "stratified_closed_set",
+      "metrics": {
+        "accuracy": 0.997997997997998,
+        "macro_f1": 0.997876879122565
+      },
+      "perf": {
+        "train_seconds": 20.859331130981445,
+        "peak_gpu_gb": 1.873070592,
+        "feature_seconds": 572.4757363796234
+      },
+      "details": {
+        "lr": 0.01,
+        "best_epoch": 3,
+        "dev_accuracy": 1.0
+      }
+    },
+    {
+      "upstream": "/home/anas22/models/wavlm-large-si-ta-200h-ckpt10500",
+      "task": "sid",
+      "language": "multilingual",
+      "name": "sid",
+      "kind": "classification",
+      "seed": 1,
+      "status": "ok",
+      "split": "stratified_closed_set",
+      "metrics": {
+        "accuracy": 0.995995995995996,
+        "macro_f1": 0.995564408637185
+      },
+      "perf": {
+        "train_seconds": 3.9095234870910645,
+        "peak_gpu_gb": 1.872421376,
+        "feature_seconds": 572.4757363796234
+      },
+      "details": {
+        "lr": 0.01,
+        "best_epoch": 3,
+        "dev_accuracy": 1.0
+      }
+    },
+    {
+      "upstream": "/home/anas22/models/wavlm-large-si-ta-200h-ckpt10500",
+      "task": "sid",
+      "language": "multilingual",
+      "name": "sid",
+      "kind": "classification",
+      "seed": 2,
+      "status": "ok",
+      "split": "stratified_closed_set",
+      "metrics": {
+        "accuracy": 0.997997997997998,
+        "macro_f1": 0.997876879122565
+      },
+      "perf": {
+        "train_seconds": 3.959686040878296,
+        "peak_gpu_gb": 1.872421376,
+        "feature_seconds": 572.4757363796234
+      },
+      "details": {
+        "lr": 0.01,
+        "best_epoch": 3,
+        "dev_accuracy": 1.0
+      }
+    }
+  ]
+}

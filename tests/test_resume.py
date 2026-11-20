@@ -13,8 +13,7 @@ import torch
 from transformers import Wav2Vec2FeatureExtractor, Wav2Vec2ForPreTraining
 
 from pipeline.callbacks import CodebookCollapseDetector
-from pipeline.schema import MonitoringConfig, Params
-from pipeline.train import (
+from pipeline.models.xlsr.trainer import (
     CURVES_HEADER,
     TRAINING_STATE_FILE,
     checkpoint_step,
@@ -26,6 +25,7 @@ from pipeline.train import (
     save_checkpoint,
     train,
 )
+from pipeline.schema import MonitoringConfig, Params
 from tests.test_smoke_train import _tiny_model
 
 REPO_ROOT = Path(__file__).resolve().parent.parent

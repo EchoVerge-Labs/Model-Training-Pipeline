@@ -23,9 +23,21 @@ shard:
   max_cut_seconds: 30.0       # split longer clips into equal windows of at most this
   output_dir: data/shars
 
+# ── Model ───────────────────────────────────────────
+# Which model this file describes (the XLS-R run); configs/models/<name>.yaml overlays another.
+# run_name is the MLflow run name AND the name of the model's run in the SLSB leaderboard, so a
+# pre-training run and its benchmark row can be matched (tag `slsb.model`).
+model:
+  trainer: xlsr
+  tag: xlsr300m
+  family: xlsr
+  run_name: xlsr300m-copt200h-norm
+  frozen_name: xlsr300m
+
 # ── Pre-training ────────────────────────────────────
 pretrain:
   base_model: facebook/wav2vec2-xls-r-300m
+  layerdrop: 0.1              # XLS-R's own value, stated here so every model's is visible
   precision: bf16
   freeze_feature_encoder: true
 
@@ -34,7 +46,6 @@ pretrain:
   peak_lr: 5.0e-5
   lr_schedule: tri_stage      # warmup / hold / exponential decay
   hold_ratio: 0.4             # fraction of remaining after warmup to hold
-  optimizer: adamw
   adam_betas: [0.9, 0.98]
   adam_eps: 1.0e-6
   weight_decay: 0.01
@@ -50,9 +61,11 @@ pretrain:
   mask_time_prob: 0.65
   mask_time_length: 10
 
-  # Gumbel quantizer
+  # Gumbel quantizer. The base checkpoint's codebook is already trained, so CoPT restarts
+  # the temperature near its floor rather than at 1.0 (which re-noises the codebook for the
+  # whole short run: at 0.999995 per step, 1.0 only decays to ~0.94 by step 13,500).
   diversity_loss_weight: 0.1
-  max_gumbel_temperature: 1.0
+  max_gumbel_temperature: 0.5
   min_gumbel_temperature: 0.5
   gumbel_temperature_decay: 0.999995
 
@@ -82,24 +95,22 @@ checkpoint_selection:
 
 # ── Benchmark ───────────────────────────────────────
 benchmark:
-  tasks: "asr,sid,er,asv"
+  # Every SLSB v0.5 task family. A leaderboard row (scripts/log_results.py) needs all of them.
+  tasks: "asr,sid,er,sd,asv,ic"
   seeds: "0,1,2"
   slsb_data_dir: ../SLSB-benchmark/data    # relative to this repo root
-  mlflow_uri: https://dagshub.com/EchoVerge-LABS/Model-Training-Pipeline.mlflow
+  # Scores from different SLSB protocol versions are not comparable. Checkpoint selection (which
+  # runs slsb as its proxy) refuses to run against any other installed slsb version. The
+  # benchmark itself is run from the SLSB-benchmark repository, not from here.
+  slsb_version: "0.5.0"
   # MLflow runs are named <prefix>_<task>_<language>_s<seed>; eval_normalize and
   # checkpoint tags are added from models/selected and checkpoint_selection.json.
+  mlflow_uri: https://dagshub.com/EchoVerge-LABS/Model-Training-Pipeline.mlflow
   mlflow_run_prefix: xlsr_200h_CoPT_norm
   mlflow_run_tags: "model=xlsr300m,base_model=facebook/wav2vec2-xls-r-300m,stage=continued-pretraining,copt_data=si-ta-200h,copt_run=xlsr300m-si-ta-200h-norm,train_normalize=true,variant=norm"
+  # Rows of `report`: results found in reports/bench/<key>/metrics.json (frozen baselines and
+  # every model's results are listed by their own configs/models/<model>.yaml).
   upstreams:
-    xlsr300m_vanilla:
-      path: facebook/wav2vec2-xls-r-300m
-      name: "XLS-R 300M (vanilla)"
-    mhubert147:
-      path: utter-project/mHuBERT-147
-      name: "mHuBERT-147"
-    wavlm_large:
-      path: microsoft/wavlm-large
-      name: "WavLM Large"
     # The first pre-training run (raw audio, models/xlsr300m-si-ta-200h): its
     # checkpoint-9000 benchmarked with normalisation on, and its checkpoint-13500
     # with normalisation off, as it was trained.
@@ -111,10 +122,14 @@ benchmark:
       path: models/selected_raw
       name: "XLS-R 300M (Si/Ta 200h, raw-trained, raw eval)"
       is_local: true
-    xlsr300m_adapted_norm:
+    xlsr300m-copt200h-norm:
       path: models/selected
       name: "XLS-R 300M (Si/Ta 200h)"
       is_local: true
+    # `make bench-frozen` (the baseline row) writes reports/bench/<model.frozen_name>/
+    xlsr300m:
+      path: facebook/wav2vec2-xls-r-300m
+      name: "XLS-R 300M (vanilla)"
 
 # ── MLflow ──────────────────────────────────────────
 mlflow:

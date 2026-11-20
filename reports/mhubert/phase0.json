@@ -1,0 +1,29 @@
+{
+  "device": "cuda",
+  "gpu": "NVIDIA GB10",
+  "precision": "bf16",
+  "measured": {
+    "batch_size": 10,
+    "seq_seconds": 20.0,
+    "batch_seconds": 200.0,
+    "steps": 20,
+    "wall_seconds": 8.5,
+    "throughput_audio_sec_per_wall_sec": 468.04,
+    "peak_gpu_memory_gb": 5.9
+  },
+  "model": {
+    "name": "mhubert147",
+    "trainer": "hubert",
+    "base_model": "utter-project/mHuBERT-147",
+    "total_params_M": 94.8,
+    "trainable_params_M": 90.6,
+    "quantizer_keys": 0
+  },
+  "estimate": {
+    "target_batch_seconds": 1600.0,
+    "max_updates": 13500,
+    "total_audio_hours": 6000.0,
+    "estimated_wall_hours": 12.8,
+    "estimated_wall_days": 0.5
+  }
+}

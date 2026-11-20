@@ -1,0 +1,35 @@
+# wav2vec2 Large (English-pretrained, lv60) -- the monolingual counterpart to XLS-R.
+#
+# The same xlsr trainer and the same recipe as XLS-R: only the base model and the output
+# locations differ, so XLS-R vs wav2vec2 is a fair multilingual-vs-monolingual comparison.
+# Waveform normalisation is not a setting: it follows base_model's do_normalize (true
+# here too, as for every other model).
+#
+# Run:  torchrun --nproc_per_node=1 -m pipeline.train --model wav2vec2
+model:
+  trainer: xlsr
+  tag: wav2vec2
+  reports_dir: reports/wav2vec2
+  family: wav2vec2
+  run_name: wav2vec2-large-lv60-copt200h
+  frozen_name: wav2vec2-large-lv60
+
+pretrain:
+  base_model: facebook/wav2vec2-large-lv60
+  layerdrop: 0.0              # this checkpoint's own value (XLS-R's is 0.1)
+  output_dir: models/wav2vec2-si-ta-200h
+
+checkpoint_selection:
+  output_dir: models/selected_wav2vec2
+
+benchmark:
+  # runs are named <prefix>_<task>_<language>_s<seed>, tagged like the other models' CoPT runs
+  upstreams:
+    # what `make bench` / `make bench-frozen` write by default: reports/bench/<run_name|frozen_name>/
+    wav2vec2-large-lv60-copt200h:
+      path: models/selected_wav2vec2
+      name: "wav2vec2 Large (Si/Ta 200h)"
+      is_local: true
+    wav2vec2-large-lv60:
+      path: facebook/wav2vec2-large-lv60
+      name: "wav2vec2 Large (English, vanilla)"

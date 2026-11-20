@@ -3,7 +3,7 @@
 import torch
 from transformers import Wav2Vec2Config, Wav2Vec2ForPreTraining
 
-from pipeline.train import (
+from pipeline.models.xlsr.trainer import (
     compute_mask_and_negatives,
     get_gumbel_temperature,
     get_tri_stage_lr,
