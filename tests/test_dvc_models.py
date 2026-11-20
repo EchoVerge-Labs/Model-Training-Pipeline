@@ -64,8 +64,18 @@ def test_labelled_models_depend_on_their_labels_and_their_own_trainer_code():
     assert _items("copt")["wav2vec2"]["code"].rstrip("/").endswith("xlsr")
 
 
-def test_the_xlsr_stages_are_untouched_apart_from_the_moved_code_deps():
+def test_the_xlsr_stages_keep_their_names_and_outputs():
     pretrain = DVC["pretrain"]
     assert pretrain["cmd"] == "bash scripts/launch_pretrain.sh"
     assert pretrain["outs"] == [{"models/xlsr300m-si-ta-200h-norm/": {"persist": True}}]
     assert {"select_checkpoint", "benchmark", "report"} <= set(DVC)
+
+
+def test_the_xlsr_benchmark_stage_writes_where_make_bench_and_the_report_look():
+    """No --out: pipeline.benchmark's default is reports/bench/<run_name>/, which is also
+    what `make bench` writes and what the report's upstream key for XLS-R is."""
+    run_name = load_raw(str(REPO_ROOT / "params.yaml"))["model"]["run_name"]
+    bench = DVC["benchmark"]
+    assert "--out" not in bench["cmd"]
+    assert bench["metrics"] == [{f"reports/bench/{run_name}/metrics.json": {"cache": False}}]
+    assert run_name in load_raw(str(REPO_ROOT / "params.yaml"))["benchmark"]["upstreams"]

@@ -444,3 +444,39 @@ def test_name_lookup_pins_rows_without_a_file_size_but_never_overrides_a_sized_r
     # without the name lookup (main's behaviour) the size-less rows are simply unmatched
     resolved, unresolved = resolve_paths(segs, lookup)
     assert resolved == [] and len(unresolved) == 3
+
+
+def test_a_missing_blocklist_is_reported_not_silently_ignored(tmp_path, capsys):
+    from pipeline.select import load_blocklist
+
+    channels, info = load_blocklist(tmp_path / "nope.txt")
+    assert channels == set() and info["found"] is False
+    assert "WARNING" in capsys.readouterr().out
+
+    (tmp_path / "bl.txt").write_text("a\n\n b \n")
+    channels, info = load_blocklist(tmp_path / "bl.txt")
+    assert channels == {"a", "b"} and info == {
+        "path": str(tmp_path / "bl.txt"),
+        "found": True,
+        "channels": 2,
+    }
+
+
+def test_the_report_says_whether_the_blocklist_was_applied(tmp_path):
+    train = [_seg("a", "A", 3600, "a.wav")]
+    cleaning = {
+        "to_train_rows": 1,
+        "exact_duplicates_removed": 0,
+        "unresolved": {"ambiguous": 0, "no_match": 0, "duplicate_path": 0},
+        "blocklist": {"path": "bl.txt", "found": False, "channels": 0},
+    }
+    write_report(
+        train,
+        [],
+        train,
+        _cfg(target_hours=1.0),
+        tmp_path / "r.md",
+        tmp_path / "s.json",
+        cleaning=cleaning,
+    )
+    assert "NOT FOUND, none excluded" in (tmp_path / "r.md").read_text()

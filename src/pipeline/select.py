@@ -147,6 +147,22 @@ def resolve_paths(
     return resolved, unresolved
 
 
+def load_blocklist(path: Path) -> tuple[set[str], dict]:
+    """Channels that must stay out of training (evaluation-contaminating sources), one per
+    line. A configured blocklist that does not exist is reported, never silently treated as
+    empty: selection would then run unfiltered without anyone noticing."""
+    found = path.exists()
+    channels = (
+        {line.strip() for line in path.read_text().splitlines() if line.strip()} if found else set()
+    )
+    if not found:
+        print(
+            f"WARNING: blocklist {path} not found -- no channel is excluded from training "
+            f"(select.exclude_channels_file)"
+        )
+    return channels, {"path": str(path), "found": found, "channels": len(channels)}
+
+
 def write_unresolved(unresolved: list[tuple[Segment, str]], path: Path):
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", newline="", encoding="utf-8") as f:
@@ -375,7 +391,19 @@ def write_report(
                 f"{sum(u.values())} (ambiguous {u['ambiguous']}, no_match {u['no_match']}, "
                 f"duplicate_path {u['duplicate_path']})\n"
             )
-            f.write(f"- candidates for selection: {len(all_segments):,}\n\n")
+            f.write(f"- candidates for selection: {len(all_segments):,}\n")
+            bl = cleaning.get("blocklist")
+            if bl:
+                f.write(
+                    f"- blocklist {bl['path']}: "
+                    + (
+                        f"{bl['channels']} channels excluded"
+                        if bl["found"]
+                        else "NOT FOUND, none excluded"
+                    )
+                    + "\n"
+                )
+            f.write("\n")
         f.write("## By Language\n\n")
         f.writelines(f"- {lang}: {hours:.1f}h\n" for lang, hours in sorted(train_by_lang.items()))
         f.write("\n## By Genre (top 10)\n\n")
@@ -448,11 +476,8 @@ def main():
         print("ERROR: no clip could be resolved to a file on the Drive")
         sys.exit(1)
 
-    # Load blocklist if it exists
-    blocklist = set()
-    bl_path = Path(cfg.exclude_channels_file)
-    if bl_path.exists():
-        blocklist = {line.strip() for line in bl_path.read_text().splitlines() if line.strip()}
+    blocklist, blocklist_info = load_blocklist(Path(cfg.exclude_channels_file))
+    cleaning["blocklist"] = blocklist_info
 
     train, holdout = select(segments, cfg, blocklist)
 

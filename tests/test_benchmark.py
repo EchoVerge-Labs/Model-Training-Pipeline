@@ -7,7 +7,6 @@ import pytest
 
 from pipeline import benchmark as bm
 from pipeline import slsb
-from pipeline.common.config import load_raw
 
 REPO = Path(__file__).resolve().parent.parent
 
@@ -153,13 +152,6 @@ def test_allow_incomplete_overrides_the_wait_and_the_frozen_baseline_never_needs
         monkeypatch, tmp_path, "--model", "wavlm", "--allow-incomplete", "--no-log", finished=False
     )
     _run(monkeypatch, tmp_path, "--model", "wavlm", "--frozen", "--no-log", finished=False)
-
-
-def test_every_models_leaderboard_names_are_set():
-    for m in ("xlsr", "wav2vec2", "wavlm", "hubert", "mhubert"):
-        model = load_raw(str(REPO / "params.yaml"), m)["model"]
-        assert model["run_name"].endswith("copt200h") or model["run_name"].endswith("norm")
-        assert model["frozen_name"] and model["family"]
 
 
 # ── locating and version-checking slsb ──

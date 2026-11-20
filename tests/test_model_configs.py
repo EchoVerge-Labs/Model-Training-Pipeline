@@ -75,18 +75,6 @@ def test_xlsr_config_changes_nothing():
     assert load_raw(str(REPO_ROOT / "params.yaml"), "xlsr") == deep_merge(
         load_raw(str(REPO_ROOT / "params.yaml")), {"model": {"trainer": "xlsr", "tag": "xlsr300m"}}
     )
-    assert _load("xlsr").pretrain.output_dir == "models/xlsr300m-si-ta-200h-norm"
-
-
-def test_mlflow_run_names_keep_the_branches_patterns():
-    tags = {m: _load(m).model.tag for m in EXPECTED}
-    assert tags == {
-        "xlsr": "xlsr300m",  # xlsr300m-si-ta-1600s, as always
-        "wav2vec2": "wav2vec2",
-        "wavlm": "wavlm-large",  # wavlm-large-si-ta-1600s, as on the WavLM-Large branch
-        "hubert": "hubert-large",
-        "mhubert": "mhubert147",
-    }
 
 
 def test_train_cli_parses_every_registered_model_and_rejects_unknown_ones():

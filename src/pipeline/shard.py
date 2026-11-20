@@ -115,6 +115,7 @@ def concatenate_short_cuts(cuts: "CutSet", min_sec: float, target_sec: float) ->
 
     by_channel = defaultdict(list)
     long_enough = []
+    dropped = []  # leftovers too short to keep: reported, not silent
 
     for cut in cuts:
         if cut.duration >= min_sec:
@@ -140,7 +141,14 @@ def concatenate_short_cuts(cuts: "CutSet", min_sec: float, target_sec: float) ->
             total = sum(c.duration for c in buffer)
             if total >= min_sec:
                 long_enough.extend(_merge_buffer(buffer, min_sec))
+            else:
+                dropped.extend(buffer)
 
+    if dropped:
+        print(
+            f"WARNING: dropped {len(dropped)} leftover cuts shorter than {min_sec}s in total "
+            f"({sum(c.duration for c in dropped):.1f}s of audio): too short to keep or merge"
+        )
     return CutSet.from_cuts(long_enough)
 
 
