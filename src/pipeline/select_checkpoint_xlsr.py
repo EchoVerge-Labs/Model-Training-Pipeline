@@ -157,7 +157,7 @@ def main():
         "best_score": results[best_name],
         "all_scores": results,
     }
-    with open("reports/checkpoint_selection.json", "w") as f:
+    with open("reports/checkpoint_selection-xlsr.json", "w") as f:
         json.dump(report, f, indent=2)
 
 

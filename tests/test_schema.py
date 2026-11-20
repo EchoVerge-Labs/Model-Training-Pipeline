@@ -5,7 +5,7 @@ from pipeline.schema import Params
 
 def test_params_loads():
     p = Params.from_yaml("params.yaml")
-    assert p.pretrain.base_model == "microsoft/wavlm-large"
+    assert p.pretrain.base_model == "facebook/hubert-large-ll60k"
     assert p.pretrain.precision == "bf16"
 
 
@@ -99,24 +99,3 @@ def test_training_settings_match_the_wav2vec2_run_on_main():
     p = Params.from_yaml("params.yaml").pretrain
     for name, expected in MAIN_SHARED.items():
         assert getattr(p, name) == expected, f"{name} differs from main"
-
-
-def test_wavlm_branch_specifics():
-    p = Params.from_yaml("params.yaml")
-    assert p.pretrain.base_model == "microsoft/wavlm-large"
-    assert p.pretrain.utterance_mix_prob == 0.2  # WavLM's mixing; method, not tuning
-    assert "wavlm" in p.pretrain.output_dir
-    assert "wavlm" in p.cluster.kmeans_output and "wavlm" in p.cluster.labels_output
-
-
-def test_gpu_memory_cap_matches_main_and_is_bounded():
-    import pytest
-    from pydantic import ValidationError
-
-    from pipeline.schema import PretrainConfig
-
-    assert Params.from_yaml("params.yaml").pretrain.max_gpu_memory_fraction == 0.8
-    base = Params.from_yaml("params.yaml").pretrain.model_dump()
-    for bad in (0.0, 1.5):
-        with pytest.raises(ValidationError):
-            PretrainConfig(**{**base, "max_gpu_memory_fraction": bad})

@@ -110,12 +110,12 @@ stages:
       - models/selected/:
           persist: true
     metrics:
-      - reports/checkpoint_selection.json:
+      - reports/checkpoint_selection-xlsr.json:
           cache: false
 
   benchmark:
     cmd: >
-      bash scripts/run_benchmark.sh
+      bash scripts/run_benchmark-xlsr.sh
       models/selected
       ${benchmark.tasks}
       ${benchmark.seeds}
@@ -126,7 +126,7 @@ stages:
       ${benchmark.mlflow_run_tags}
     deps:
       - models/selected/
-      - scripts/run_benchmark.sh
+      - scripts/run_benchmark-xlsr.sh
       - scripts/label_benchmark_runs.py
     params:
       - params-xlsr.yaml:

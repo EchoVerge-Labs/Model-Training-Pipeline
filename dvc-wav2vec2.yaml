@@ -110,12 +110,12 @@ stages:
       - models/selected/:
           persist: true
     metrics:
-      - reports/checkpoint_selection.json:
+      - reports/checkpoint_selection-xlsr.json:
           cache: false
 
   benchmark:
     cmd: >
-      bash scripts/run_benchmark.sh
+      bash scripts/run_benchmark-xlsr.sh
       models/selected
       ${benchmark.tasks}
       ${benchmark.seeds}
@@ -124,7 +124,7 @@ stages:
       ${benchmark.slsb_data_dir}
     deps:
       - models/selected/
-      - scripts/run_benchmark.sh
+      - scripts/run_benchmark-xlsr.sh
     params:
       - params-wav2vec2.yaml:
           - benchmark.tasks

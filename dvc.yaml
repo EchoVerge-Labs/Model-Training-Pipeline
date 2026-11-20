@@ -79,13 +79,15 @@ stages:
       - src/pipeline/fit_kmeans.py
       - src/pipeline/layer_features.py
       - src/pipeline/datamodule.py
-      - data/shars/
+      - src/pipeline/shard.py
+      - data/raw/
+      - data/manifests/train.jsonl
     params:
       - cluster
       - shard
       - pretrain.base_model
     outs:
-      - models/kmeans/wavlm-large-L18-k500.joblib:
+      - models/kmeans/km_model.joblib:
           persist: true
     metrics:
       - reports/kmeans_stats.json:
@@ -97,14 +99,15 @@ stages:
       - src/pipeline/assign_cluster_labels.py
       - src/pipeline/layer_features.py
       - src/pipeline/datamodule.py
-      - models/kmeans/wavlm-large-L18-k500.joblib
-      - data/shars/
+      - models/kmeans/km_model.joblib
+      - data/raw/
+      - data/manifests/train.jsonl
     params:
       - cluster
       - shard
       - pretrain.base_model
     outs:
-      - data/labels/wavlm_train_labels.jsonl.gz:
+      - data/labels/train_labels.jsonl.gz:
           persist: true
 
   pretrain:
@@ -113,15 +116,15 @@ stages:
       - src/pipeline/train.py
       - src/pipeline/datamodule.py
       - src/pipeline/callbacks.py
-      - src/pipeline/wavlm_model.py
+      - src/pipeline/hubert_model.py
       - src/pipeline/checkpoints.py
       - data/shars/
-      - data/labels/wavlm_train_labels.jsonl.gz
+      - data/labels/train_labels.jsonl.gz
     params:
       - pretrain
       - cluster.num_clusters
     outs:
-      - models/wavlm-large-si-ta-200h/:
+      - models/hubert-large-si-ta-200h/:
           persist: true
     metrics:
       - reports/pretrain_metrics.json:
@@ -134,7 +137,7 @@ stages:
     cmd: python -m pipeline.select_checkpoint --config params.yaml
     deps:
       - src/pipeline/select_checkpoint.py
-      - models/wavlm-large-si-ta-200h/
+      - models/hubert-large-si-ta-200h/
     params:
       - checkpoint_selection
     outs:
@@ -150,7 +153,7 @@ stages:
       models/selected
       ${benchmark.tasks}
       ${benchmark.seeds}
-      reports/bench/wavlm_large_adapted
+      reports/bench/hubert_large_adapted
       ${benchmark.mlflow_uri}
     deps:
       - models/selected/
@@ -159,7 +162,7 @@ stages:
       - benchmark.tasks
       - benchmark.seeds
     metrics:
-      - reports/bench/wavlm_large_adapted/metrics.json:
+      - reports/bench/hubert_large_adapted/metrics.json:
           cache: false
 
   report:

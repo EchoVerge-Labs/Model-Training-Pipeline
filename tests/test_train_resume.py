@@ -6,7 +6,7 @@ from transformers import Wav2Vec2FeatureExtractor, WavLMConfig, WavLMModel
 
 from pipeline.callbacks import MaskedAccuracyStallDetector
 from pipeline.checkpoints import STATE_FILE, latest_checkpoint, list_checkpoints
-from pipeline.train import prediction_perplexity, save_checkpoint
+from pipeline.train_wavlm import prediction_perplexity, save_checkpoint
 from pipeline.wavlm_model import WavLMForMaskedPrediction
 
 CONFIG = {
