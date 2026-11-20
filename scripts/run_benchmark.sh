@@ -8,13 +8,20 @@ set -euo pipefail
 # --upstream string. dvc.yaml needs a fixed, predictable `metrics:` path, so
 # this copies whatever slsb actually produced to <out>/metrics.json.
 
-UPSTREAM="${1:?usage: run_benchmark.sh <upstream> <tasks> <seeds> <out_dir> [mlflow_uri]}"
+UPSTREAM="${1:?usage: run_benchmark.sh <upstream> <tasks> <seeds> <out_dir> [mlflow_uri] [data_dir]}"
 TASKS="${2:?}"
 SEEDS="${3:?}"
 OUT_DIR="${4:?}"
 MLFLOW_URI="${5:-}"
+# slsb defaults --data-dir to ./data, which in this repo is the pre-training
+# data, not the benchmark's -- so fall back to the sibling SLSB-benchmark checkout.
+DATA_DIR="${6:-../SLSB-benchmark/data}"
+# Likewise slsb reads its probe hyperparams from ./params.yaml, which here is the
+# pipeline's params file -- use the one that sits next to the benchmark data.
+SLSB_PARAMS="$(dirname "$DATA_DIR")/params.yaml"
 
-ARGS=(run --upstream "$UPSTREAM" --tasks "$TASKS" --seeds "$SEEDS" --out "$OUT_DIR")
+ARGS=(run --upstream "$UPSTREAM" --tasks "$TASKS" --seeds "$SEEDS" --out "$OUT_DIR"
+      --data-dir "$DATA_DIR" --params "$SLSB_PARAMS")
 if [ -n "$MLFLOW_URI" ]; then
     ARGS+=(--mlflow-uri "$MLFLOW_URI")
 fi

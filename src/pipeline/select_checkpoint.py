@@ -15,9 +15,18 @@ from pipeline.schema import Params
 PRIMARY_METRIC = {"asr": "wer", "sid": "accuracy", "er": "accuracy", "asv": "eer"}
 
 
-def find_milestone_checkpoints(model_dir: str) -> list[Path]:
-    """Complete checkpoint directories in the model output, oldest first."""
-    return [path for _, path in list_checkpoints(model_dir)]
+def find_milestone_checkpoints(model_dir: str, milestones: list[int]) -> list[Path]:
+    """Complete milestone checkpoint directories in the model output, oldest first.
+
+    Only milestones are proxy-evaluated: each eval is a full downstream
+    fine-tune, so scoring every rolling checkpoint is too expensive.
+    """
+    complete = dict(list_checkpoints(model_dir))
+    wanted = sorted(milestones)
+    missing = [f"checkpoint-{step}" for step in wanted if step not in complete]
+    if missing:
+        print(f"WARNING: milestone checkpoints missing or incomplete, skipping: {missing}")
+    return [complete[step] for step in wanted if step in complete]
 
 
 def evaluate_checkpoint(
@@ -45,11 +54,14 @@ def evaluate_checkpoint(
         str(out_dir),
     ]
     if data_dir:
-        cmd.extend(["--data-dir", data_dir])
+        # slsb reads its probe hyperparams from ./params.yaml by default, which here
+        # is the pipeline's params file -- use the one next to the benchmark data.
+        slsb_params = Path(data_dir).parent / "params.yaml"
+        cmd.extend(["--data-dir", data_dir, "--params", str(slsb_params)])
 
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode != 0:
-        print(f"WARNING: Eval failed for {ckpt_path.name}: {result.stderr[:200]}")
+        print(f"WARNING: Eval failed for {ckpt_path.name}:\n{result.stderr[-2000:]}")
         return float("inf")
 
     safe_upstream = upstream.replace("/", "__")
@@ -102,7 +114,7 @@ def main():
     proxy_data = sel_cfg.get("proxy_data_dir")
     output_dir = Path(sel_cfg.get("output_dir", "models/selected"))
 
-    checkpoints = find_milestone_checkpoints(cfg.output_dir)
+    checkpoints = find_milestone_checkpoints(cfg.output_dir, cfg.milestone_checkpoints)
     if not checkpoints:
         print("No checkpoints found — using the final model directory directly")
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -122,7 +134,12 @@ def main():
         results[ckpt.name] = score
         print(f"  {ckpt.name}: {proxy_task} score = {score:.4f}")
 
-    # Pick best
+    # Pick best -- but never "select" a checkpoint when every eval failed
+    if all(score == float("inf") for score in results.values()):
+        raise SystemExit(
+            "ERROR: every proxy eval failed -- not selecting a checkpoint. "
+            "Check checkpoint_selection.proxy_data_dir and the slsb errors above."
+        )
     best_name = min(results, key=results.get)
     best_path = Path(cfg.output_dir) / best_name
     print(f"\nBest checkpoint: {best_name} (score: {results[best_name]:.4f})")

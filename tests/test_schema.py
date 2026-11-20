@@ -99,3 +99,16 @@ def test_training_settings_match_the_wav2vec2_run_on_main():
     p = Params.from_yaml("params.yaml").pretrain
     for name, expected in MAIN_SHARED.items():
         assert getattr(p, name) == expected, f"{name} differs from main"
+
+
+def test_gpu_memory_cap_matches_main_and_is_bounded():
+    import pytest
+    from pydantic import ValidationError
+
+    from pipeline.schema import PretrainConfig
+
+    assert Params.from_yaml("params.yaml").pretrain.max_gpu_memory_fraction == 0.8
+    base = Params.from_yaml("params.yaml").pretrain.model_dump()
+    for bad in (0.0, 1.5):
+        with pytest.raises(ValidationError):
+            PretrainConfig(**{**base, "max_gpu_memory_fraction": bad})
