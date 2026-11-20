@@ -182,6 +182,36 @@ def copy_metrics(plan: Plan) -> Path:
     return target
 
 
+def failed_tasks(metrics_path: Path) -> list[str]:
+    """Names of any (task, language, seed) entries slsb did not finish. slsb exits 0 even when
+    individual tasks error, so a partial result would otherwise be copied and logged as if complete."""
+    summary = json.loads(metrics_path.read_text())
+    return [
+        f"{e.get('task')}/{e.get('language')}/seed{e.get('seed')}"
+        for e in summary.get("results", [])
+        if e.get("status") != "ok"
+    ]
+
+
+def verify_selected_provenance(plan: Plan) -> None:
+    """A configured adapted run benchmarks whatever is in models/selected*. Check that dir was
+    produced for THIS model (make ckpt writes selection_provenance.json), so a stale selected
+    dir holding another model is not logged to the leaderboard under this model's name."""
+    prov_path = Path(plan.upstream) / "selection_provenance.json"
+    if not prov_path.is_file():
+        raise SystemExit(
+            f"ERROR: {plan.upstream} has no selection_provenance.json -- it may be stale or from "
+            f"another model. Re-run `make ckpt` for this model before benchmarking."
+        )
+    prov = json.loads(prov_path.read_text())
+    if prov.get("base_model") != plan.base_model:
+        raise SystemExit(
+            f"ERROR: {plan.upstream} was selected for base_model {prov.get('base_model')!r}, but "
+            f"this run expects {plan.base_model!r}. Re-run `make ckpt` for this model, or clear the "
+            f"stale selected dir."
+        )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     add_config_args(parser)
@@ -236,13 +266,26 @@ def main(argv: list[str] | None = None) -> int:
     if plan.kind == "adapted" and not Path(plan.upstream).is_dir():
         raise SystemExit(f"ERROR: {plan.upstream} does not exist -- run `make ckpt` first")
 
-    # An adapted model from the config is benchmarked only once its pre-training has finished
-    # (an explicit --upstream is an ad-hoc checkpoint of some other run, so it is not checked).
-    if plan.kind == "adapted" and not args.upstream and not args.allow_incomplete:
-        require_pretraining_complete(reports_dir, params.pretrain.max_updates)
+    # An adapted model from the config is benchmarked only once its pre-training has finished,
+    # and only when the selected dir provably belongs to this model (an explicit --upstream is
+    # an ad-hoc checkpoint of some other run, so neither is checked).
+    if plan.kind == "adapted" and not args.upstream:
+        if not args.allow_incomplete:
+            require_pretraining_complete(reports_dir, params.pretrain.max_updates)
+        verify_selected_provenance(plan)
 
     subprocess.run(run_cmd, check=True)
-    print(f"Copied results -> {copy_metrics(plan)}")
+    metrics_path = copy_metrics(plan)
+    print(f"Copied results -> {metrics_path}")
+
+    # slsb exits 0 even when some tasks error; a partial result must not become a leaderboard row
+    failed = failed_tasks(metrics_path)
+    if failed:
+        raise SystemExit(
+            f"ERROR: {len(failed)} benchmark task(s) did not complete: {', '.join(failed)}.\n"
+            f"Results are in {plan.out_dir}, but they were NOT logged (the row would be partial). "
+            f"Fix the cause and re-run, or log manually once complete."
+        )
 
     if args.no_log:
         return 0

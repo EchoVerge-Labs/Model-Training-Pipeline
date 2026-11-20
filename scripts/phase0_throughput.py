@@ -46,7 +46,8 @@ def measure_throughput(
 
         kwargs = {} if cfg.layerdrop is None else {"layerdrop": cfg.layerdrop}
         model = Wav2Vec2ForPreTraining.from_pretrained(cfg.base_model, **kwargs)
-        model.freeze_feature_encoder()
+        if cfg.freeze_feature_encoder:  # follow params.yaml: a trainable CNN costs far more memory
+            model.freeze_feature_encoder()
         model.to(device)
 
         # Verify quantizer
@@ -61,7 +62,8 @@ def measure_throughput(
         else:
             from pipeline.models.hubert.model import HubertForMaskedPrediction as Wrapper
         model = Wrapper(cfg.base_model, num_clusters=num_clusters, layerdrop=layerdrop)
-        model.freeze_feature_encoder()
+        if cfg.freeze_feature_encoder:  # follow params.yaml: a trainable CNN costs far more memory
+            model.freeze_feature_encoder()
         model.to(device)
 
     total_params = sum(p.numel() for p in model.parameters())
@@ -117,7 +119,7 @@ def measure_throughput(
     else:
         import importlib
 
-        import torch.nn as nn
+        from torch import nn
 
         compute_mask = importlib.import_module(f"pipeline.models.{trainer}.trainer").compute_mask
         loss_fn = nn.CrossEntropyLoss(ignore_index=-100)

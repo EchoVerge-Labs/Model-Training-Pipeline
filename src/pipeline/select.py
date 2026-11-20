@@ -148,19 +148,22 @@ def resolve_paths(
 
 
 def load_blocklist(path: Path) -> tuple[set[str], dict]:
-    """Channels that must stay out of training (evaluation-contaminating sources), one per
-    line. A configured blocklist that does not exist is reported, never silently treated as
-    empty: selection would then run unfiltered without anyone noticing."""
-    found = path.exists()
-    channels = (
-        {line.strip() for line in path.read_text().splitlines() if line.strip()} if found else set()
-    )
-    if not found:
-        print(
-            f"WARNING: blocklist {path} not found -- no channel is excluded from training "
-            f"(select.exclude_channels_file)"
+    """Channels that must stay out of training (evaluation-contaminating sources), one per line.
+
+    A configured blocklist that does not exist is a hard error: it is the only guard against SLSB
+    evaluation audio leaking into the CoPT data, and a warning is too easy to miss in a long log.
+    To run deliberately without one, set select.exclude_channels_file to "" (empty) in the config.
+    """
+    if str(path) in ("", "."):  # explicitly disabled
+        return set(), {"path": "", "found": False, "channels": 0, "disabled": True}
+    if not path.exists():
+        raise SystemExit(
+            f"ERROR: blocklist {path} not found. It lists the SLSB evaluation source_ids to keep "
+            f"out of training (one per line); without it, selection cannot guarantee a leakage-free "
+            f"split. Create it, or set select.exclude_channels_file to \"\" to opt out deliberately."
         )
-    return channels, {"path": str(path), "found": found, "channels": len(channels)}
+    channels = {line.strip() for line in path.read_text().splitlines() if line.strip()}
+    return channels, {"path": str(path), "found": True, "channels": len(channels)}
 
 
 def write_unresolved(unresolved: list[tuple[Segment, str]], path: Path):

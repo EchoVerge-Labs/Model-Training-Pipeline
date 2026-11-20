@@ -249,7 +249,7 @@ stages:
             cache: false
 
   report:
-    cmd: python -m pipeline.report --config params.yaml
+    cmd: python -m pipeline.report --config params.yaml --all-models
     deps:
       - src/pipeline/report.py
       - reports/bench/

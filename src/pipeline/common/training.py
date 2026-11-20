@@ -147,13 +147,17 @@ def start_tracking(params: Params, setup: RunSetup, flat_params: dict) -> MLflow
             experiment_name=params.mlflow.experiment_name,
             run_name=run_name,
         )
+        # copt = full continued pre-training; any other method is a PE-CoPT variant
+        # (lora, adapter, gc_lora, ...). Derived from cfg.method so the tags stay
+        # correct once those methods exist, rather than being hard-coded to full-copt.
+        is_full = cfg.method == "copt"
         logger.set_tags(
             {
                 **({"family": params.model.family} if params.model.family else {}),
                 "kind": "adapted",
                 "method": cfg.method,
-                "training_method": "full-copt",  # all transformer weights trained; not PE-CoPT
-                "peft": "none",
+                "training_method": "full-copt" if is_full else "pe-copt",
+                "peft": "none" if is_full else cfg.method,
                 "data": params.model.data,
                 "base_model": cfg.base_model,
                 "slsb.model": model_name,
@@ -173,20 +177,28 @@ def finish_run(
     cfg: PretrainConfig,
     reports_dir: Path,
     global_step: int,
-    accum_loss: float,
-    accum_num_losses: int,
+    final_loss: float | None,
     mlflow_logger: MLflowLogger | None,
 ) -> None:
-    """Final save of the model, the final-metrics file, and closing the MLflow run."""
+    """Final save of the model, the final-metrics file, and closing the MLflow run.
+
+    final_loss is the last value logged to the curves (each trainer's last avg loss). The
+    running accumulators are reset at every log step, and max_updates is normally a multiple
+    of eval_every_updates, so reading them here would give 0/None -- hence the last logged
+    value is passed in instead.
+    """
     if setup.is_main:
         raw_model.save_pretrained(setup.output_dir)
         feature_extractor.save_pretrained(setup.output_dir)
 
         final_metrics = {
             "final_step": global_step,
-            "final_loss": round(accum_loss / max(accum_num_losses, 1), 4)
-            if accum_num_losses
-            else None,
+            "final_loss": round(final_loss, 4) if final_loss is not None else None,
+            # provenance: tie this output dir to the model that produced it, so selection
+            # and benchmarking can verify they are operating on the right model (a stale
+            # metrics file left in another model's reports dir no longer passes silently).
+            "output_dir": str(setup.output_dir),
+            "base_model": cfg.base_model,
             "completed": global_step >= cfg.max_updates,
         }
         reports_dir.mkdir(parents=True, exist_ok=True)

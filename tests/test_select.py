@@ -446,12 +446,18 @@ def test_name_lookup_pins_rows_without_a_file_size_but_never_overrides_a_sized_r
     assert resolved == [] and len(unresolved) == 3
 
 
-def test_a_missing_blocklist_is_reported_not_silently_ignored(tmp_path, capsys):
+def test_a_missing_blocklist_is_a_hard_error_not_silently_ignored(tmp_path):
+    import pytest
+
     from pipeline.select import load_blocklist
 
-    channels, info = load_blocklist(tmp_path / "nope.txt")
-    assert channels == set() and info["found"] is False
-    assert "WARNING" in capsys.readouterr().out
+    # a configured-but-missing blocklist stops selection (the only guard against eval leakage)
+    with pytest.raises(SystemExit, match="blocklist"):
+        load_blocklist(tmp_path / "nope.txt")
+
+    # explicitly disabled: empty path opts out deliberately
+    channels, info = load_blocklist(Path(""))
+    assert channels == set() and info["disabled"] is True
 
     (tmp_path / "bl.txt").write_text("a\n\n b \n")
     channels, info = load_blocklist(tmp_path / "bl.txt")

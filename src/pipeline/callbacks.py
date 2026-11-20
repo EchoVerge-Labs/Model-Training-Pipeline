@@ -30,21 +30,35 @@ class MLflowLogger:
 
         self.run = mlflow.start_run(run_name=run_name)
 
+    # Tracking must never kill a training run: a DagsHub outage mid-run would otherwise
+    # crash it at a log step. Every call swallows its error and warns instead.
     def log_params(self, params: dict):
         if HAS_MLFLOW:
-            mlflow.log_params(params)
+            try:
+                mlflow.log_params(params)
+            except Exception as e:  # noqa: BLE001
+                warnings.warn(f"MLflow log_params failed: {e}")
 
     def set_tags(self, tags: dict):
         if HAS_MLFLOW:
-            mlflow.set_tags(tags)
+            try:
+                mlflow.set_tags(tags)
+            except Exception as e:  # noqa: BLE001
+                warnings.warn(f"MLflow set_tags failed: {e}")
 
     def log_metrics(self, metrics: dict, step: int):
         if HAS_MLFLOW:
-            mlflow.log_metrics(metrics, step=step)
+            try:
+                mlflow.log_metrics(metrics, step=step)
+            except Exception as e:  # noqa: BLE001
+                warnings.warn(f"MLflow log_metrics failed at step {step}: {e}")
 
     def end(self):
         if HAS_MLFLOW:
-            mlflow.end_run()
+            try:
+                mlflow.end_run()
+            except Exception as e:  # noqa: BLE001
+                warnings.warn(f"MLflow end_run failed: {e}")
 
 
 class CodebookCollapseDetector:

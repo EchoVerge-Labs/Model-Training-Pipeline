@@ -27,7 +27,7 @@ cluster:
 
 pretrain:
   base_model: utter-project/mHuBERT-147
-  layerdrop: 0.1              # stock value of the base model
+  layerdrop: 0.1              # HF-conversion default; fairseq Large pre-training used 0.0 (kept at 0.1 as a deliberate CoPT choice)
   head_lr_mult: 1.0           # same LR as everything else (the head is new; raise to warm it up faster)
   labels_path: data/labels/mhubert147_train_labels.jsonl.gz
   output_dir: models/mhubert147-si-ta-200h

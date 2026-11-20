@@ -26,6 +26,14 @@ def _finish_pretraining(tmp_path, reports="reports/wavlm", step=13500):
     )
 
 
+def _selected(tmp_path, name="selected_wavlm", base="microsoft/wavlm-large"):
+    """A selected dir as `make ckpt` leaves it: with the provenance file the benchmark verifies."""
+    d = tmp_path / "models" / name
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "selection_provenance.json").write_text(json.dumps({"base_model": base}))
+    return d
+
+
 def _run(monkeypatch, tmp_path, *argv, finished=True):
     if finished:
         _finish_pretraining(tmp_path)
@@ -106,12 +114,12 @@ def test_results_are_copied_to_the_fixed_metrics_path_and_logged_afterwards(monk
             out.mkdir(parents=True)
             (
                 out / f"results_{cmd[cmd.index('--upstream') + 1].replace('/', '__')}.json"
-            ).write_text("{}")
+            ).write_text(json.dumps({"results": [{"status": "ok"}]}))
 
     monkeypatch.setattr(bm.subprocess, "run", fake_run)
     monkeypatch.setenv("DAGSHUB_USER", "u")
     monkeypatch.setenv("DAGSHUB_TOKEN", "t")
-    (tmp_path / "models" / "selected_wavlm").mkdir(parents=True)
+    _selected(tmp_path)
     _run(monkeypatch, tmp_path, "--model", "wavlm")
     assert (tmp_path / "reports" / "bench" / "wavlm-large-copt200h" / "metrics.json").is_file()
     assert [c[0] for c in calls] == ["slsb", "/slsb/python"]  # slsb first, then log_results.py
@@ -120,10 +128,16 @@ def test_results_are_copied_to_the_fixed_metrics_path_and_logged_afterwards(monk
 def test_without_dagshub_credentials_the_results_stay_local_and_say_how_to_log_them(
     monkeypatch, tmp_path, capsys
 ):
+    def ok_metrics(plan):
+        plan.out_dir.mkdir(parents=True, exist_ok=True)
+        p = plan.out_dir / "metrics.json"
+        p.write_text(json.dumps({"results": [{"status": "ok"}]}))
+        return p
+
     monkeypatch.setattr(bm.subprocess, "run", lambda cmd, check: None)
     monkeypatch.delenv("DAGSHUB_TOKEN", raising=False)
-    monkeypatch.setattr(bm, "copy_metrics", lambda plan: plan.out_dir / "metrics.json")
-    (tmp_path / "models" / "selected_wavlm").mkdir(parents=True)
+    monkeypatch.setattr(bm, "copy_metrics", ok_metrics)
+    _selected(tmp_path)
     _run(monkeypatch, tmp_path, "--model", "wavlm")
     assert "were NOT logged" in capsys.readouterr().out
 
@@ -134,7 +148,7 @@ def test_an_adapted_run_refuses_to_start_without_the_checkpoint(monkeypatch, tmp
 
 
 def test_an_adapted_run_waits_for_pretraining_to_finish(monkeypatch, tmp_path):
-    (tmp_path / "models" / "selected_wavlm").mkdir(parents=True)
+    _selected(tmp_path)
     with pytest.raises(SystemExit, match="pre-training has not finished"):
         _run(monkeypatch, tmp_path, "--model", "wavlm", finished=False)
     _finish_pretraining(tmp_path, step=9000)
@@ -145,9 +159,15 @@ def test_an_adapted_run_waits_for_pretraining_to_finish(monkeypatch, tmp_path):
 def test_allow_incomplete_overrides_the_wait_and_the_frozen_baseline_never_needs_it(
     monkeypatch, tmp_path
 ):
-    (tmp_path / "models" / "selected_wavlm").mkdir(parents=True)
+    def ok_metrics(plan):
+        plan.out_dir.mkdir(parents=True, exist_ok=True)
+        p = plan.out_dir / "metrics.json"
+        p.write_text(json.dumps({"results": [{"status": "ok"}]}))
+        return p
+
+    _selected(tmp_path)
     monkeypatch.setattr(bm.subprocess, "run", lambda *a, **k: None)
-    monkeypatch.setattr(bm, "copy_metrics", lambda plan: plan.out_dir / "metrics.json")
+    monkeypatch.setattr(bm, "copy_metrics", ok_metrics)
     _run(
         monkeypatch, tmp_path, "--model", "wavlm", "--allow-incomplete", "--no-log", finished=False
     )

@@ -190,7 +190,8 @@ def train(
     print_run_header(setup, cfg, extra_lines=(f"Num clusters: {num_clusters}",))
 
     # ── Load model ──
-    # layerdrop unset = 0.1, the stock value of the base models
+    # layerdrop unset = 0.1 (the HF-conversion default; fairseq Large pre-training used 0.0).
+    # configs/models/<model>.yaml set it explicitly; this is only the fallback.
     layerdrop = 0.1 if cfg.layerdrop is None else cfg.layerdrop
     model = HubertForMaskedPrediction(
         cfg.base_model, num_clusters=num_clusters, layerdrop=layerdrop
@@ -198,16 +199,18 @@ def train(
     if resume:
         model.load_checkpoint(resume[0])
 
-    # Freeze CNN feature encoder — standard for continued pre-training
+    # Full CoPT trains every weight, the CNN feature encoder included;
+    # freeze_feature_encoder: true is the transformer-only (partial-CoPT) variant.
     if cfg.freeze_feature_encoder:
         model.freeze_feature_encoder()
 
     if is_main:
         trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
         total = sum(p.numel() for p in model.parameters())
-        frozen_note = " (CNN frozen)" if cfg.freeze_feature_encoder else ""
+        state = "frozen" if cfg.freeze_feature_encoder else "TRAINABLE"
         print(
-            f"Parameters: {total / 1e6:.1f}M total, {trainable / 1e6:.1f}M trainable{frozen_note}"
+            f"Parameters: {total / 1e6:.1f}M total, {trainable / 1e6:.1f}M trainable "
+            f"(CNN feature encoder {state})"
         )
 
     model.to(device)
@@ -321,6 +324,7 @@ def train(
     accum_num_losses = 0
     accum_audio_seconds = 0.0
     log_start_time = time.perf_counter()
+    last_logged_loss: float | None = None
 
     # CSV for loss curves (kept across a resume, see prepare_curves)
     curves_path = reports_dir / "pretrain_curves.csv"
@@ -472,6 +476,7 @@ def train(
 
             if mlflow_logger:
                 mlflow_logger.log_metrics(metrics, step=global_step)
+            last_logged_loss = avg_loss  # masked-CE, for pretrain_metrics.json
 
             # Write to CSV
             with open(curves_path, "a") as f:
@@ -525,8 +530,7 @@ def train(
         cfg,
         reports_dir,
         global_step,
-        accum_loss,
-        accum_num_losses,
+        last_logged_loss,
         mlflow_logger,
     )
     return global_step

@@ -8,8 +8,9 @@
 #
 # hold_end = warmup_updates + hold_ratio * (max_updates - warmup_updates)
 #
-# This is the schedule fairseq uses for wav2vec2 / HuBERT / WavLM pre-training,
-# not a cosine.
+# This is fairseq's tri_stage scheduler. fairseq uses it for wav2vec2/HuBERT/WavLM
+# *fine-tuning*; their *pre-training* configs use polynomial decay with a long warmup.
+# It is kept here as a deliberate CoPT choice (short warmup, a hold, then decay to ~1%).
 
 
 def get_tri_stage_lr(

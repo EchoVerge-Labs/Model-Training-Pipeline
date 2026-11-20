@@ -32,7 +32,7 @@ cluster:
 
 pretrain:
   base_model: microsoft/wavlm-large
-  layerdrop: 0.1              # stock value of the base model
+  layerdrop: 0.1              # HF-conversion default; fairseq Large pre-training used 0.0 (kept at 0.1 as a deliberate CoPT choice)
   head_lr_mult: 1.0           # same LR as everything else (the head is new; raise to warm it up faster)
   # WavLM utterance mixing (method, not tuning): 20% of utterances get another
   # utterance from the batch mixed in (<=50% overlap, -5..+5 dB). Labels stay clean.
