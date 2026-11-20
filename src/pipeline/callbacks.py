@@ -19,13 +19,12 @@ class MLflowLogger:
             warnings.warn("mlflow not installed, logging disabled")
             return
 
-        # DagsHub auth via env vars -- set before the first MLflow call: set_experiment
-        # creates the experiment if needed, and without credentials DagsHub answers 403.
-        os.environ.setdefault("MLFLOW_TRACKING_USERNAME", os.environ.get("DAGSHUB_USER", ""))
-        os.environ.setdefault("MLFLOW_TRACKING_PASSWORD", os.environ.get("DAGSHUB_TOKEN", ""))
-
         mlflow.set_tracking_uri(tracking_uri)
         mlflow.set_experiment(experiment_name)
+
+        # DagsHub auth via env vars
+        os.environ.setdefault("MLFLOW_TRACKING_USERNAME", os.environ.get("DAGSHUB_USER", ""))
+        os.environ.setdefault("MLFLOW_TRACKING_PASSWORD", os.environ.get("DAGSHUB_TOKEN", ""))
 
         self.run = mlflow.start_run(run_name=run_name)
 
@@ -49,43 +48,32 @@ class CodebookCollapseDetector:
     perplexity falls, contrastive loss looks fine, representations are garbage.
     """
 
-    def __init__(
-        self,
-        num_codebooks: int = 2,
-        alert_threshold: float = 10.0,
-        consecutive_alerts: int = 5,
-    ):
-        """alert_threshold: a perplexity below this is a "low" reading.
-        consecutive_alerts: this many low READINGS in a row stops training.
-
-        check() is called once per logging interval (pretrain.eval_every_updates
-        updates), not once per update, so 5 readings at an interval of 500 is
-        2,500 updates of collapsed training.
-        """
+    def __init__(self, num_codebooks: int = 2, alert_threshold: float = 10.0):
         self.num_codebooks = num_codebooks
         self.alert_threshold = alert_threshold
-        self.consecutive_alerts = consecutive_alerts
         self.consecutive_low = 0
+        self.max_consecutive_before_kill = 500
 
     def check(self, perplexity: float, step: int) -> bool:
         """Returns True if training should continue, False if collapse detected."""
         if perplexity < self.alert_threshold:
             self.consecutive_low += 1
-            if self.consecutive_low >= self.consecutive_alerts:
+            if self.consecutive_low >= self.max_consecutive_before_kill:
                 print(f"\n{'=' * 60}")
                 print(f"CODEBOOK COLLAPSE DETECTED at step {step}")
                 print(
                     f"Perplexity {perplexity:.2f} has been below {self.alert_threshold} "
-                    f"for {self.consecutive_low} consecutive readings."
+                    f"for {self.consecutive_low} consecutive steps."
                 )
                 print("The codebook is not being used effectively.")
                 print("Recommended: lower the learning rate or check masking config.")
                 print(f"{'=' * 60}\n")
                 return False
-            warnings.warn(
-                f"Step {step}: codebook perplexity {perplexity:.2f} is below the floor "
-                f"({self.alert_threshold}) -- low reading {self.consecutive_low}/{self.consecutive_alerts}"
-            )
+            elif self.consecutive_low % 100 == 0:
+                warnings.warn(
+                    f"Step {step}: Codebook perplexity {perplexity:.2f} below threshold "
+                    f"({self.alert_threshold}) for {self.consecutive_low} steps"
+                )
         else:
             self.consecutive_low = 0
 

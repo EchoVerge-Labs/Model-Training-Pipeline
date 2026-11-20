@@ -1,10 +1,8 @@
-# Model Training Pipeline — Continued Pre-training of wav2vec2.0 Large (mono) on Sinhala/Tamil
+# Model Training Pipeline — Continued Pre-training of XLS-R 300m on Sinhala/Tamil
 
 DVC-orchestrated pipeline for continued self-supervised wav2vec2 pre-training, automatic
 checkpoint selection, and benchmarking. Produces a Sinhala/Tamil-specialised speech
-encoder from `facebook/wav2vec2-large-lv60`, the monolingual (English) counterpart to the
-multilingual XLS-R checkpoint `main` continues -- to compare how much a multilingual base
-helps Sinhala/Tamil adaptation versus a same-size English-only one.
+encoder from `facebook/wav2vec2-xls-r-300m`.
 
 ## Pipeline DAG
 
@@ -44,9 +42,9 @@ make index      # list every wav on the Drive mount (path + size) -> data/catalo
 make select     # dedupe, pin each clip to its Drive file, select train/holdout -> data/manifests/
 make pull       # copy the selected clips from the mount -> data/raw/ (same <Lang>/<genre>/... layout)
 make shard      # pack into Lhotse Shar tarballs -> data/shars/
-make train      # continued pre-training -> models/wav2vec2-mono-si-ta-200h/
+make train      # continued pre-training -> models/xlsr300m-si-ta-200h/
 make ckpt       # proxy-eval milestone checkpoints, copy the best -> models/selected/
-make bench      # slsb run on the selected checkpoint -> reports/bench/wav2vec2_mono_adapted/
+make bench      # slsb run on the selected checkpoint -> reports/bench/xlsr300m_adapted/
 make report     # aggregate into reports/results.md + results_table.csv
 ```
 
@@ -69,39 +67,17 @@ nodes first to confirm the ConnectX-7 link is actually being used (see
 `configs/nccl-env.sh` — `NCCL_SOCKET_IFNAME` in particular needs to match
 your actual interface name).
 
-### Resuming after a crash
-
-Checkpoints (model + optimizer state + step) are written every
-`pretrain.save_every_updates`, atomically, so a crash mid-save can't leave a checkpoint
-that looks valid. **Relaunching the same command resumes automatically** from the newest
-complete checkpoint in `pretrain.output_dir` (falling back to the previous one if the
-newest is unreadable), and the loss-curve CSV keeps its history. To choose explicitly:
-
-```bash
-bash scripts/launch_pretrain.sh --resume-from models/wav2vec2-mono-si-ta-200h/checkpoint-3000
-bash scripts/launch_pretrain.sh --no-resume     # ignore existing checkpoints, start over
-```
-
-Relaunching a run that already reached `max_updates` does nothing.
-
-### Collapse detection
-
-Codebook perplexity is checked once per `pretrain.eval_every_updates` updates. Training
-stops when it stays below `monitoring.perplexity_floor` for `monitoring.consecutive_alerts`
-readings in a row (defaults: 10.0 and 5, i.e. 2,500 updates at the default interval).
-
 ### Baseline comparisons
 
 `dvc.yaml`'s `benchmark` stage only benchmarks the adapted checkpoint
 (`models/selected`) — `params.yaml`'s `benchmark.upstreams` lists three
-baselines too (`xlsr300m_vanilla`, `wav2vec2_mono_vanilla`, `mhubert147`, `wavlm_large`) for
+baselines too (`xlsr300m_vanilla`, `mhubert147`, `wavlm_large`) for
 `report.py`'s comparison table, but they aren't wired into the DVC DAG since
 they don't depend on this repo's training output. Run each once manually
 before `make report`:
 
 ```bash
 bash scripts/run_benchmark.sh facebook/wav2vec2-xls-r-300m asr,sid,er,asv 0,1,2 reports/bench/xlsr300m_vanilla
-bash scripts/run_benchmark.sh facebook/wav2vec2-large-lv60  asr,sid,er,asv 0,1,2 reports/bench/wav2vec2_mono_vanilla
 bash scripts/run_benchmark.sh utter-project/mHuBERT-147   asr,sid,er,asv 0,1,2 reports/bench/mhubert147
 bash scripts/run_benchmark.sh microsoft/wavlm-large        asr,sid,er,asv 0,1,2 reports/bench/wavlm_large
 ```
@@ -119,11 +95,12 @@ wastes GPU hours).
 
 ## Known gaps
 
-- **Resume restores the model, optimizer and step, not the exact data position.** The
-  data loader is re-seeded with the resume step, so a resumed run re-sees some clips —
-  fine for self-supervised pre-training, but not a bit-for-bit continuation.
-  Multi-node resume needs the checkpoint directory on every node (a mismatch is detected
-  and stops all ranks rather than letting their optimizers diverge).
+- **Checkpoint resumption** isn't implemented — `train.py` saves
+  `training_state.pt` (optimizer state, step, Gumbel temperature) alongside
+  each checkpoint, but there's no `--resume-from` flag yet to load it back.
+  If a run crashes, restart manually by pointing `pretrain.base_model` at the
+  last checkpoint dir (note: this restarts the LR/Gumbel schedule from step 0
+  relative to the new run, which is not the same as a true resume).
 - **`scripts/run_benchmark.sh`** exists to bridge slsb's real output filename
   (`results_<upstream-with-/-as-__>.json`) to the fixed `metrics.json` path
   `dvc.yaml` and `report.py` expect — see that script's header comment.

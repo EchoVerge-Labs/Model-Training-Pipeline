@@ -25,7 +25,7 @@ shard:
 
 # ── Pre-training ────────────────────────────────────
 pretrain:
-  base_model: facebook/wav2vec2-large-lv60  # monolingual (English) counterpart to XLS-R
+  base_model: facebook/wav2vec2-xls-r-300m
   precision: bf16
   freeze_feature_encoder: true
 
@@ -44,7 +44,6 @@ pretrain:
   target_batch_seconds: 1600
   per_device_max_seconds: 200
   num_workers: 4
-  max_gpu_memory_fraction: 0.8  # GB10 unified memory: leave ~24GB for the OS / sshd
 
   # wav2vec2 masking
   mask_time_prob: 0.65
@@ -62,20 +61,12 @@ pretrain:
   keep_last_n_checkpoints: 5
   milestone_checkpoints: [4500, 9000, 13500]   # 10, 20, 30 passes
 
-  # Waveform normalisation is not a setting: it follows base_model's do_normalize
-  # (true here too), as on the other branches.
-  output_dir: models/wav2vec2-mono-si-ta-200h
-
-# ── Monitoring ──────────────────────────────────────
-monitoring:
-  perplexity_floor: 10.0     # a codebook-perplexity reading below this counts as "low"
-  consecutive_alerts: 5      # this many low readings in a row stops training; one reading
-                             # per pretrain.eval_every_updates, so 5 x 500 = 2,500 updates
+  output_dir: models/xlsr300m-si-ta-200h
 
 # ── Checkpoint Selection ────────────────────────────
 checkpoint_selection:
   proxy_task: asr
-  proxy_data_dir: ../SLSB-benchmark/data   # relative to this repo root
+  proxy_data_dir: null        # filled at runtime from SLSB-benchmark data
   proxy_seed: 0
   output_dir: models/selected
 
@@ -83,7 +74,7 @@ checkpoint_selection:
 benchmark:
   tasks: "asr,sid,er,asv"
   seeds: "0,1,2"
-  slsb_data_dir: ../SLSB-benchmark/data    # relative to this repo root
+  slsb_data_dir: null         # path to SLSB-benchmark/data
   mlflow_uri: https://dagshub.com/EchoVerge-LABS/Model-Training-Pipeline.mlflow
   upstreams:
     xlsr300m_vanilla:
@@ -95,12 +86,9 @@ benchmark:
     wavlm_large:
       path: microsoft/wavlm-large
       name: "WavLM Large"
-    wav2vec2_mono_vanilla:
-      path: facebook/wav2vec2-large-lv60
-      name: "wav2vec2.0 Large (English, vanilla)"
-    wav2vec2_mono_adapted:
+    xlsr300m_adapted:
       path: models/selected
-      name: "wav2vec2.0 Large mono (Si/Ta 200h)"
+      name: "XLS-R 300M (Si/Ta 200h)"
       is_local: true
 
 # ── MLflow ──────────────────────────────────────────

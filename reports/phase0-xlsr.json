@@ -1,0 +1,26 @@
+{
+  "device": "cuda",
+  "gpu": "NVIDIA GB10",
+  "precision": "bf16",
+  "measured": {
+    "batch_size": 10,
+    "seq_seconds": 20.0,
+    "batch_seconds": 200.0,
+    "steps": 100,
+    "wall_seconds": 241.0,
+    "throughput_audio_sec_per_wall_sec": 82.99,
+    "peak_gpu_memory_gb": 44.68
+  },
+  "model": {
+    "total_params_M": 317.4,
+    "trainable_params_M": 313.2,
+    "quantizer_keys": 3
+  },
+  "estimate": {
+    "target_batch_seconds": 1600.0,
+    "max_updates": 50000,
+    "total_audio_hours": 22222.2,
+    "estimated_wall_hours": 267.8,
+    "estimated_wall_days": 11.2
+  }
+}

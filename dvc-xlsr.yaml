@@ -78,11 +78,11 @@ stages:
       - data/shars/
 
   pretrain:
-    cmd: bash scripts/launch_pretrain.sh --config params-xlsr.yaml
+    cmd: SCRIPT=src/pipeline/train_xlsr.py bash scripts/launch_pretrain.sh --config params-xlsr.yaml
     deps:
-      - src/pipeline/train.py
-      - src/pipeline/datamodule.py
-      - src/pipeline/callbacks.py
+      - src/pipeline/train_xlsr.py
+      - src/pipeline/datamodule_xlsr.py
+      - src/pipeline/callbacks_xlsr.py
       - data/shars/
     params:
       - params-xlsr.yaml:
@@ -92,16 +92,16 @@ stages:
       - models/xlsr300m-si-ta-200h-norm/:
           persist: true
     metrics:
-      - reports/pretrain_metrics.json:
+      - reports/pretrain_metrics-xlsr.json:
           cache: false
     plots:
       - reports/pretrain_curves-xlsr.csv:
           cache: false
 
   select_checkpoint:
-    cmd: python -m pipeline.select_checkpoint --config params-xlsr.yaml
+    cmd: python -m pipeline.select_checkpoint_xlsr --config params-xlsr.yaml
     deps:
-      - src/pipeline/select_checkpoint.py
+      - src/pipeline/select_checkpoint_xlsr.py
       - models/xlsr300m-si-ta-200h-norm/
     params:
       - params-xlsr.yaml:

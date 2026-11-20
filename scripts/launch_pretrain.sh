@@ -2,8 +2,8 @@
 set -euo pipefail
 
 # ─── Config ───────────────────────────────────────────
-SCRIPT="src/pipeline/train.py"
-CONFIG="params.yaml"
+SCRIPT="${SCRIPT:-src/pipeline/train_xlsr.py}"
+CONFIG="${CONFIG:-params-xlsr.yaml}"
 
 # Source NCCL env for GB10
 source configs/nccl-env.sh

@@ -82,9 +82,8 @@ stages:
       - data/shars/
     params:
       - pretrain
-      - monitoring
     outs:
-      - models/wav2vec2-mono-si-ta-200h/:
+      - models/xlsr300m-si-ta-200h/:
           persist: true
     metrics:
       - reports/pretrain_metrics.json:
@@ -97,7 +96,7 @@ stages:
     cmd: python -m pipeline.select_checkpoint --config params.yaml
     deps:
       - src/pipeline/select_checkpoint.py
-      - models/wav2vec2-mono-si-ta-200h/
+      - models/xlsr300m-si-ta-200h/
     params:
       - checkpoint_selection
     outs:
@@ -113,18 +112,16 @@ stages:
       models/selected
       ${benchmark.tasks}
       ${benchmark.seeds}
-      reports/bench/wav2vec2_mono_adapted
+      reports/bench/xlsr300m_adapted
       ${benchmark.mlflow_uri}
-      ${benchmark.slsb_data_dir}
     deps:
       - models/selected/
       - scripts/run_benchmark.sh
     params:
       - benchmark.tasks
       - benchmark.seeds
-      - benchmark.slsb_data_dir
     metrics:
-      - reports/bench/wav2vec2_mono_adapted/metrics.json:
+      - reports/bench/xlsr300m_adapted/metrics.json:
           cache: false
 
   report:
