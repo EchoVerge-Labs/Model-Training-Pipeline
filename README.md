@@ -1,4 +1,4 @@
-# Model Training Pipeline — Continued Pre-training of Speech Encoders on Sinhala/Tamil
+# Model Training Pipeline - Continued Pre-training of Speech Encoders on Sinhala/Tamil
 
 DVC-orchestrated pipeline for continued self-supervised pre-training of speech encoders,
 checkpoint selection, and benchmarking against
@@ -91,7 +91,7 @@ benchmarking by itself.
 
 - NVIDIA DGX Spark (GB10, ARM64) with the NGC PyTorch container (`nvcr.io/nvidia/pytorch:25.11-py3`)
 - Google Drive with the pre-processed audio, mounted locally with `rclone mount` (default `~/google-drive`; set `select.drive_root` in `params.yaml` to the `Pre Processed Data` folder). Clips are laid out `<Lang>/<genre>/<source-dir>/<hash>_NNN.wav`
-- A DagsHub account (DVC remote + MLflow tracking) — see `.env.example`
+- A DagsHub account (DVC remote + MLflow tracking) - see `.env.example`
 - A Google OAuth client-secret JSON (Desktop-app type) for an account that can read the "Sinhala X Tamil Voice Dataset" sheet. The first `make snapshot` opens a browser sign-in and caches the token at `~/.config/gspread/authorized_user.json`
 - For benchmarking: a checkout of [SLSB-benchmark](https://github.com/EchoVerge-Labs/SLSB-benchmark) next to this repo (see [Benchmarking](#benchmarking-against-slsb))
 
@@ -168,7 +168,7 @@ Models never overwrite each other. The XLS-R run keeps its original locations.
 
 Inside a training output directory:
 
-- `checkpoint-<step>/` — `config.json`, the weights, the feature extractor, `training_state.pt` (optimizer and step), and for the masked-prediction models `masked_prediction_head.pt`. The backbone is a plain Hugging Face model that `slsb --upstream` loads directly.
+- `checkpoint-<step>/` - `config.json`, the weights, the feature extractor, `training_state.pt` (optimizer and step), and for the masked-prediction models `masked_prediction_head.pt`. The backbone is a plain Hugging Face model that `slsb --upstream` loads directly.
 - The final model at the top level of the directory, written when training ends.
 - Written atomically: a save becomes `checkpoint-<step>` only when it is complete, so a crash never leaves a half-written checkpoint that looks valid.
 - Which checkpoints exist: one every `pretrain.save_every_updates` (1500), the newest `keep_last_n_checkpoints` (5) of the rolling ones, and always the `milestone_checkpoints` (4500, 9000, 13500).
@@ -212,7 +212,7 @@ shared hardware. Run them in `tmux` (not `nohup`), and don't launch either
 without checking first if you're running this pipeline as part of a larger
 session. For two-node training, run `scripts/nccl_bandwidth_test.sh` on both
 nodes first to confirm the ConnectX-7 link is actually being used (see
-`configs/nccl-env.sh` — `NCCL_SOCKET_IFNAME` in particular needs to match
+`configs/nccl-env.sh` - `NCCL_SOCKET_IFNAME` in particular needs to match
 your actual interface name). Set `NNODES`, `NODE_RANK`, `MASTER_ADDR` and `MASTER_PORT`
 in `.env` on each node.
 
@@ -317,7 +317,7 @@ overwrite another model's row.
 
 ### What happens
 
-1. `slsb run` over every family in `benchmark.tasks` (asr, sid, er, sd, asv, ic — all six, as a
+1. `slsb run` over every family in `benchmark.tasks` (asr, sid, er, sd, asv, ic - all six, as a
    leaderboard row needs) and `benchmark.seeds` (0,1,2). It is run **without** `--mlflow-uri`:
    live logging would create one MLflow run per task and seed, which SLSB says are not comparable
    rows.
@@ -371,7 +371,7 @@ trainer, base model and cluster layer.
 
 ## Tests and CI
 
-`make test` — tiny random models on CPU, no GPU needed. The two trainer families have their
+`make test` - tiny random models on CPU, no GPU needed. The two trainer families have their
 own end-to-end tests (`tests/test_resume.py` for xlsr, `tests/test_masked_trainers.py` for
 wavlm and hubert). `make lint` runs `ruff check` and `ruff format --check`. CI runs lint,
 the config validation, the tests and a `dvc dag` check on every push and pull request.
@@ -393,7 +393,7 @@ the config validation, the tests and a `dvc dag` check on every push and pull re
 ## Known gaps
 
 - **Resume restores the model, optimizer and step, not the exact data position.** The
-  data loader is re-seeded with the resume step, so a resumed run re-sees some clips —
+  data loader is re-seeded with the resume step, so a resumed run re-sees some clips -
   fine for self-supervised pre-training, but not a bit-for-bit continuation.
   Multi-node resume needs the checkpoint directory on every node (a mismatch is detected
   and stops all ranks rather than letting their optimizers diverge).
