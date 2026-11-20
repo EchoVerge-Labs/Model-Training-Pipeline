@@ -39,7 +39,14 @@ def measure_throughput(steps: int = 100, batch_seconds: float = 200.0, precision
     from transformers import Wav2Vec2ForPreTraining
     print("Loading facebook/wav2vec2-xls-r-300m ...")
     model = Wav2Vec2ForPreTraining.from_pretrained("facebook/wav2vec2-xls-r-300m")
-    model.freeze_feature_encoder()
+    # follow params.yaml: with pretrain.freeze_feature_encoder false (full CoPT) the
+    # CNN is trained, which costs much more activation memory -- measure that setup
+    import yaml
+    with open("params.yaml") as f:
+        freeze_cnn = yaml.safe_load(f)["pretrain"].get("freeze_feature_encoder", True)
+    if freeze_cnn:
+        model.freeze_feature_encoder()
+    print(f"CNN feature encoder: {'frozen' if freeze_cnn else 'TRAINABLE'}")
     model.to(device)
 
     # Verify quantizer

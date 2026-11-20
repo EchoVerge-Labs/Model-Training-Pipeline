@@ -13,6 +13,15 @@ from pipeline.schema import Params
 # for all of these once normalised in evaluate_checkpoint() below.
 PRIMARY_METRIC = {"asr": "wer", "sid": "accuracy", "er": "accuracy", "asv": "eer"}
 
+# Dev score slsb records per entry (details[key]) and whether higher is better.
+# Emotion recognition is absent: its 5-fold runs record no dev score.
+DEV_SCORE = {
+    "asr": ("dev_cer", False),
+    "sid": ("dev_accuracy", True),
+    "asv": ("dev_eer", False),
+    "sd": ("dev_der", False),
+}
+
 
 def find_milestone_checkpoints(model_dir: str, milestones: list[int]) -> list[Path]:
     """Find the milestone checkpoint directories in the model output.
@@ -77,22 +86,21 @@ def evaluate_checkpoint(
         print(f"WARNING: no successful runs for {ckpt_path.name} (task={task})")
         return float("inf")
 
-    metric_name = PRIMARY_METRIC.get(task)
-    if metric_name is None:
-        print(f"WARNING: no known primary metric for proxy task '{task}'")
+    # Rank on the DEV score slsb records in each entry's `details` (the score its head
+    # was selected on) -- never on the test metric, or the reported test scores of the
+    # chosen checkpoint would be optimistic (test-set leakage).
+    if task not in DEV_SCORE:
+        print(f"WARNING: no dev score known for proxy task '{task}'")
         return float("inf")
-
-    values = [e["metrics"][metric_name] for e in ok_entries if metric_name in e.get("metrics", {})]
+    key, higher_is_better = DEV_SCORE[task]
+    values = [e["details"][key] for e in ok_entries if key in e.get("details", {})]
     if not values:
-        print(f"WARNING: metric '{metric_name}' missing from {ckpt_path.name} results")
+        print(f"WARNING: no dev score ({key}) in the results for {ckpt_path.name} (task={task})")
         return float("inf")
 
     mean_value = sum(values) / len(values)
-
-    # For ASR/EER: lower is better already. For accuracy: higher is better, so negate.
-    if metric_name == "accuracy":
-        return -mean_value
-    return mean_value
+    # lower is better throughout: accuracy is negated
+    return -mean_value if higher_is_better else mean_value
 
 
 def main():

@@ -27,7 +27,7 @@ shard:
 pretrain:
   base_model: facebook/wav2vec2-xls-r-300m
   precision: bf16
-  freeze_feature_encoder: true
+  freeze_feature_encoder: false   # FULL CoPT: CNN feature encoder is trained too
 
   max_updates: 13500          # ~30 passes over 200h (was 50000 / 111 passes)
   warmup_updates: 1000        # ~8% (was 4000)
@@ -52,7 +52,7 @@ pretrain:
 
   # Gumbel quantizer
   diversity_loss_weight: 0.1
-  max_gumbel_temperature: 1.0
+  max_gumbel_temperature: 0.5   # restart near the trained codebook, not at 1.0 (re-heats it)
   min_gumbel_temperature: 0.5
   gumbel_temperature_decay: 0.999995
 
@@ -65,7 +65,7 @@ pretrain:
   # Waveform normalisation is not a setting: it follows base_model's do_normalize
   # (true for XLS-R), as on the HuBERT-Large / WavLM-Large branches. The first run,
   # models/xlsr300m-si-ta-200h, predates that and trained on raw audio.
-  output_dir: models/xlsr300m-si-ta-200h-norm
+  output_dir: models/xlsr300m-si-ta-200h-cnn-unfreeze   # also the MLflow run name
 
 # ── Monitoring ──────────────────────────────────────
 monitoring:
@@ -78,7 +78,7 @@ checkpoint_selection:
   proxy_task: asr
   proxy_data_dir: ../SLSB-benchmark/data   # relative to this repo root
   proxy_seed: 0
-  output_dir: models/selected
+  output_dir: models/selected-xlsr300m-si-ta-200h-cnn-unfreeze
 
 # ── Benchmark ───────────────────────────────────────
 benchmark:
@@ -88,8 +88,8 @@ benchmark:
   mlflow_uri: https://dagshub.com/EchoVerge-LABS/Model-Training-Pipeline.mlflow
   # MLflow runs are named <prefix>_<task>_<language>_s<seed>; eval_normalize and
   # checkpoint tags are added from models/selected and checkpoint_selection.json.
-  mlflow_run_prefix: xlsr_200h_CoPT_norm
-  mlflow_run_tags: "model=xlsr300m,base_model=facebook/wav2vec2-xls-r-300m,stage=continued-pretraining,copt_data=si-ta-200h,copt_run=xlsr300m-si-ta-200h-norm,train_normalize=true,variant=norm"
+  mlflow_run_prefix: xlsr_200h_CoPT_cnn_unfreeze
+  mlflow_run_tags: "model=xlsr300m,base_model=facebook/wav2vec2-xls-r-300m,stage=continued-pretraining,copt_data=si-ta-200h,copt_run=xlsr300m-si-ta-200h-cnn-unfreeze,train_normalize=true,cnn_frozen=false,variant=cnn-unfreeze"
   upstreams:
     xlsr300m_vanilla:
       path: facebook/wav2vec2-xls-r-300m

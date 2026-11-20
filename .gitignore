@@ -4,6 +4,8 @@
 /data/catalog/*.csv
 /data/catalog/*.json
 !/data/**/.gitkeep
+/data/shars_single/
+/data/labels/
 
 # Models (DVC-tracked)
 /models/*

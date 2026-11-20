@@ -50,8 +50,8 @@ echo "Copied $RESULTS_JSON -> $OUT_DIR/metrics.json"
 if [ -n "$MLFLOW_URI" ] && [ -n "$RUN_PREFIX" ] && [ -n "${DAGSHUB_TOKEN:-}" ]; then
     LABEL_ARGS=(--mlflow-uri "$MLFLOW_URI" --upstream "$UPSTREAM" --since-ms "$START_MS"
                 --prefix "$RUN_PREFIX" --tags "$RUN_TAGS")
-    # models/selected is a copy of whichever checkpoint select_checkpoint picked.
-    if [ "$UPSTREAM" = "models/selected" ]; then
+    # models/selected* is a copy of whichever checkpoint select_checkpoint picked.
+    if [[ "$UPSTREAM" == models/selected* ]]; then
         LABEL_ARGS+=(--selection-report reports/checkpoint_selection.json)
     fi
     # The scores are already on disk and in MLflow; a failed rename is not worth

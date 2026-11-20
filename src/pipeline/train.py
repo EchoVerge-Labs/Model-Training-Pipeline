@@ -176,11 +176,12 @@ def get_gumbel_temperature(
 # diversity_loss (scaled by mask_time_indices.sum()) are UNNORMALIZED sums
 # over masked positions -- dividing only by grad_accum_steps would let
 # gradient magnitude swing with batch size / mask density between steps.
-# The HF reference rescales each micro-batch's just-computed gradient by
-# 1/num_losses (that micro-batch's masked-position count) right after its
-# backward() call. Under DDP, gradients are already averaged across ranks by
-# DDP's backward-time all-reduce, so the multiplier becomes
-# world_size/total_num_losses instead of 1/num_losses to compensate.
+# The training loop sums the gradients of every micro-batch of an update and
+# then rescales them ONCE by 1/(masked positions in the whole update), like
+# fairseq. (The HF example rescales after every backward(), which is only
+# correct without gradient accumulation.) Under DDP, gradients are already
+# averaged across ranks by DDP's backward-time all-reduce, so the multiplier
+# is world_size/total_num_losses.
 
 
 def multiply_grads(params, c):
@@ -447,21 +448,31 @@ def train(
             f"Loaded from: {model_source}"
         )
 
-    # Freeze CNN feature encoder — standard for continued pre-training
+    # Full CoPT updates every weight, the CNN feature encoder included (as in fairseq
+    # wav2vec 2.0 pre-training / Getman et al. 2024); freeze_feature_encoder: true
+    # gives the transformer-only (partial) variant.
     if cfg.freeze_feature_encoder:
         model.freeze_feature_encoder()
-        if is_main:
-            trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
-            total = sum(p.numel() for p in model.parameters())
-            print(
-                f"Parameters: {total / 1e6:.1f}M total, {trainable / 1e6:.1f}M trainable "
-                f"(CNN frozen)"
-            )
+    if is_main:
+        trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        total = sum(p.numel() for p in model.parameters())
+        cnn = sum(p.numel() for p in model.wav2vec2.feature_extractor.parameters())
+        print(
+            f"Parameters: {total / 1e6:.1f}M total, {trainable / 1e6:.1f}M trainable; "
+            f"CNN feature encoder ({cnn / 1e6:.1f}M) "
+            f"{'frozen' if cfg.freeze_feature_encoder else 'TRAINABLE'}"
+        )
 
     model.to(device)
 
     if world_size > 1:
-        model = DDP(model, device_ids=[local_rank], find_unused_parameters=False)
+        # LayerDrop skips whole transformer layers, so some parameters get no
+        # gradient in a step; DDP must be told, or it errors on the next backward.
+        model = DDP(
+            model,
+            device_ids=[local_rank],
+            find_unused_parameters=model.config.layerdrop > 0,
+        )
 
     # Unwrap for accessing config/methods not proxied by DDP (mask/negative
     # sampling helpers, save_pretrained, set_gumbel_temperature)
@@ -527,7 +538,8 @@ def train(
             try:
                 with open(config_path) as f:
                     mlflow_cfg = yaml.safe_load(f).get("mlflow", {})
-                run_name = f"xlsr300m-si-ta-{cfg.target_batch_seconds}s"
+                # named after the output dir, so every run variant is distinct on DagsHub
+                run_name = Path(cfg.output_dir).name
                 if resume:
                     run_name += f"-resume{resume_step}"
                 mlflow_logger = MLflowLogger(
@@ -582,6 +594,7 @@ def train(
     accum_grad_norm = 0.0
     accum_num_losses = 0
     accum_audio_seconds = 0.0
+    last_logged_loss = None
     log_start_time = time.perf_counter()
 
     # CSV for loss curves (kept across a resume, see prepare_curves)
@@ -604,6 +617,7 @@ def train(
 
     while global_step < cfg.max_updates:
         optimizer.zero_grad()
+        update_num_losses = torch.zeros((), device=device)
 
         for accum_step in range(grad_accum_steps):
             # Get batch (restart iterator if exhausted = new epoch)
@@ -655,20 +669,11 @@ def train(
             loss = outputs.loss
             num_losses = mask_time_indices.sum().float()
 
-            scaled_loss = loss / grad_accum_steps
-            scaled_loss.backward()
-
-            trainable_params = [p for p in model.parameters() if p.requires_grad]
-            if world_size > 1:
-                # DDP already averaged this micro-batch's gradient across ranks
-                # during backward(); rescale by world_size/total_num_losses to
-                # turn that average into sum(grad_i)/sum(num_losses_i).
-                num_losses_total = num_losses.clone().to(device)
-                dist.all_reduce(num_losses_total, op=dist.ReduceOp.SUM)
-                gradient_multiplier = world_size / num_losses_total.clamp(min=1)
-            else:
-                gradient_multiplier = 1.0 / num_losses.clamp(min=1)
-            multiply_grads(trainable_params, gradient_multiplier)
+            # Unnormalised sum: the gradients of all micro-batches add up in .grad
+            # and are divided once, after the loop, by the masked-position count of
+            # the whole update (see the rescale below the loop).
+            loss.backward()
+            update_num_losses += num_losses.detach().to(device)
 
             # Track losses for logging
             with torch.no_grad():
@@ -687,9 +692,19 @@ def train(
                 accum_num_losses += 1
                 accum_audio_seconds += attention_mask.sum().item() / 16000.0  # 16kHz
 
+        # Normalise the accumulated gradient ONCE per update by the masked-position
+        # count of the whole update (all micro-batches, all ranks), as fairseq does.
+        # Rescaling after every micro-batch instead (the old code) shrank the
+        # gradients already accumulated by ~1/num_losses each time, so only the
+        # last micro-batch counted. DDP averages each backward across ranks, so
+        # the multiplier is world_size / total_num_losses.
+        trainable_params = [p for p in model.parameters() if p.requires_grad]
+        if world_size > 1:
+            dist.all_reduce(update_num_losses, op=dist.ReduceOp.SUM)
+        multiply_grads(trainable_params, world_size / update_num_losses.clamp(min=1))
+
         # Gradient clipping (grads are already rescaled by mask count above, so
-        # this clips the properly-normalized gradient, matching get_grad_norm's
-        # role as a monitoring-only stat in the HF reference)
+        # this clips the properly-normalized gradient)
         if cfg.max_grad_norm > 0:
             grad_norm = torch.nn.utils.clip_grad_norm_(
                 [p for p in model.parameters() if p.requires_grad],
@@ -756,6 +771,7 @@ def train(
 
             if mlflow_logger:
                 mlflow_logger.log_metrics(metrics, step=global_step)
+            last_logged_loss = avg_contrastive  # per-masked-frame, for pretrain_metrics.json
 
             # Write to CSV
             with open(curves_path, "a") as f:
@@ -808,9 +824,9 @@ def train(
         # Final metrics
         final_metrics = {
             "final_step": global_step,
-            "final_loss": round(accum_loss / max(accum_num_losses, 1), 4)
-            if accum_num_losses
-            else None,
+            # the accumulators are reset at every log step, and max_updates is usually
+            # a multiple of eval_every_updates -- so report the last logged value
+            "final_loss": round(last_logged_loss, 4) if last_logged_loss is not None else None,
             "completed": global_step >= cfg.max_updates,
         }
         reports_dir.mkdir(parents=True, exist_ok=True)

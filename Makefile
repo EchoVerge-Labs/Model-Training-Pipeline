@@ -41,7 +41,7 @@ ckpt:  ## select best checkpoint via proxy eval
 	python -m pipeline.select_checkpoint --config params.yaml
 
 bench:  ## run SLSB benchmark on selected checkpoint
-	dvc repro benchmark
+	dvc repro -s benchmark   # -s: this stage only, never re-run training/data stages
 
 report:  ## generate results table
 	python -m pipeline.report --config params.yaml
