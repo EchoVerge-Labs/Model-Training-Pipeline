@@ -5,7 +5,7 @@ from pipeline.schema import Params
 
 def test_params_loads():
     p = Params.from_yaml("params.yaml")
-    assert p.pretrain.base_model == "facebook/hubert-large-ll60k"
+    assert p.pretrain.base_model == "utter-project/mHuBERT-147"
     assert p.pretrain.precision == "bf16"
 
 
@@ -112,3 +112,11 @@ def test_gpu_memory_cap_matches_main_and_is_bounded():
     for bad in (0.0, 1.5):
         with pytest.raises(ValidationError):
             PretrainConfig(**{**base, "max_gpu_memory_fraction": bad})
+
+
+def test_mhubert_targets_use_its_own_layer_count():
+    p = Params.from_yaml("params.yaml")
+    assert p.cluster.layer == 9  # mHuBERT-147 has 12 layers, not HuBERT-Large's 24
+    assert p.cluster.num_clusters == 500
+    assert "mhubert" in p.pretrain.output_dir
+    assert "mhubert" in p.cluster.kmeans_output and "mhubert" in p.cluster.labels_output

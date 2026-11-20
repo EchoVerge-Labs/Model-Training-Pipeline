@@ -135,3 +135,56 @@ stages:
       hash: md5
       md5: 2a39f8c8d6424d04a43b31e0160bc0b7
       size: 4872
+  select_checkpoint:
+    cmd: python -m pipeline.select_checkpoint --config params.yaml
+    deps:
+    - path: models/mhubert147-si-ta-200h/
+      hash: md5
+      md5: 215fb8d842fc91a79800dbfaea1f95b9.dir
+      size: 9208434712
+      nfiles: 44
+    - path: src/pipeline/select_checkpoint.py
+      hash: md5
+      md5: 475aeb8bb52498a2fb7abdc1dbd617c0
+      size: 6130
+    params:
+      params.yaml:
+        checkpoint_selection:
+          proxy_task: asr
+          proxy_data_dir: ../SLSB-benchmark/data
+          proxy_seed: 0
+          output_dir: models/selected
+    outs:
+    - path: models/selected/
+      hash: md5
+      md5: 1e56af8ff87d7bf6f1bd45b9ad3f5fbf.dir
+      size: 1103672781
+      nfiles: 5
+    - path: reports/checkpoint_selection.json
+      hash: md5
+      md5: 91ab1a7c11d583371b3b14f8972e67ab
+      size: 272
+  benchmark:
+    cmd: "bash scripts/run_benchmark.sh models/selected asr,sid,er,asv 0,1,2 reports/bench/mhubert147_adapted
+      https://dagshub.com/EchoVerge-LABS/Model-Training-Pipeline.mlflow ../SLSB-benchmark/data\n"
+    deps:
+    - path: models/selected/
+      hash: md5
+      md5: 1e56af8ff87d7bf6f1bd45b9ad3f5fbf.dir
+      size: 1103672781
+      nfiles: 5
+    - path: scripts/run_benchmark.sh
+      hash: md5
+      md5: 00fc8de27ec480bc42553b0c064bc5dd
+      size: 1618
+      isexec: true
+    params:
+      params.yaml:
+        benchmark.seeds: 0,1,2
+        benchmark.slsb_data_dir: ../SLSB-benchmark/data
+        benchmark.tasks: asr,sid,er,asv
+    outs:
+    - path: reports/bench/mhubert147_adapted/metrics.json
+      hash: md5
+      md5: f56fd88c62ff02cd5b5662b4171c47bf
+      size: 8909

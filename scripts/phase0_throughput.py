@@ -36,8 +36,9 @@ def measure_throughput(steps: int = 100, batch_seconds: float = 200.0, precision
     # Load the actual model — not a toy config
     from pipeline.hubert_model import HubertForMaskedPrediction
 
-    print("Loading facebook/hubert-large-ll60k ...")
     from pipeline.schema import Params
+
+    print("Loading base model from params.yaml ...")
 
     params = Params.from_yaml(str(Path(__file__).resolve().parent.parent / "params.yaml"))
     num_clusters = params.cluster.num_clusters

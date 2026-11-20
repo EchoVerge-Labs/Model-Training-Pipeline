@@ -1,4 +1,9 @@
-"""Continued pre-training of HuBERT Large on Sinhala/Tamil.
+"""Continued pre-training of mHuBERT-147 on Sinhala/Tamil.
+
+Same masked-prediction trainer as the HuBERT-Large branch (mHuBERT-147 is
+architecturally a HubertModel too: 12 layers, 768 hidden, multilingual
+pretrained); only pretrain.base_model, cluster.layer (9, its own 3/4 point)
+and the output/benchmark paths in params.yaml differ.
 
 HuBERT's real pretraining objective is masked prediction of k-means
 pseudo-labels (data/labels/, produced by pipeline.fit_kmeans +
@@ -316,7 +321,7 @@ def train(params: Params):
             mlflow_logger = MLflowLogger(
                 tracking_uri=mlflow_cfg.get("tracking_uri", ""),
                 experiment_name=mlflow_cfg.get("experiment_name", "ssl-pretraining"),
-                run_name=f"hubert-large-si-ta-{cfg.target_batch_seconds}s",
+                run_name=f"mhubert147-si-ta-{cfg.target_batch_seconds}s",
             )
             # Log all params
             flat_params = {

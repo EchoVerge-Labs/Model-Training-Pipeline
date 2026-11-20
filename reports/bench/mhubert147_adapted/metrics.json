@@ -22,12 +22,12 @@
       "status": "ok",
       "split": "random",
       "metrics": {
-        "accuracy": 0.595677385345282,
-        "macro_f1": 0.5320092383614858
+        "accuracy": 0.5313653136531366,
+        "macro_f1": 0.48305932677782726
       },
       "perf": {
-        "seconds_per_step": 1.4372744294718691,
-        "peak_gpu_gb": 9.308536832
+        "seconds_per_step": 0.557428159312198,
+        "peak_gpu_gb": 5.321602048
       }
     },
     {
@@ -40,12 +40,12 @@
       "status": "ok",
       "split": "random",
       "metrics": {
-        "wer": 1.006357516828721,
-        "cer": 0.7481373910847329
+        "wer": 1.0,
+        "cer": 0.8838237151155449
       },
       "perf": {
-        "seconds_per_step": 9.002497935295105,
-        "peak_gpu_gb": 13.62782464
+        "seconds_per_step": 3.2890599687894184,
+        "peak_gpu_gb": 7.963040768
       }
     },
     {
@@ -58,12 +58,12 @@
       "status": "ok",
       "split": "random",
       "metrics": {
-        "wer": 0.8478007006617361,
-        "cer": 0.28833917673029474
+        "wer": 1.0,
+        "cer": 0.9906505648617062
       },
       "perf": {
-        "seconds_per_step": 0.5709198169708252,
-        "peak_gpu_gb": 11.556415488
+        "seconds_per_step": 0.22178719902038574,
+        "peak_gpu_gb": 7.019047936
       }
     },
     {
@@ -76,12 +76,12 @@
       "status": "ok",
       "split": "speaker_disjoint",
       "metrics": {
-        "wer": 0.959375,
-        "cer": 0.4228902324789236
+        "wer": 0.9534375,
+        "cer": 0.4159073490590139
       },
       "perf": {
-        "seconds_per_step": 0.7835703576694836,
-        "peak_gpu_gb": 7.3154816
+        "seconds_per_step": 0.29898709123784845,
+        "peak_gpu_gb": 4.10372608
       }
     },
     {
@@ -94,11 +94,11 @@
       "status": "ok",
       "split": "random",
       "metrics": {
-        "eer": 0.3741781548250265
+        "eer": 0.49098621420996824
       },
       "perf": {
-        "seconds_per_step": 0.017159938227636073,
-        "peak_gpu_gb": 4.093896192
+        "seconds_per_step": 0.006578311822375069,
+        "peak_gpu_gb": 2.141251584
       }
     },
     {
@@ -111,11 +111,11 @@
       "status": "ok",
       "split": "random",
       "metrics": {
-        "eer": 0.2383351007423118
+        "eer": 0.25026511134676566
       },
       "perf": {
-        "seconds_per_step": 0.08539922138671203,
-        "peak_gpu_gb": 9.30794752
+        "seconds_per_step": 0.03216031986037405,
+        "peak_gpu_gb": 5.320125952
       }
     },
     {
@@ -128,12 +128,12 @@
       "status": "ok",
       "split": "speaker_sentence_disjoint_partial",
       "metrics": {
-        "accuracy": 0.30666666666666664,
-        "macro_f1": 0.30818152705355484
+        "accuracy": 0.2633333333333333,
+        "macro_f1": 0.20373925303613208
       },
       "perf": {
-        "seconds_per_step": 0.2932435458898544,
-        "peak_gpu_gb": 3.749225984
+        "seconds_per_step": 0.11385087013244628,
+        "peak_gpu_gb": 1.95284224
       }
     },
     {
@@ -146,12 +146,12 @@
       "status": "ok",
       "split": "random",
       "metrics": {
-        "accuracy": 0.5856615709014233,
-        "macro_f1": 0.5280382511627663
+        "accuracy": 0.5487612018977333,
+        "macro_f1": 0.4863897879856303
       },
       "perf": {
-        "seconds_per_step": 1.4297160811173288,
-        "peak_gpu_gb": 9.308536832
+        "seconds_per_step": 0.5425697154496846,
+        "peak_gpu_gb": 5.321307136
       }
     },
     {
@@ -164,12 +164,12 @@
       "status": "ok",
       "split": "random",
       "metrics": {
-        "wer": 0.9618548990276738,
-        "cer": 0.45150902891779265
+        "wer": 1.0,
+        "cer": 0.8079302942290694
       },
       "perf": {
-        "seconds_per_step": 8.794045758247375,
-        "peak_gpu_gb": 13.565266432
+        "seconds_per_step": 3.193740709622701,
+        "peak_gpu_gb": 7.927286272
       }
     },
     {
@@ -182,12 +182,12 @@
       "status": "ok",
       "split": "random",
       "metrics": {
-        "wer": 0.8349552355001947,
-        "cer": 0.27463965718737826
+        "wer": 0.8590891397430906,
+        "cer": 0.29742890533696925
       },
       "perf": {
-        "seconds_per_step": 0.5686938160260518,
-        "peak_gpu_gb": 11.474738688
+        "seconds_per_step": 0.21923798863093058,
+        "peak_gpu_gb": 6.98672128
       }
     },
     {
@@ -200,12 +200,12 @@
       "status": "ok",
       "split": "speaker_disjoint",
       "metrics": {
-        "wer": 0.9671875,
-        "cer": 0.43021374435834114
+        "wer": 0.9515625,
+        "cer": 0.41518351358255984
       },
       "perf": {
-        "seconds_per_step": 0.7824692583084106,
-        "peak_gpu_gb": 7.225167872
+        "seconds_per_step": 0.2993581607125022,
+        "peak_gpu_gb": 4.068380672
       }
     },
     {
@@ -218,11 +218,11 @@
       "status": "ok",
       "split": "random",
       "metrics": {
-        "eer": 0.3737539766702015
+        "eer": 0.48979321314952284
       },
       "perf": {
-        "seconds_per_step": 0.01714451393802624,
-        "peak_gpu_gb": 4.093896192
+        "seconds_per_step": 0.0066021983239781465,
+        "peak_gpu_gb": 2.141251584
       }
     },
     {
@@ -235,11 +235,11 @@
       "status": "ok",
       "split": "random",
       "metrics": {
-        "eer": 0.23804347826086958
+        "eer": 0.25055673382820787
       },
       "perf": {
-        "seconds_per_step": 0.08624781339400815,
-        "peak_gpu_gb": 9.30794752
+        "seconds_per_step": 0.03223312079942234,
+        "peak_gpu_gb": 5.320125952
       }
     },
     {
@@ -252,12 +252,12 @@
       "status": "ok",
       "split": "speaker_sentence_disjoint_partial",
       "metrics": {
-        "accuracy": 0.3333333333333333,
-        "macro_f1": 0.3226994050692525
+        "accuracy": 0.25666666666666665,
+        "macro_f1": 0.2063637101784585
       },
       "perf": {
-        "seconds_per_step": 0.2922815650701523,
-        "peak_gpu_gb": 3.763971584
+        "seconds_per_step": 0.11397995233535767,
+        "peak_gpu_gb": 1.958593024
       }
     },
     {
@@ -270,12 +270,12 @@
       "status": "ok",
       "split": "random",
       "metrics": {
-        "accuracy": 0.5788086452293094,
-        "macro_f1": 0.5265218405887151
+        "accuracy": 0.5382182393252504,
+        "macro_f1": 0.4832967245462533
       },
       "perf": {
-        "seconds_per_step": 1.4384515003907052,
-        "peak_gpu_gb": 9.308536832
+        "seconds_per_step": 0.5356931455511796,
+        "peak_gpu_gb": 5.321307136
       }
     },
     {
@@ -288,12 +288,12 @@
       "status": "ok",
       "split": "random",
       "metrics": {
-        "wer": 0.981675392670157,
-        "cer": 0.5021467356989519
+        "wer": 1.0,
+        "cer": 0.783558530117439
       },
       "perf": {
-        "seconds_per_step": 8.95061399936676,
-        "peak_gpu_gb": 13.467550208
+        "seconds_per_step": 3.245068673292796,
+        "peak_gpu_gb": 7.91740928
       }
     },
     {
@@ -306,12 +306,12 @@
       "status": "ok",
       "split": "random",
       "metrics": {
-        "wer": 0.8478007006617361,
-        "cer": 0.28820932346448513
+        "wer": 1.0,
+        "cer": 0.9890273990390859
       },
       "perf": {
-        "seconds_per_step": 0.5697998352050782,
-        "peak_gpu_gb": 11.523496448
+        "seconds_per_step": 0.2200492475827535,
+        "peak_gpu_gb": 7.006117376
       }
     },
     {
@@ -324,12 +324,12 @@
       "status": "ok",
       "split": "speaker_disjoint",
       "metrics": {
-        "wer": 0.9484375,
-        "cer": 0.4299156944562718
+        "wer": 0.950625,
+        "cer": 0.4127565358085668
       },
       "perf": {
-        "seconds_per_step": 0.7791735193946144,
-        "peak_gpu_gb": 7.216957952
+        "seconds_per_step": 0.29812827066941694,
+        "peak_gpu_gb": 4.065167872
       }
     },
     {
@@ -342,11 +342,11 @@
       "status": "ok",
       "split": "random",
       "metrics": {
-        "eer": 0.3745227995758219
+        "eer": 0.48971367974549307
       },
       "perf": {
-        "seconds_per_step": 0.017125773153504886,
-        "peak_gpu_gb": 4.093896192
+        "seconds_per_step": 0.006598797962700635,
+        "peak_gpu_gb": 2.141251584
       }
     },
     {
@@ -359,11 +359,11 @@
       "status": "ok",
       "split": "random",
       "metrics": {
-        "eer": 0.23852067868504773
+        "eer": 0.2500795334040297
       },
       "perf": {
-        "seconds_per_step": 0.08590426948648092,
-        "peak_gpu_gb": 9.30794752
+        "seconds_per_step": 0.03223744052055955,
+        "peak_gpu_gb": 5.320125952
       }
     },
     {
@@ -376,12 +376,12 @@
       "status": "ok",
       "split": "speaker_sentence_disjoint_partial",
       "metrics": {
-        "accuracy": 0.3566666666666667,
-        "macro_f1": 0.30662342725500624
+        "accuracy": 0.24333333333333335,
+        "macro_f1": 0.19511737505355375
       },
       "perf": {
-        "seconds_per_step": 0.2918928426504135,
-        "peak_gpu_gb": 3.786909696
+        "seconds_per_step": 0.11285030543804168,
+        "peak_gpu_gb": 1.9675392
       }
     }
   ]

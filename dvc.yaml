@@ -85,7 +85,7 @@ stages:
       - shard
       - pretrain.base_model
     outs:
-      - models/kmeans/km_model.joblib:
+      - models/kmeans/mhubert147-L9-k500.joblib:
           persist: true
     metrics:
       - reports/kmeans_stats.json:
@@ -97,14 +97,14 @@ stages:
       - src/pipeline/assign_cluster_labels.py
       - src/pipeline/layer_features.py
       - src/pipeline/datamodule.py
-      - models/kmeans/km_model.joblib
+      - models/kmeans/mhubert147-L9-k500.joblib
       - data/shars/
     params:
       - cluster
       - shard
       - pretrain.base_model
     outs:
-      - data/labels/train_labels.jsonl.gz:
+      - data/labels/mhubert147_train_labels.jsonl.gz:
           persist: true
 
   pretrain:
@@ -116,12 +116,12 @@ stages:
       - src/pipeline/hubert_model.py
       - src/pipeline/checkpoints.py
       - data/shars/
-      - data/labels/train_labels.jsonl.gz
+      - data/labels/mhubert147_train_labels.jsonl.gz
     params:
       - pretrain
       - cluster.num_clusters
     outs:
-      - models/hubert-large-si-ta-200h/:
+      - models/mhubert147-si-ta-200h/:
           persist: true
     metrics:
       - reports/pretrain_metrics.json:
@@ -134,7 +134,7 @@ stages:
     cmd: python -m pipeline.select_checkpoint --config params.yaml
     deps:
       - src/pipeline/select_checkpoint.py
-      - models/hubert-large-si-ta-200h/
+      - models/mhubert147-si-ta-200h/
     params:
       - checkpoint_selection
     outs:
@@ -150,7 +150,7 @@ stages:
       models/selected
       ${benchmark.tasks}
       ${benchmark.seeds}
-      reports/bench/hubert_large_adapted
+      reports/bench/mhubert147_adapted
       ${benchmark.mlflow_uri}
       ${benchmark.slsb_data_dir}
     deps:
@@ -161,7 +161,7 @@ stages:
       - benchmark.seeds
       - benchmark.slsb_data_dir
     metrics:
-      - reports/bench/hubert_large_adapted/metrics.json:
+      - reports/bench/mhubert147_adapted/metrics.json:
           cache: false
 
   report:
