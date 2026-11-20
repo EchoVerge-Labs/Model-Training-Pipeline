@@ -54,10 +54,24 @@ class ShardConfig(BaseModel):
         return self
 
 
+class ClusterConfig(BaseModel):
+    layer: int = Field(gt=0)  # transformer layer of the base model whose output is clustered
+    num_clusters: int = Field(gt=0)
+    seed: int
+    sample_hours: float = Field(gt=0)  # audio streamed for the k-means fit
+    max_frames: int = Field(gt=0)  # cap on frames kept for the fit
+    kmeans_output: str
+    labels_output: str
+
+
 class PretrainConfig(BaseModel):
     base_model: str
     precision: Literal["bf16", "fp16", "fp32"] = "bf16"
     freeze_feature_encoder: bool = True
+    # Stock value of all three base models (XLS-R on main runs with 0.1). Layerdrop
+    # leaves parameters unused in a step, so train.py turns on DDP's
+    # find_unused_parameters when it's > 0.
+    layerdrop: float = Field(default=0.1, ge=0, le=1)
 
     max_updates: int = Field(gt=0)
     warmup_updates: int = Field(ge=0)
@@ -69,18 +83,27 @@ class PretrainConfig(BaseModel):
     adam_eps: float = Field(gt=0)
     weight_decay: float = Field(ge=0)
     max_grad_norm: float = Field(gt=0)
+    # LR multiplier for the (new, randomly initialised) masked-prediction head;
+    # 1.0 = same LR as the encoder, matching the wav2vec2 run on main
+    head_lr_mult: float = Field(default=1.0, gt=0)
 
     target_batch_seconds: float = Field(gt=0)
     per_device_max_seconds: float = Field(gt=0)
     num_workers: int = Field(ge=0)
+    # GB10 memory is unified: whatever the CUDA allocator caches is taken from the
+    # OS. Capping it makes a spike raise torch.OutOfMemoryError instead of starving
+    # sshd and hanging the whole host. Same setting as the wav2vec2 run on main.
+    max_gpu_memory_fraction: float = Field(default=0.8, gt=0, le=1)
 
     mask_time_prob: float = Field(ge=0, le=1)
     mask_time_length: int = Field(gt=0)
 
-    diversity_loss_weight: float = Field(ge=0)
-    max_gumbel_temperature: float = Field(gt=0)
-    min_gumbel_temperature: float = Field(gt=0)
-    gumbel_temperature_decay: float = Field(gt=0, le=1)
+    # WavLM utterance mixing: probability that an utterance gets another one
+    # from its batch mixed in (0 disables it; WavLM uses 0.2). A data
+    # augmentation of the method, not a training hyperparameter.
+    utterance_mix_prob: float = Field(default=0.0, ge=0, le=1)
+
+    labels_path: str
 
     save_every_updates: int = Field(gt=0)
     eval_every_updates: int = Field(gt=0)
@@ -105,6 +128,7 @@ class PretrainConfig(BaseModel):
 class Params(BaseModel):
     select: SelectConfig
     shard: ShardConfig
+    cluster: ClusterConfig
     pretrain: PretrainConfig
 
     @classmethod

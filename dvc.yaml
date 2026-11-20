@@ -73,17 +73,55 @@ stages:
     outs:
       - data/shars/
 
+  fit_kmeans:
+    cmd: python -m pipeline.fit_kmeans --config params.yaml
+    deps:
+      - src/pipeline/fit_kmeans.py
+      - src/pipeline/layer_features.py
+      - src/pipeline/datamodule.py
+      - data/shars/
+    params:
+      - cluster
+      - shard
+      - pretrain.base_model
+    outs:
+      - models/kmeans/wavlm-large-L18-k500.joblib:
+          persist: true
+    metrics:
+      - reports/kmeans_stats.json:
+          cache: false
+
+  assign_cluster_labels:
+    cmd: python -m pipeline.assign_cluster_labels --config params.yaml
+    deps:
+      - src/pipeline/assign_cluster_labels.py
+      - src/pipeline/layer_features.py
+      - src/pipeline/datamodule.py
+      - models/kmeans/wavlm-large-L18-k500.joblib
+      - data/shars/
+    params:
+      - cluster
+      - shard
+      - pretrain.base_model
+    outs:
+      - data/labels/wavlm_train_labels.jsonl.gz:
+          persist: true
+
   pretrain:
     cmd: bash scripts/launch_pretrain.sh
     deps:
       - src/pipeline/train.py
       - src/pipeline/datamodule.py
       - src/pipeline/callbacks.py
+      - src/pipeline/wavlm_model.py
+      - src/pipeline/checkpoints.py
       - data/shars/
+      - data/labels/wavlm_train_labels.jsonl.gz
     params:
       - pretrain
+      - cluster.num_clusters
     outs:
-      - models/xlsr300m-si-ta-200h/:
+      - models/wavlm-large-si-ta-200h/:
           persist: true
     metrics:
       - reports/pretrain_metrics.json:
@@ -96,7 +134,7 @@ stages:
     cmd: python -m pipeline.select_checkpoint --config params.yaml
     deps:
       - src/pipeline/select_checkpoint.py
-      - models/xlsr300m-si-ta-200h/
+      - models/wavlm-large-si-ta-200h/
     params:
       - checkpoint_selection
     outs:
@@ -112,7 +150,7 @@ stages:
       models/selected
       ${benchmark.tasks}
       ${benchmark.seeds}
-      reports/bench/xlsr300m_adapted
+      reports/bench/wavlm_large_adapted
       ${benchmark.mlflow_uri}
     deps:
       - models/selected/
@@ -121,7 +159,7 @@ stages:
       - benchmark.tasks
       - benchmark.seeds
     metrics:
-      - reports/bench/xlsr300m_adapted/metrics.json:
+      - reports/bench/wavlm_large_adapted/metrics.json:
           cache: false
 
   report:

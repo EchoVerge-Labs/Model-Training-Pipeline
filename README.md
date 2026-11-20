@@ -1,14 +1,45 @@
-# Model Training Pipeline — Continued Pre-training of XLS-R 300m on Sinhala/Tamil
+# Model Training Pipeline — Continued Pre-training of WavLM Large on Sinhala/Tamil
 
-DVC-orchestrated pipeline for continued self-supervised wav2vec2 pre-training, automatic
+DVC-orchestrated pipeline for continued self-supervised WavLM pre-training, automatic
 checkpoint selection, and benchmarking. Produces a Sinhala/Tamil-specialised speech
-encoder from `facebook/wav2vec2-xls-r-300m`.
+encoder from `microsoft/wavlm-large`.
 
 ## Pipeline DAG
 
 ```
-snapshot_catalog → index_drive → select → materialise → shard → pretrain → select_checkpoint → benchmark → report
+snapshot_catalog → index_drive → select → materialise → shard → fit_kmeans → assign_cluster_labels → pretrain → select_checkpoint → benchmark → report
 ```
+
+`pretrain` continues pre-training the already-pretrained `wavlm-large`
+with WavLM's objective (HuBERT's): masked prediction of k-means cluster ids, not
+wav2vec2-style contrastive learning. The model architecture and objective are
+unchanged; this is not distillation. The cluster ids are made once, offline:
+`fit_kmeans` runs the *original* checkpoint over ~40 h of the training set and
+clusters the output of transformer layer 18 into 500 clusters;
+`assign_cluster_labels` assigns every training cut's frames to the nearest
+centroid (`data/labels/`). Waveforms are normalised (`do_normalize`, read from
+the base model) identically for labelling and training. `transformers` has no
+`WavLMForPreTraining`, and the checkpoint carries no prediction head, so
+`pipeline.wavlm_model` adds a fresh linear head over the cluster ids.
+
+Branches: `main` continues wav2vec2 XLS-R, `HuBERT-Large` continues HuBERT
+Large, and `WavLM-Large` (this branch) continues WavLM Large.
+
+**Utterance mixing** (`pretrain.utterance_mix_prob: 0.2`) is WavLM's data
+augmentation: 20% of utterances get a random crop (at most 50% of their
+length) of another utterance from the same batch mixed in at -5..+5 dB, after
+normalisation. Cluster labels always come from the clean audio. WavLM's
+relative-position bias uses more memory than HuBERT; if a step runs out of
+memory, lower `pretrain.per_device_max_seconds` first (it only changes
+micro-batching, not the effective batch).
+
+**Fair comparison across branches.** Every training setting in `pretrain`
+(updates, batch seconds, LR schedule, optimizer, masking `0.65` / length 10,
+layerdrop, CNN freeze, precision, checkpoint schedule) and the data/shard
+settings are identical to `main`'s wav2vec2 run; `tests/test_schema.py`
+(`test_training_settings_match_the_wav2vec2_run_on_main`) pins them. Only what
+the method itself requires differs: the k-means `cluster` section, the new
+masked-prediction head, and utterance mixing.
 
 Each stage is a `dvc.yaml` target; `dvc repro` runs whatever is stale given
 `params.yaml` and each stage's declared deps. The `benchmark` stage depends
@@ -42,9 +73,11 @@ make index      # list every wav on the Drive mount (path + size) -> data/catalo
 make select     # dedupe, pin each clip to its Drive file, select train/holdout -> data/manifests/
 make pull       # copy the selected clips from the mount -> data/raw/ (same <Lang>/<genre>/... layout)
 make shard      # pack into Lhotse Shar tarballs -> data/shars/
-make train      # continued pre-training -> models/xlsr300m-si-ta-200h/
+make fit-kmeans # fit k-means on layer-18 features of the base model -> models/kmeans/
+make labels     # assign cluster-id pseudo-labels to every training cut -> data/labels/
+make train      # continued pre-training -> models/wavlm-large-si-ta-200h/
 make ckpt       # proxy-eval milestone checkpoints, copy the best -> models/selected/
-make bench      # slsb run on the selected checkpoint -> reports/bench/xlsr300m_adapted/
+make bench      # slsb run on the selected checkpoint -> reports/bench/wavlm_large_adapted/
 make report     # aggregate into reports/results.md + results_table.csv
 ```
 
@@ -89,18 +122,21 @@ rather than fabricating a score.
 
 `params.yaml` is the single source of truth; every stage reads its own
 section from it, and `src/pipeline/schema.py` validates the `select`,
-`shard`, and `pretrain` sections with Pydantic before any stage runs (`make
+`shard`, `cluster`, and `pretrain` sections with Pydantic before any stage
+runs (`make
 test` / CI run this validation too, so a bad config is caught before it
 wastes GPU hours).
 
 ## Known gaps
 
-- **Checkpoint resumption** isn't implemented — `train.py` saves
-  `training_state.pt` (optimizer state, step, Gumbel temperature) alongside
-  each checkpoint, but there's no `--resume-from` flag yet to load it back.
-  If a run crashes, restart manually by pointing `pretrain.base_model` at the
-  last checkpoint dir (note: this restarts the LR/Gumbel schedule from step 0
-  relative to the new run, which is not the same as a true resume).
+- **Single label round.** Cluster ids come from layer 18 of the original
+  checkpoint. Re-clustering on an adapted checkpoint's hidden states (a second
+  HuBERT iteration) isn't implemented.
+- **Resume is per node.** Re-running `make train` resumes from the newest
+  complete `checkpoint-<step>/` (backbone, head, optimizer, step; saved
+  atomically). The data loader restarts its shard order rather than resuming
+  mid-epoch. For 2-node runs every node must have that checkpoint locally
+  (training aborts with a clear message if the nodes disagree).
 - **`scripts/run_benchmark.sh`** exists to bridge slsb's real output filename
   (`results_<upstream-with-/-as-__>.json`) to the fixed `metrics.json` path
   `dvc.yaml` and `report.py` expect — see that script's header comment.

@@ -22,7 +22,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-data = ["lhotse", "gspread", "google-auth"]
+data = ["lhotse", "gspread", "google-auth", "scikit-learn", "joblib"]
 benchmark = ["slsb @ git+https://github.com/EchoVerge-Labs/SLSB-benchmark.git@v0.1.0"]
 dev = ["pytest", "ruff", "mypy"]
 

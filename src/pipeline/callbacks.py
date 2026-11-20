@@ -1,4 +1,4 @@
-"""Training callbacks: MLflow logging, codebook collapse detection."""
+"""Training callbacks: MLflow logging, masked-prediction stall detection."""
 
 import os
 import warnings
@@ -41,40 +41,52 @@ class MLflowLogger:
             mlflow.end_run()
 
 
-class CodebookCollapseDetector:
-    """Monitor codebook perplexity and warn on collapse.
+class MaskedAccuracyStallDetector:
+    """Monitor masked-prediction quality and kill the run if it stays stuck.
 
-    Codebook collapse is the classic failure of wav2vec2 pre-training:
-    perplexity falls, contrastive loss looks fine, representations are garbage.
+    Stuck means either accuracy at the random-guess floor (~1/num_clusters:
+    the model learns nothing) or prediction perplexity near 1 (the model
+    predicts one cluster for everything -- the collapse failure mode of this
+    objective; accuracy alone can hide it when one cluster, e.g. silence,
+    dominates). Counted in consecutive *checks* (one per eval_every_updates),
+    so max_consecutive_before_kill must be reachable within max_updates.
     """
 
-    def __init__(self, num_codebooks: int = 2, alert_threshold: float = 10.0):
-        self.num_codebooks = num_codebooks
-        self.alert_threshold = alert_threshold
+    def __init__(
+        self,
+        num_clusters: int,
+        max_consecutive_before_kill: int,
+        alert_margin: float = 1.5,
+        min_perplexity: float = 2.0,
+    ):
+        self.floor = alert_margin / max(num_clusters, 1)
+        self.min_perplexity = min_perplexity
         self.consecutive_low = 0
-        self.max_consecutive_before_kill = 500
+        self.max_consecutive_before_kill = max_consecutive_before_kill
 
-    def check(self, perplexity: float, step: int) -> bool:
-        """Returns True if training should continue, False if collapse detected."""
-        if perplexity < self.alert_threshold:
-            self.consecutive_low += 1
-            if self.consecutive_low >= self.max_consecutive_before_kill:
-                print(f"\n{'=' * 60}")
-                print(f"CODEBOOK COLLAPSE DETECTED at step {step}")
-                print(
-                    f"Perplexity {perplexity:.2f} has been below {self.alert_threshold} "
-                    f"for {self.consecutive_low} consecutive steps."
-                )
-                print("The codebook is not being used effectively.")
-                print("Recommended: lower the learning rate or check masking config.")
-                print(f"{'=' * 60}\n")
-                return False
-            elif self.consecutive_low % 100 == 0:
-                warnings.warn(
-                    f"Step {step}: Codebook perplexity {perplexity:.2f} below threshold "
-                    f"({self.alert_threshold}) for {self.consecutive_low} steps"
-                )
-        else:
+    def check(self, accuracy: float, step: int, perplexity: float | None = None) -> bool:
+        """Returns True if training should continue, False if stalled."""
+        stalled = accuracy < self.floor or (
+            perplexity is not None and perplexity < self.min_perplexity
+        )
+        if not stalled:
             self.consecutive_low = 0
+            return True
 
+        self.consecutive_low += 1
+        if self.consecutive_low >= self.max_consecutive_before_kill:
+            print(f"\n{'=' * 60}")
+            print(f"MASKED PREDICTION STALLED at step {step}")
+            print(
+                f"Accuracy {accuracy:.4f} (random-guess floor {self.floor:.4f}), "
+                f"perplexity {perplexity if perplexity is None else round(perplexity, 2)} "
+                f"(collapse below {self.min_perplexity}) for {self.consecutive_low} consecutive checks."
+            )
+            print("Recommended: check the labels, normalisation and masking config.")
+            print(f"{'=' * 60}\n")
+            return False
+        warnings.warn(
+            f"Step {step}: masked accuracy {accuracy:.4f} / perplexity {perplexity} "
+            f"stalled for {self.consecutive_low} checks"
+        )
         return True
