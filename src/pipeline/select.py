@@ -160,7 +160,7 @@ def load_blocklist(path: Path) -> tuple[set[str], dict]:
         raise SystemExit(
             f"ERROR: blocklist {path} not found. It lists the SLSB evaluation source_ids to keep "
             f"out of training (one per line); without it, selection cannot guarantee a leakage-free "
-            f"split. Create it, or set select.exclude_channels_file to \"\" to opt out deliberately."
+            f'split. Create it, or set select.exclude_channels_file to "" to opt out deliberately.'
         )
     channels = {line.strip() for line in path.read_text().splitlines() if line.strip()}
     return channels, {"path": str(path), "found": True, "channels": len(channels)}

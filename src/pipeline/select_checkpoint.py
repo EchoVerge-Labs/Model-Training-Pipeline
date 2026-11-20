@@ -49,7 +49,11 @@ def find_milestone_checkpoints(model_dir: str, milestones: list[int]) -> list[Pa
 
 
 def evaluate_checkpoint(
-    ckpt_path: Path, task: str, seed: int, eval_root: Path | None = None, data_dir: str | None = None
+    ckpt_path: Path,
+    task: str,
+    seed: int,
+    eval_root: Path | None = None,
+    data_dir: str | None = None,
 ) -> float:
     """Run a fast proxy evaluation using slsb; returns the mean DEV score, lower is better.
 
