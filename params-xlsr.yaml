@@ -1,0 +1,122 @@
+# ── Data Selection ──────────────────────────────────
+select:
+  seed: 1337
+  target_hours: 200.0
+  language_mix:
+    sinhala: 0.50
+    tamil: 0.50
+  min_segment_seconds: 3.0
+  max_segment_seconds: 900
+  max_hours_per_channel: 12.0
+  holdout_hours: 2.0
+  catalog_path: data/catalog/catalog_latest.csv
+  exclude_channels_file: data/catalog/eval_contamination_blocklist.txt
+  drive_root: ~/google-drive/Pre Processed Data   # mount holding <Lang>/<genre>/<source-dir>/<clip>.wav
+  drive_index_path: data/catalog/drive_index.tsv  # relpath + size of every wav under drive_root
+
+# ── Sharding ────────────────────────────────────────
+shard:
+  format: flac               # inside tar
+  shard_size: 1000            # cuts per shard
+  min_cut_seconds: 5.0        # minimum after re-cutting
+  target_cut_seconds: 15.0    # concatenate short segments to this
+  max_cut_seconds: 30.0       # split longer clips into equal windows of at most this
+  output_dir: data/shars
+
+# ── Pre-training ────────────────────────────────────
+pretrain:
+  base_model: facebook/wav2vec2-xls-r-300m
+  precision: bf16
+  freeze_feature_encoder: true
+
+  max_updates: 13500          # ~30 passes over 200h (was 50000 / 111 passes)
+  warmup_updates: 1000        # ~8% (was 4000)
+  peak_lr: 5.0e-5
+  lr_schedule: tri_stage      # warmup / hold / exponential decay
+  hold_ratio: 0.4             # fraction of remaining after warmup to hold
+  optimizer: adamw
+  adam_betas: [0.9, 0.98]
+  adam_eps: 1.0e-6
+  weight_decay: 0.01
+  max_grad_norm: 1.0
+
+  # batch size in AUDIO SECONDS (not examples)
+  target_batch_seconds: 1600
+  per_device_max_seconds: 200
+  num_workers: 4
+  max_gpu_memory_fraction: 0.8  # GB10 unified memory: leave ~24GB for the OS / sshd
+
+  # wav2vec2 masking
+  mask_time_prob: 0.65
+  mask_time_length: 10
+
+  # Gumbel quantizer
+  diversity_loss_weight: 0.1
+  max_gumbel_temperature: 1.0
+  min_gumbel_temperature: 0.5
+  gumbel_temperature_decay: 0.999995
+
+  # checkpointing
+  save_every_updates: 1500
+  eval_every_updates: 500
+  keep_last_n_checkpoints: 5
+  milestone_checkpoints: [4500, 9000, 13500]   # 10, 20, 30 passes
+
+  # Waveform normalisation is not a setting: it follows base_model's do_normalize
+  # (true for XLS-R), as on the HuBERT-Large / WavLM-Large branches. The first run,
+  # models/xlsr300m-si-ta-200h, predates that and trained on raw audio.
+  output_dir: models/xlsr300m-si-ta-200h-norm
+
+# ── Monitoring ──────────────────────────────────────
+monitoring:
+  perplexity_floor: 10.0     # a codebook-perplexity reading below this counts as "low"
+  consecutive_alerts: 5      # this many low readings in a row stops training; one reading
+                             # per pretrain.eval_every_updates, so 5 x 500 = 2,500 updates
+
+# ── Checkpoint Selection ────────────────────────────
+checkpoint_selection:
+  proxy_task: asr
+  proxy_data_dir: ../SLSB-benchmark/data   # relative to this repo root
+  proxy_seed: 0
+  output_dir: models/selected
+
+# ── Benchmark ───────────────────────────────────────
+benchmark:
+  tasks: "asr,sid,er,asv"
+  seeds: "0,1,2"
+  slsb_data_dir: ../SLSB-benchmark/data    # relative to this repo root
+  mlflow_uri: https://dagshub.com/EchoVerge-LABS/Model-Training-Pipeline.mlflow
+  # MLflow runs are named <prefix>_<task>_<language>_s<seed>; eval_normalize and
+  # checkpoint tags are added from models/selected and checkpoint_selection.json.
+  mlflow_run_prefix: xlsr_200h_CoPT_norm
+  mlflow_run_tags: "model=xlsr300m,base_model=facebook/wav2vec2-xls-r-300m,stage=continued-pretraining,copt_data=si-ta-200h,copt_run=xlsr300m-si-ta-200h-norm,train_normalize=true,variant=norm"
+  upstreams:
+    xlsr300m_vanilla:
+      path: facebook/wav2vec2-xls-r-300m
+      name: "XLS-R 300M (vanilla)"
+    mhubert147:
+      path: utter-project/mHuBERT-147
+      name: "mHuBERT-147"
+    wavlm_large:
+      path: microsoft/wavlm-large
+      name: "WavLM Large"
+    # The first pre-training run (raw audio, models/xlsr300m-si-ta-200h): its
+    # checkpoint-9000 benchmarked with normalisation on, and its checkpoint-13500
+    # with normalisation off, as it was trained.
+    xlsr300m_adapted:
+      path: models/xlsr300m-si-ta-200h/checkpoint-9000
+      name: "XLS-R 300M (Si/Ta 200h, raw-trained, norm eval)"
+      is_local: true
+    xlsr300m_adapted_raw:
+      path: models/selected_raw
+      name: "XLS-R 300M (Si/Ta 200h, raw-trained, raw eval)"
+      is_local: true
+    xlsr300m_adapted_norm:
+      path: models/selected
+      name: "XLS-R 300M (Si/Ta 200h)"
+      is_local: true
+
+# ── MLflow ──────────────────────────────────────────
+mlflow:
+  tracking_uri: https://dagshub.com/EchoVerge-LABS/Model-Training-Pipeline.mlflow
+  experiment_name: ssl-pretraining
