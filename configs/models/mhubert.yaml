@@ -1,0 +1,56 @@
+# mHuBERT-147 (multilingual HuBERT, 12 layers, 768 hidden).
+#
+# Architecturally a HubertModel, so it runs the hubert trainer unchanged; only the base
+# model, the clustered layer and the output locations differ. cluster.layer is 9: its
+# own 3/4 point (HuBERT Large uses 18 of 24).
+#
+# Run (labels first, once):
+#   python -m pipeline.labels.fit_kmeans --model mhubert
+#   python -m pipeline.labels.assign_cluster_labels --model mhubert
+#   torchrun --nproc_per_node=1 -m pipeline.train --model mhubert
+model:
+  trainer: hubert
+  tag: mhubert147
+  reports_dir: reports/mhubert
+  family: mhubert
+  run_name: mhubert147-copt200h
+  frozen_name: mhubert147
+
+cluster:
+  layer: 9                    # 3/4 of the way through mHuBERT-147's 12 layers
+  num_clusters: 500           # fairseq HuBERT iteration >= 2
+  seed: 1337
+  sample_hours: 40.0          # audio streamed for the k-means fit
+  max_frames: 2000000         # frames kept for the fit
+  kmeans_output: models/kmeans/mhubert147-L9-k500.joblib
+  labels_output: data/labels/mhubert147_train_labels.jsonl.gz
+
+pretrain:
+  base_model: utter-project/mHuBERT-147
+  layerdrop: 0.1              # stock value of the base model
+  head_lr_mult: 1.0           # same LR as everything else (the head is new; raise to warm it up faster)
+  labels_path: data/labels/mhubert147_train_labels.jsonl.gz
+  output_dir: models/mhubert147-si-ta-200h
+
+checkpoint_selection:
+  output_dir: models/selected_mhubert
+
+benchmark:
+  upstreams:
+    # SLSB v0.3 (all six task families)
+    mhubert147_base_v0.3:
+      path: models/mhubert147-base
+      name: "mHuBERT-147 (vanilla), SLSB v0.3"
+      is_local: true
+    mhubert147_adapted_v0.3:
+      path: models/mhubert147-si-ta-200h/checkpoint-9000
+      name: "mHuBERT-147 (Si/Ta 200h), SLSB v0.3"
+      is_local: true
+    # what `make bench` / `make bench-frozen` write by default: reports/bench/<run_name|frozen_name>/
+    mhubert147-copt200h:
+      path: models/selected_mhubert
+      name: "mHuBERT-147 (Si/Ta 200h)"
+      is_local: true
+    mhubert147:
+      path: utter-project/mHuBERT-147
+      name: "mHuBERT-147 (vanilla)"

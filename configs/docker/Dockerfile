@@ -15,7 +15,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Install benchmark harness
 RUN pip install --no-cache-dir \
-    "slsb @ git+https://github.com/EchoVerge-Labs/SLSB-benchmark.git@v0.1.0"
+    "slsb @ git+https://github.com/EchoVerge-Labs/SLSB-benchmark.git@v0.5.0"
 
 # Project code (changes most often → last layer)
 COPY . .

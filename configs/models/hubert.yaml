@@ -1,0 +1,55 @@
+# HuBERT Large (hubert-large-ll60k).
+#
+# Objective: masked prediction of k-means cluster ids from layer 18 (3/4 of the 24
+# layers) of the ORIGINAL checkpoint (pipeline/models/hubert/trainer.py). No utterance
+# mixing (that is WavLM's). Everything else is params.yaml's shared recipe, unchanged.
+#
+# The k-means and label file names are the generic ones the HuBERT-Large branch used,
+# so the artifacts it already produced keep working.
+#
+# Run (labels first, once):
+#   python -m pipeline.labels.fit_kmeans --model hubert
+#   python -m pipeline.labels.assign_cluster_labels --model hubert
+#   torchrun --nproc_per_node=1 -m pipeline.train --model hubert
+model:
+  trainer: hubert
+  tag: hubert-large
+  reports_dir: reports/hubert
+  family: hubert
+  run_name: hubert-large-copt200h
+  frozen_name: hubert-large
+
+cluster:
+  layer: 18                   # 3/4 of the way through the 24 layers of HuBERT Large
+  num_clusters: 500           # fairseq HuBERT iteration >= 2
+  seed: 1337
+  sample_hours: 40.0          # audio streamed for the k-means fit
+  max_frames: 2000000         # frames kept for the fit (2M x 1024 fp32 = ~8 GB RAM)
+  kmeans_output: models/kmeans/km_model.joblib
+  labels_output: data/labels/train_labels.jsonl.gz
+
+pretrain:
+  base_model: facebook/hubert-large-ll60k
+  layerdrop: 0.1              # stock value of the base model
+  head_lr_mult: 1.0           # same LR as everything else (the head is new; raise to warm it up faster)
+  labels_path: data/labels/train_labels.jsonl.gz
+  output_dir: models/hubert-large-si-ta-200h
+
+checkpoint_selection:
+  output_dir: models/selected_hubert
+
+benchmark:
+  upstreams:
+    # SLSB v0.3 (all six task families) of the proxy-selected checkpoint
+    hubert_large_adapted_v0.3:
+      path: models/hubert-large-si-ta-200h/checkpoint-4500
+      name: "HuBERT Large (Si/Ta 200h), SLSB v0.3"
+      is_local: true
+    # what `make bench` / `make bench-frozen` write by default: reports/bench/<run_name|frozen_name>/
+    hubert-large-copt200h:
+      path: models/selected_hubert
+      name: "HuBERT Large (Si/Ta 200h)"
+      is_local: true
+    hubert-large:
+      path: facebook/hubert-large-ll60k
+      name: "HuBERT Large (vanilla)"

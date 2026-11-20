@@ -1,6 +1,8 @@
 # Data (DVC-tracked)
 /data/raw/
 /data/shars/
+/data/shars_single/
+/data/labels/
 /data/catalog/*.csv
 /data/catalog/*.json
 !/data/**/.gitkeep

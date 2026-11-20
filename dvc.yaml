@@ -79,6 +79,8 @@ stages:
       - src/pipeline/train.py
       - src/pipeline/datamodule.py
       - src/pipeline/callbacks.py
+      - src/pipeline/models/xlsr/
+      - src/pipeline/common/
       - data/shars/
     params:
       - pretrain
@@ -107,28 +109,144 @@ stages:
       - reports/checkpoint_selection.json:
           cache: false
 
+  # Benchmarking drives the SLSB-benchmark repository (its own `slsb run`, then its
+  # `scripts/log_results.py` to the leaderboard); see src/pipeline/benchmark.py.
   benchmark:
-    cmd: >
-      bash scripts/run_benchmark.sh
-      models/selected
-      ${benchmark.tasks}
-      ${benchmark.seeds}
-      reports/bench/xlsr300m_adapted_norm
-      ${benchmark.mlflow_uri}
-      ${benchmark.slsb_data_dir}
-      ${benchmark.mlflow_run_prefix}
-      ${benchmark.mlflow_run_tags}
+    cmd: python -m pipeline.benchmark
     deps:
       - models/selected/
-      - scripts/run_benchmark.sh
-      - scripts/label_benchmark_runs.py
+      - src/pipeline/benchmark.py
+      - src/pipeline/slsb.py
     params:
       - benchmark.tasks
       - benchmark.seeds
       - benchmark.slsb_data_dir
+      - benchmark.slsb_version
     metrics:
-      - reports/bench/xlsr300m_adapted_norm/metrics.json:
+      - reports/bench/xlsr300m-copt200h-norm/metrics.json:
           cache: false
+
+  # ── The other models ──────────────────────────────────────────────────────
+  # The stages above are the XLS-R run (params.yaml as it is). Every other model has
+  # configs/models/<name>.yaml, merged over params.yaml with `--model <name>`, and its
+  # own stages below, e.g.  dvc repro copt@wavlm ckpt@wavlm bench@wavlm
+  # The paths in the items must match that config; tests/test_dvc_models.py checks they do.
+
+  fit_kmeans:
+    foreach:
+      wavlm: {kmeans: models/kmeans/wavlm-large-L18-k500.joblib, reports: reports/wavlm}
+      hubert: {kmeans: models/kmeans/km_model.joblib, reports: reports/hubert}
+      mhubert: {kmeans: models/kmeans/mhubert147-L9-k500.joblib, reports: reports/mhubert}
+    do:
+      cmd: python -m pipeline.labels.fit_kmeans --model ${key}
+      deps:
+        - src/pipeline/labels/
+        - src/pipeline/datamodule.py
+        - configs/models/${key}.yaml
+        - data/shars/
+      params:
+        - shard
+      outs:
+        - ${item.kmeans}:
+            persist: true
+      metrics:
+        - ${item.reports}/kmeans_stats.json:
+            cache: false
+
+  assign_cluster_labels:
+    foreach:
+      wavlm: {kmeans: models/kmeans/wavlm-large-L18-k500.joblib, labels: data/labels/wavlm_train_labels.jsonl.gz}
+      hubert: {kmeans: models/kmeans/km_model.joblib, labels: data/labels/train_labels.jsonl.gz}
+      mhubert: {kmeans: models/kmeans/mhubert147-L9-k500.joblib, labels: data/labels/mhubert147_train_labels.jsonl.gz}
+    do:
+      cmd: python -m pipeline.labels.assign_cluster_labels --model ${key}
+      deps:
+        - src/pipeline/labels/
+        - src/pipeline/datamodule.py
+        - configs/models/${key}.yaml
+        - ${item.kmeans}
+        - data/shars/
+      params:
+        - shard
+      outs:
+        - ${item.labels}:
+            persist: true
+
+  # Full continued pre-training (the training method is `copt`; the PEFT methods get
+  # their own stages when they exist). `also` is the file that is specific to the model:
+  # the cluster labels of the HuBERT-style models, the launch script for wav2vec2.
+  copt:
+    foreach:
+      wav2vec2: {code: src/pipeline/models/xlsr/, also: scripts/launch_pretrain.sh, out: models/wav2vec2-si-ta-200h, reports: reports/wav2vec2}
+      wavlm: {code: src/pipeline/models/wavlm/, also: data/labels/wavlm_train_labels.jsonl.gz, out: models/wavlm-large-si-ta-200h, reports: reports/wavlm}
+      hubert: {code: src/pipeline/models/hubert/, also: data/labels/train_labels.jsonl.gz, out: models/hubert-large-si-ta-200h, reports: reports/hubert}
+      mhubert: {code: src/pipeline/models/hubert/, also: data/labels/mhubert147_train_labels.jsonl.gz, out: models/mhubert147-si-ta-200h, reports: reports/mhubert}
+    do:
+      cmd: MODEL=${key} bash scripts/launch_pretrain.sh
+      deps:
+        - src/pipeline/train.py
+        - src/pipeline/datamodule.py
+        - src/pipeline/callbacks.py
+        - src/pipeline/common/
+        - ${item.code}
+        - configs/models/${key}.yaml
+        - ${item.also}
+        - data/shars/
+      params:
+        - pretrain
+        - monitoring
+      outs:
+        - ${item.out}/:
+            persist: true
+      metrics:
+        - ${item.reports}/pretrain_metrics.json:
+            cache: false
+      plots:
+        - ${item.reports}/pretrain_curves.csv:
+            cache: false
+
+  ckpt:
+    foreach:
+      wav2vec2: {out: models/wav2vec2-si-ta-200h, selected: models/selected_wav2vec2, reports: reports/wav2vec2}
+      wavlm: {out: models/wavlm-large-si-ta-200h, selected: models/selected_wavlm, reports: reports/wavlm}
+      hubert: {out: models/hubert-large-si-ta-200h, selected: models/selected_hubert, reports: reports/hubert}
+      mhubert: {out: models/mhubert147-si-ta-200h, selected: models/selected_mhubert, reports: reports/mhubert}
+    do:
+      cmd: python -m pipeline.select_checkpoint --model ${key}
+      deps:
+        - src/pipeline/select_checkpoint.py
+        - configs/models/${key}.yaml
+        - ${item.out}/
+      params:
+        - checkpoint_selection
+      outs:
+        - ${item.selected}/:
+            persist: true
+      metrics:
+        - ${item.reports}/checkpoint_selection.json:
+            cache: false
+
+  bench:
+    foreach:
+      wav2vec2: {selected: models/selected_wav2vec2, name: wav2vec2-large-lv60-copt200h}
+      wavlm: {selected: models/selected_wavlm, name: wavlm-large-copt200h}
+      hubert: {selected: models/selected_hubert, name: hubert-large-copt200h}
+      mhubert: {selected: models/selected_mhubert, name: mhubert147-copt200h}
+    do:
+      cmd: python -m pipeline.benchmark --model ${key}
+      deps:
+        - ${item.selected}/
+        - configs/models/${key}.yaml
+        - src/pipeline/benchmark.py
+        - src/pipeline/slsb.py
+      params:
+        - benchmark.tasks
+        - benchmark.seeds
+        - benchmark.slsb_data_dir
+        - benchmark.slsb_version
+      metrics:
+        - reports/bench/${item.name}/metrics.json:
+            cache: false
 
   report:
     cmd: python -m pipeline.report --config params.yaml

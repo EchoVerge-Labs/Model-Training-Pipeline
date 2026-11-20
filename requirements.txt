@@ -1,14 +1,9 @@
 torch>=2.0
-torchaudio
 transformers>=4.40
-accelerate
-datasets
 soundfile
-librosa
 pydantic>=2.0
 pyyaml
 mlflow
-rich
 dvc
 dvc-s3
 lhotse
@@ -16,3 +11,5 @@ gspread
 google-auth
 ruff
 pytest
+scikit-learn
+joblib

@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 
 from pipeline.select import (
     Segment,
+    build_name_lookup,
     build_path_lookup,
     dedupe_segments,
     load_catalog,
@@ -421,3 +422,25 @@ def test_report_includes_cleaning_summary(tmp_path):
     assert "exact repeats removed: 2" in report and "ambiguous 1, no_match 1" in report
     stats = json.loads((tmp_path / "s.json").read_text())
     assert stats["cleaning"] == cleaning and stats["longest_train_segment_seconds"] == 3600.0
+
+
+def test_name_lookup_pins_rows_without_a_file_size_but_never_overrides_a_sized_row():
+    """Catalogs that carry no `size` column (the WavLM / HuBERT / mHuBERT branches' catalog)
+    are resolved by (language, genre, filename); a row that has a size still needs it."""
+    index = [
+        ("Sinhala/drama/vidA/x_000.wav", 100),
+        ("Sinhala/drama/vidB/y_000.wav", 200),
+        ("Sinhala/drama/vidC/y_000.wav", 300),  # same name twice: ambiguous without a size
+    ]
+    lookup, names = build_path_lookup(index), build_name_lookup(index)
+    segs = [
+        _clip("x_000.wav", 0, source="a"),  # no size -> found by name
+        _clip("y_000.wav", 0, source="b"),  # no size, two files -> ambiguous
+        _clip("x_000.wav", 999, source="c"),  # has a size that matches nothing -> no fallback
+    ]
+    resolved, unresolved = resolve_paths(segs, lookup, names)
+    assert [s.relpath for s in resolved] == ["Sinhala/drama/vidA/x_000.wav"]
+    assert [(s.channel_id, why) for s, why in unresolved] == [("b", "ambiguous"), ("c", "no_match")]
+    # without the name lookup (main's behaviour) the size-less rows are simply unmatched
+    resolved, unresolved = resolve_paths(segs, lookup)
+    assert resolved == [] and len(unresolved) == 3

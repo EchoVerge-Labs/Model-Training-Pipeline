@@ -1,4 +1,10 @@
-"""Select the best pre-training checkpoint using a fast proxy evaluation."""
+"""Select the best pre-training checkpoint using a fast proxy evaluation.
+
+Each milestone checkpoint is benchmarked with slsb on one task family, and the one with the
+best **dev** score is kept. SLSB's protocol selects on dev and scores the test set once; the
+test scores of a checkpoint chosen by its test score would be optimistic. slsb records the dev
+score of every head it trains (`details`), so selection never has to look at test.
+"""
 
 import argparse
 import json
@@ -6,42 +12,57 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from pipeline.schema import Params
+from pipeline.common.checkpoints import is_complete_checkpoint, require_pretraining_complete
+from pipeline.common.config import add_config_args, load_raw, params_from_args
+from pipeline.slsb import slsb_command
 
-# Mirrors slsb's own per-family primary metric (see SLSB-benchmark's
-# configs/tasks/*.yaml / scripts/run_all.py PRIMARY_METRIC). Lower is better
-# for all of these once normalised in evaluate_checkpoint() below.
-PRIMARY_METRIC = {"asr": "wer", "sid": "accuracy", "er": "accuracy", "asv": "eer"}
+# where each checkpoint's proxy evaluation writes its slsb results
+EVAL_DIR = Path("/tmp/ckpt_eval")
+
+# The dev score slsb records for each task family (results entry -> details[key]) and whether
+# a higher value is better. Emotion recognition is not here: its 5-fold runs record no dev score.
+DEV_SCORE = {
+    "asr": ("dev_cer", False),
+    "sid": ("dev_accuracy", True),
+    "asv": ("dev_eer", False),
+    "sd": ("dev_der", False),
+}
 
 
 def find_milestone_checkpoints(model_dir: str, milestones: list[int]) -> list[Path]:
-    """Find the milestone checkpoint directories in the model output.
+    """Complete milestone checkpoint directories in the model output, oldest first.
 
     Only milestones are proxy-evaluated: each eval is a full downstream
-    fine-tune, so scoring every rolling checkpoint is too expensive.
+    fine-tune, so scoring every rolling checkpoint is too expensive. A milestone
+    directory that exists but is incomplete (a crashed save) is skipped.
     """
     model_path = Path(model_dir)
-    checkpoints = [model_path / f"checkpoint-{step}" for step in sorted(milestones)]
-    missing = [c.name for c in checkpoints if not c.is_dir()]
+    wanted = [model_path / f"checkpoint-{step}" for step in sorted(milestones)]
+    missing = [c.name for c in wanted if not is_complete_checkpoint(c)]
     if missing:
-        print(f"WARNING: milestone checkpoints not found, skipping: {missing}")
-    return [c for c in checkpoints if c.is_dir()]
+        print(f"WARNING: milestone checkpoints missing or incomplete, skipping: {missing}")
+    return [c for c in wanted if is_complete_checkpoint(c)]
 
 
 def evaluate_checkpoint(
     ckpt_path: Path, task: str, seed: int, data_dir: str | None = None
 ) -> float:
-    """Run a fast proxy evaluation using slsb.
+    """Run a fast proxy evaluation using slsb; returns the mean DEV score, lower is better.
 
-    slsb writes its results to <out>/results_<upstream-with-/-as-__>.json, a
-    list of per-(task,language,seed) result entries -- not a flat
-    {task: score} dict. See scripts/run_benchmark.sh for the same convention
-    used by the dvc.yaml `benchmark` stage.
+    slsb writes its results to <out>/results_<upstream-with-/-as-__>.json, a list of
+    per-(task,language,seed) entries. Each entry's `details` holds the dev score the head was
+    selected on; that, never the test metric, is what ranks the checkpoints.
     """
+    if task not in DEV_SCORE:
+        raise SystemExit(
+            f"checkpoint_selection.proxy_task={task!r} has no dev score to select on; "
+            f"choose one of {sorted(DEV_SCORE)}"
+        )
+    key, higher_is_better = DEV_SCORE[task]
     upstream = str(ckpt_path)
-    out_dir = Path(f"/tmp/ckpt_eval/{ckpt_path.name}")
+    out_dir = EVAL_DIR / ckpt_path.name
     cmd = [
-        "slsb",
+        *slsb_command(),
         "run",
         "--upstream",
         upstream,
@@ -73,39 +94,31 @@ def evaluate_checkpoint(
         summary = json.load(f)
 
     ok_entries = [r for r in summary.get("results", []) if r.get("status") == "ok"]
-    if not ok_entries:
-        print(f"WARNING: no successful runs for {ckpt_path.name} (task={task})")
-        return float("inf")
-
-    metric_name = PRIMARY_METRIC.get(task)
-    if metric_name is None:
-        print(f"WARNING: no known primary metric for proxy task '{task}'")
-        return float("inf")
-
-    values = [e["metrics"][metric_name] for e in ok_entries if metric_name in e.get("metrics", {})]
+    values = [e["details"][key] for e in ok_entries if key in e.get("details", {})]
     if not values:
-        print(f"WARNING: metric '{metric_name}' missing from {ckpt_path.name} results")
+        print(f"WARNING: no dev score ({key}) in the results for {ckpt_path.name} (task={task})")
         return float("inf")
 
     mean_value = sum(values) / len(values)
-
-    # For ASR/EER: lower is better already. For accuracy: higher is better, so negate.
-    if metric_name == "accuracy":
-        return -mean_value
-    return mean_value
+    # lower is better throughout: accuracy is negated
+    return -mean_value if higher_is_better else mean_value
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="params.yaml")
+    add_config_args(parser)
+    parser.add_argument(
+        "--allow-incomplete",
+        action="store_true",
+        help="select even though pre-training has not reached max_updates",
+    )
     args = parser.parse_args()
 
-    params = Params.from_yaml(args.config)
+    params = params_from_args(args)
     cfg = params.pretrain
-    import yaml
-
-    with open(args.config) as f:
-        raw = yaml.safe_load(f)
+    if not args.allow_incomplete:
+        require_pretraining_complete(params.model.reports_dir, cfg.max_updates)
+    raw = load_raw(args.config, args.model, args.overlay)
     sel_cfg = raw.get("checkpoint_selection", {})
 
     proxy_task = sel_cfg.get("proxy_task", "asr")
@@ -126,12 +139,14 @@ def main():
                 shutil.copy2(f, dest) if f.is_file() else shutil.copytree(f, dest)
         return
 
-    print(f"Evaluating {len(checkpoints)} checkpoints on proxy task: {proxy_task}")
+    print(
+        f"Evaluating {len(checkpoints)} checkpoints on proxy task: {proxy_task} (selecting on dev)"
+    )
     results = {}
     for ckpt in checkpoints:
         score = evaluate_checkpoint(ckpt, proxy_task, proxy_seed, proxy_data)
         results[ckpt.name] = score
-        print(f"  {ckpt.name}: {proxy_task} score = {score:.4f}")
+        print(f"  {ckpt.name}: {proxy_task} dev {DEV_SCORE[proxy_task][0]} = {score:.4f}")
 
     # Pick best -- but never "select" a checkpoint when every eval failed
     if all(score == float("inf") for score in results.values()):
@@ -152,12 +167,16 @@ def main():
     # Write selection report
     report = {
         "proxy_task": proxy_task,
+        "selection_split": "dev",
+        "selection_metric": DEV_SCORE[proxy_task][0],
         "proxy_seed": proxy_seed,
         "best_checkpoint": best_name,
         "best_score": results[best_name],
         "all_scores": results,
     }
-    with open("reports/checkpoint_selection.json", "w") as f:
+    reports_dir = Path(params.model.reports_dir)
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    with open(reports_dir / "checkpoint_selection.json", "w") as f:
         json.dump(report, f, indent=2)
 
 
