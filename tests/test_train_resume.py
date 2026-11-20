@@ -2,11 +2,11 @@
 
 import pytest
 import torch
-from pipeline.hubert_model import HubertForMaskedPrediction
 from transformers import HubertConfig, HubertModel, Wav2Vec2FeatureExtractor
 
 from pipeline.callbacks import MaskedAccuracyStallDetector
 from pipeline.checkpoints import STATE_FILE, latest_checkpoint, list_checkpoints
+from pipeline.hubert_model import HubertForMaskedPrediction
 from pipeline.train import prediction_perplexity, save_checkpoint
 
 CONFIG = {
