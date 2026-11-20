@@ -12,6 +12,7 @@ Output:
     reports/phase0.json — machine-readable results
     stdout — human-readable summary
 """
+
 import argparse
 import json
 import sys
@@ -21,9 +22,6 @@ from pathlib import Path
 import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-
-MASK_TIME_PROB = 0.65
-MASK_TIME_LENGTH = 10
 
 
 def measure_throughput(steps: int = 100, batch_seconds: float = 200.0, precision: str = "bf16"):
@@ -36,20 +34,23 @@ def measure_throughput(steps: int = 100, batch_seconds: float = 200.0, precision
         print(f"Memory: {mem_gb:.1f} GB")
 
     # Load the actual model — not a toy config
-    from transformers import Wav2Vec2ForPreTraining
-    print("Loading facebook/wav2vec2-xls-r-300m ...")
-    model = Wav2Vec2ForPreTraining.from_pretrained("facebook/wav2vec2-xls-r-300m")
+    from pipeline.hubert_model import HubertForMaskedPrediction
+
+    from pipeline.schema import Params
+
+    print("Loading base model from params.yaml ...")
+
+    params = Params.from_yaml(str(Path(__file__).resolve().parent.parent / "params.yaml"))
+    num_clusters = params.cluster.num_clusters
+    model = HubertForMaskedPrediction(
+        params.pretrain.base_model, num_clusters=num_clusters, layerdrop=params.pretrain.layerdrop
+    )
     model.freeze_feature_encoder()
     model.to(device)
 
-    # Verify quantizer
-    quantizer_keys = [k for k in model.state_dict() if "quantizer" in k]
-    assert len(quantizer_keys) > 0, "No quantizer weights — wrong checkpoint?"
-    print(f"Quantizer keys present: {len(quantizer_keys)} ✓")
-
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print(f"Params: {total_params/1e6:.1f}M total, {trainable_params/1e6:.1f}M trainable")
+    print(f"Params: {total_params / 1e6:.1f}M total, {trainable_params / 1e6:.1f}M trainable")
 
     # Synthetic batch
     sample_rate = 16000
@@ -61,36 +62,46 @@ def measure_throughput(steps: int = 100, batch_seconds: float = 200.0, precision
 
     optimizer = torch.optim.AdamW(
         [p for p in model.parameters() if p.requires_grad],
-        lr=5e-5, betas=(0.9, 0.98), eps=1e-6, weight_decay=0.01,
+        lr=5e-5,
+        betas=(0.9, 0.98),
+        eps=1e-6,
+        weight_decay=0.01,
     )
 
     amp_dtype = torch.bfloat16 if precision == "bf16" else torch.float16
 
-    # A real pre-training step, using the same helpers as train.py: mask +
-    # negative sampling (required -- forward() returns loss=None without them),
-    # forward under autocast, backward, per-mask-count gradient rescale, clip,
-    # optimizer step. Synthetic audio only; no real data IO or DDP sync.
-    from pipeline.train import compute_mask_and_negatives, multiply_grads
+    # A real pre-training step, using the same helpers as train.py: mask
+    # generation (required -- HubertModel applies masked_spec_embed at these
+    # positions before the transformer), forward under autocast, masked
+    # cross-entropy against synthetic cluster ids, backward, clip, optimizer
+    # step. Synthetic audio/labels only; no real data IO or DDP sync.
+    import torch.nn as nn
+
+    from pipeline.train import compute_mask
 
     trainable = [p for p in model.parameters() if p.requires_grad]
-    model.set_gumbel_temperature(1.0)
+    loss_fn = nn.CrossEntropyLoss(ignore_index=-100)
+
+    class _Out:
+        def __init__(self, loss):
+            self.loss = loss
 
     def train_step():
         x = torch.randn(batch_size, seq_len, device=device)
         m = torch.ones(batch_size, seq_len, dtype=torch.long, device=device)
-        mask_time_indices, sampled_negatives, _ = compute_mask_and_negatives(
-            model, x, m, MASK_TIME_PROB, MASK_TIME_LENGTH, device,
+        mask_time_indices, _ = compute_mask(
+            model, x, m, params.pretrain.mask_time_prob, params.pretrain.mask_time_length, device
         )
         with torch.autocast("cuda", dtype=amp_dtype):
-            out = model(x, attention_mask=m, mask_time_indices=mask_time_indices,
-                        sampled_negative_indices=sampled_negatives)
-        out.loss.backward()
-        num_losses = mask_time_indices.sum().float().clamp(min=1)
-        multiply_grads(trainable, 1.0 / num_losses)
+            logits = model(x, attention_mask=m, mask_time_indices=mask_time_indices)
+        target = torch.randint(0, num_clusters, logits.shape[:2], device=device)
+        target[~mask_time_indices] = -100
+        loss = loss_fn(logits.transpose(1, 2), target)
+        loss.backward()
         torch.nn.utils.clip_grad_norm_(trainable, 1.0)
         optimizer.step()
         optimizer.zero_grad()
-        return out
+        return _Out(loss)
 
     # Warmup (not timed)
     print("Warming up (5 steps) ...")
@@ -116,8 +127,10 @@ def measure_throughput(steps: int = 100, batch_seconds: float = 200.0, precision
             elapsed = time.perf_counter() - t0
             rate = total_audio_sec / elapsed
             peak_mem = torch.cuda.max_memory_allocated() / 1e9
-            print(f"  {i+1}/{steps}  {rate:.1f} aud-s/s  loss={out.loss.item():.4f}  "
-                  f"peak_mem={peak_mem:.1f}GB")
+            print(
+                f"  {i + 1}/{steps}  {rate:.1f} aud-s/s  loss={out.loss.item():.4f}  "
+                f"peak_mem={peak_mem:.1f}GB"
+            )
 
     torch.cuda.synchronize()
     wall = time.perf_counter() - t0
@@ -127,7 +140,10 @@ def measure_throughput(steps: int = 100, batch_seconds: float = 200.0, precision
     # Estimate real pre-training time from the configured schedule, so this
     # can't drift from what train.py will actually run.
     from pipeline.schema import Params
-    pretrain_cfg = Params.from_yaml(str(Path(__file__).resolve().parent.parent / "params.yaml")).pretrain
+
+    pretrain_cfg = Params.from_yaml(
+        str(Path(__file__).resolve().parent.parent / "params.yaml")
+    ).pretrain
     target_batch = float(pretrain_cfg.target_batch_seconds)  # seconds of audio per optimizer step
     max_updates = pretrain_cfg.max_updates
     # With grad accumulation: each update processes target_batch seconds
@@ -150,7 +166,7 @@ def measure_throughput(steps: int = 100, batch_seconds: float = 200.0, precision
         "model": {
             "total_params_M": round(total_params / 1e6, 1),
             "trainable_params_M": round(trainable_params / 1e6, 1),
-            "quantizer_keys": len(quantizer_keys),
+            "num_clusters": num_clusters,
         },
         "estimate": {
             "target_batch_seconds": target_batch,
@@ -161,14 +177,16 @@ def measure_throughput(steps: int = 100, batch_seconds: float = 200.0, precision
         },
     }
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("  PHASE 0 RESULTS — single node")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"  Throughput:    {throughput:.1f} audio-sec / wall-sec")
     print(f"  Peak memory:   {peak_mem:.1f} GB")
-    print(f"  Pre-train est: {est_hours:.0f}h ({est_hours/24:.1f}d) "
-          f"for {max_updates} updates × {target_batch:.0f}s/update")
-    print(f"{'='*60}")
+    print(
+        f"  Pre-train est: {est_hours:.0f}h ({est_hours / 24:.1f}d) "
+        f"for {max_updates} updates × {target_batch:.0f}s/update"
+    )
+    print(f"{'=' * 60}")
     print()
     print("  ⚠  This is a SINGLE-NODE estimate with SYNTHETIC data (full train step:")
     print("  mask/negative sampling + forward + backward + optimizer).")
@@ -194,8 +212,9 @@ def measure_throughput(steps: int = 100, batch_seconds: float = 200.0, precision
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Phase 0 throughput measurement")
     parser.add_argument("--steps", type=int, default=100, help="Steps to time")
-    parser.add_argument("--batch-seconds", type=float, default=200.0,
-                        help="Audio seconds per synthetic batch")
+    parser.add_argument(
+        "--batch-seconds", type=float, default=200.0, help="Audio seconds per synthetic batch"
+    )
     parser.add_argument("--precision", default="bf16", choices=["bf16", "fp16"])
     args = parser.parse_args()
     measure_throughput(args.steps, args.batch_seconds, args.precision)

@@ -73,18 +73,55 @@ stages:
     outs:
       - data/shars/
 
+  fit_kmeans:
+    cmd: python -m pipeline.fit_kmeans --config params.yaml
+    deps:
+      - src/pipeline/fit_kmeans.py
+      - src/pipeline/layer_features.py
+      - src/pipeline/datamodule.py
+      - data/shars/
+    params:
+      - cluster
+      - shard
+      - pretrain.base_model
+    outs:
+      - models/kmeans/mhubert147-L9-k500.joblib:
+          persist: true
+    metrics:
+      - reports/kmeans_stats.json:
+          cache: false
+
+  assign_cluster_labels:
+    cmd: python -m pipeline.assign_cluster_labels --config params.yaml
+    deps:
+      - src/pipeline/assign_cluster_labels.py
+      - src/pipeline/layer_features.py
+      - src/pipeline/datamodule.py
+      - models/kmeans/mhubert147-L9-k500.joblib
+      - data/shars/
+    params:
+      - cluster
+      - shard
+      - pretrain.base_model
+    outs:
+      - data/labels/mhubert147_train_labels.jsonl.gz:
+          persist: true
+
   pretrain:
     cmd: bash scripts/launch_pretrain.sh
     deps:
       - src/pipeline/train.py
       - src/pipeline/datamodule.py
       - src/pipeline/callbacks.py
+      - src/pipeline/hubert_model.py
+      - src/pipeline/checkpoints.py
       - data/shars/
+      - data/labels/mhubert147_train_labels.jsonl.gz
     params:
       - pretrain
-      - monitoring
+      - cluster.num_clusters
     outs:
-      - models/xlsr300m-si-ta-200h-norm/:
+      - models/mhubert147-si-ta-200h/:
           persist: true
     metrics:
       - reports/pretrain_metrics.json:
@@ -97,7 +134,7 @@ stages:
     cmd: python -m pipeline.select_checkpoint --config params.yaml
     deps:
       - src/pipeline/select_checkpoint.py
-      - models/xlsr300m-si-ta-200h-norm/
+      - models/mhubert147-si-ta-200h/
     params:
       - checkpoint_selection
     outs:
@@ -113,21 +150,18 @@ stages:
       models/selected
       ${benchmark.tasks}
       ${benchmark.seeds}
-      reports/bench/xlsr300m_adapted_norm
+      reports/bench/mhubert147_adapted
       ${benchmark.mlflow_uri}
       ${benchmark.slsb_data_dir}
-      ${benchmark.mlflow_run_prefix}
-      ${benchmark.mlflow_run_tags}
     deps:
       - models/selected/
       - scripts/run_benchmark.sh
-      - scripts/label_benchmark_runs.py
     params:
       - benchmark.tasks
       - benchmark.seeds
       - benchmark.slsb_data_dir
     metrics:
-      - reports/bench/xlsr300m_adapted_norm/metrics.json:
+      - reports/bench/mhubert147_adapted/metrics.json:
           cache: false
 
   report:

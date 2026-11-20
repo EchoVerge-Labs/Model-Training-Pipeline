@@ -5,8 +5,14 @@ from pipeline.schema import Params
 
 def test_params_loads():
     p = Params.from_yaml("params.yaml")
-    assert p.pretrain.base_model == "facebook/wav2vec2-xls-r-300m"
+    assert p.pretrain.base_model == "utter-project/mHuBERT-147"
     assert p.pretrain.precision == "bf16"
+
+
+def test_cluster_config_loads_and_matches_labels_path():
+    p = Params.from_yaml("params.yaml")
+    assert p.cluster.num_clusters > 0
+    assert p.pretrain.labels_path == p.cluster.labels_output
 
 
 def test_language_mix_sums_to_one():
@@ -58,3 +64,59 @@ def test_max_cut_seconds_must_leave_room_for_merged_short_clips():
 
     with pytest.raises(ValueError, match="target_cut_seconds \\+"):
         _shard_cfg(max_cut_seconds=18.0)
+
+
+# Settings shared with the wav2vec2 XLS-R run on `main`; a fair comparison needs
+# them identical. Values copied from main's params.yaml.
+MAIN_SHARED = {
+    "precision": "bf16",
+    "freeze_feature_encoder": True,
+    "max_updates": 13500,
+    "warmup_updates": 1000,
+    "peak_lr": 5.0e-5,
+    "lr_schedule": "tri_stage",
+    "hold_ratio": 0.4,
+    "optimizer": "adamw",
+    "adam_betas": [0.9, 0.98],
+    "adam_eps": 1.0e-6,
+    "weight_decay": 0.01,
+    "max_grad_norm": 1.0,
+    "target_batch_seconds": 1600,
+    "per_device_max_seconds": 200,
+    "num_workers": 4,
+    "mask_time_prob": 0.65,
+    "mask_time_length": 10,
+    "save_every_updates": 1500,
+    "eval_every_updates": 500,
+    "keep_last_n_checkpoints": 5,
+    "milestone_checkpoints": [4500, 9000, 13500],
+    "head_lr_mult": 1.0,
+    "layerdrop": 0.1,  # XLS-R stock config, which main trains with unchanged
+}
+
+
+def test_training_settings_match_the_wav2vec2_run_on_main():
+    p = Params.from_yaml("params.yaml").pretrain
+    for name, expected in MAIN_SHARED.items():
+        assert getattr(p, name) == expected, f"{name} differs from main"
+
+
+def test_gpu_memory_cap_matches_main_and_is_bounded():
+    import pytest
+    from pydantic import ValidationError
+
+    from pipeline.schema import PretrainConfig
+
+    assert Params.from_yaml("params.yaml").pretrain.max_gpu_memory_fraction == 0.8
+    base = Params.from_yaml("params.yaml").pretrain.model_dump()
+    for bad in (0.0, 1.5):
+        with pytest.raises(ValidationError):
+            PretrainConfig(**{**base, "max_gpu_memory_fraction": bad})
+
+
+def test_mhubert_targets_use_its_own_layer_count():
+    p = Params.from_yaml("params.yaml")
+    assert p.cluster.layer == 9  # mHuBERT-147 has 12 layers, not HuBERT-Large's 24
+    assert p.cluster.num_clusters == 500
+    assert "mhubert" in p.pretrain.output_dir
+    assert "mhubert" in p.cluster.kmeans_output and "mhubert" in p.cluster.labels_output

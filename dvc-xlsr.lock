@@ -1,0 +1,166 @@
+schema: '2.0'
+stages:
+  materialise:
+    cmd: python -m pipeline.materialise --config params.yaml
+    deps:
+    - path: data/manifests/dev.jsonl
+      hash: md5
+      md5: 7a9a59bdad32f78d872d144a2009362b
+      size: 169340
+    - path: data/manifests/train.jsonl
+      hash: md5
+      md5: 065c4390352abe42258757420531944f
+      size: 14332780
+    - path: src/pipeline/materialise.py
+      hash: md5
+      md5: c2dbdbb6a9d9b087b522733ee540077d
+      size: 4649
+    params:
+      params.yaml:
+        select.drive_root: ~/google-drive/Pre Processed Data
+    outs:
+    - path: data/raw/
+      hash: md5
+      md5: 13e8deeb3eb9b1c73002a705943fb1d2.dir
+      size: 22547079700
+      nfiles: 31356
+    - path: reports/materialise.json
+      hash: md5
+      md5: 1ae3db3b0d6084ed4482882bdefd0db5
+      size: 191
+  shard:
+    cmd: python -m pipeline.shard --config params.yaml
+    deps:
+    - path: data/manifests/train.jsonl
+      hash: md5
+      md5: 065c4390352abe42258757420531944f
+      size: 14332780
+    - path: data/raw/
+      hash: md5
+      md5: 13e8deeb3eb9b1c73002a705943fb1d2.dir
+      size: 22547079700
+      nfiles: 31356
+    - path: src/pipeline/shard.py
+      hash: md5
+      md5: 6b9d42e608e0b39df2eddb05196cd378
+      size: 7910
+    params:
+      params.yaml:
+        shard:
+          format: flac
+          shard_size: 1000
+          min_cut_seconds: 5.0
+          target_cut_seconds: 15.0
+          max_cut_seconds: 30.0
+          output_dir: data/shars
+    outs:
+    - path: data/shars/
+      hash: md5
+      md5: 342a4a3a07d947c9bb186e683f053fa5.dir
+      size: 12666291234
+      nfiles: 74
+  index_drive:
+    cmd: python -m pipeline.drive_index --config params.yaml
+    deps:
+    - path: data/catalog/catalog_latest.csv
+      hash: md5
+      md5: c4a9926fdd1f20100726d0a85e9e5090
+      size: 141067082
+    - path: src/pipeline/drive_index.py
+      hash: md5
+      md5: 2cfee51caf330975504c9ea31b9f791f
+      size: 3389
+    params:
+      params.yaml:
+        select.drive_index_path: data/catalog/drive_index.tsv
+        select.drive_root: ~/google-drive/Pre Processed Data
+    outs:
+    - path: data/catalog/drive_index.tsv
+      hash: md5
+      md5: 8f0da4efecb151e3356ce5b9eaf50456
+      size: 50427110
+  select:
+    cmd: python -m pipeline.select --config params.yaml
+    deps:
+    - path: data/catalog/catalog_latest.csv
+      hash: md5
+      md5: c4a9926fdd1f20100726d0a85e9e5090
+      size: 141067082
+    - path: data/catalog/drive_index.tsv
+      hash: md5
+      md5: 8f0da4efecb151e3356ce5b9eaf50456
+      size: 50427110
+    - path: src/pipeline/drive_index.py
+      hash: md5
+      md5: 2cfee51caf330975504c9ea31b9f791f
+      size: 3389
+    - path: src/pipeline/select.py
+      hash: md5
+      md5: ebb84168eff80dfd195f977cf6464ae8
+      size: 17427
+    params:
+      params.yaml:
+        select:
+          seed: 1337
+          target_hours: 200.0
+          language_mix:
+            sinhala: 0.5
+            tamil: 0.5
+          min_segment_seconds: 3.0
+          max_segment_seconds: 900
+          max_hours_per_channel: 12.0
+          holdout_hours: 2.0
+          catalog_path: data/catalog/catalog_latest.csv
+          exclude_channels_file: data/catalog/eval_contamination_blocklist.txt
+          drive_root: ~/google-drive/Pre Processed Data
+          drive_index_path: data/catalog/drive_index.tsv
+    outs:
+    - path: data/manifests/dev.jsonl
+      hash: md5
+      md5: 7a9a59bdad32f78d872d144a2009362b
+      size: 169340
+    - path: data/manifests/train.jsonl
+      hash: md5
+      md5: 065c4390352abe42258757420531944f
+      size: 14332780
+    - path: reports/selection_report.md
+      hash: md5
+      md5: d37a081c3b8a4ee8cb57b8a00d9bdfba
+      size: 2457
+    - path: reports/selection_stats.json
+      hash: md5
+      md5: 34e1adedbac93e199888378f833f7fe9
+      size: 774
+    - path: reports/unresolved_clips.csv
+      hash: md5
+      md5: 2a39f8c8d6424d04a43b31e0160bc0b7
+      size: 4872
+  benchmark:
+    cmd: "bash scripts/run_benchmark.sh models/selected asr,sid,er,asv 0,1,2 reports/bench/xlsr300m_adapted_norm
+      https://dagshub.com/EchoVerge-LABS/Model-Training-Pipeline.mlflow ../SLSB-benchmark/data
+      xlsr_200h_CoPT_norm model=xlsr300m,base_model=facebook/wav2vec2-xls-r-300m,stage=continued-pretraining,copt_data=si-ta-200h,copt_run=xlsr300m-si-ta-200h-norm,train_normalize=true,variant=norm\n"
+    deps:
+    - path: models/selected/
+      hash: md5
+      md5: fe031ac411194fee27a7989e2f904a60.dir
+      size: 3775403047
+      nfiles: 4
+    - path: scripts/label_benchmark_runs.py
+      hash: md5
+      md5: 4e632bb3c5718e28ea9bf3b5ec40b1b3
+      size: 5623
+    - path: scripts/run_benchmark.sh
+      hash: md5
+      md5: d9218c90f6cfae95c74a6eba08bfa299
+      size: 2833
+      isexec: true
+    params:
+      params.yaml:
+        benchmark.seeds: 0,1,2
+        benchmark.slsb_data_dir: ../SLSB-benchmark/data
+        benchmark.tasks: asr,sid,er,asv
+    outs:
+    - path: reports/bench/xlsr300m_adapted_norm/metrics.json
+      hash: md5
+      md5: 289b5e0c5013e29233306c956d80e584
+      size: 8965

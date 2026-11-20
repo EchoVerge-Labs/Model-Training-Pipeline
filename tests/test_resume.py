@@ -12,9 +12,9 @@ import pytest
 import torch
 from transformers import Wav2Vec2FeatureExtractor, Wav2Vec2ForPreTraining
 
-from pipeline.callbacks import CodebookCollapseDetector
-from pipeline.schema import MonitoringConfig, Params
-from pipeline.train import (
+from pipeline.callbacks_xlsr import CodebookCollapseDetector
+from pipeline.schema_xlsr import MonitoringConfig, Params
+from pipeline.train_xlsr import (
     CURVES_HEADER,
     TRAINING_STATE_FILE,
     checkpoint_step,
@@ -26,7 +26,7 @@ from pipeline.train import (
     save_checkpoint,
     train,
 )
-from tests.test_smoke_train import _tiny_model
+from tests.test_smoke_train_xlsr import _tiny_model
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CPU = torch.device("cpu")
@@ -34,7 +34,7 @@ CPU = torch.device("cpu")
 
 @pytest.fixture(autouse=True)
 def _run_in_tmp(tmp_path, monkeypatch):
-    """Any stray relative path (reports/, models/, params.yaml) lands in tmp_path, never
+    """Any stray relative path (reports/, models/, params-xlsr.yaml) lands in tmp_path, never
     in the repo -- a real training run may be reading and writing those."""
     monkeypatch.chdir(tmp_path)
 
@@ -58,7 +58,7 @@ def _make_base(tmp_path: Path) -> Path:
 
 
 def _params(tmp_path: Path, base: Path, monitoring: dict | None = None, **pretrain) -> Params:
-    params = Params.from_yaml(str(REPO_ROOT / "params.yaml"))
+    params = Params.from_yaml(str(REPO_ROOT / "params-xlsr.yaml"))
     settings = {
         "base_model": str(base),
         "precision": "fp32",
@@ -108,7 +108,7 @@ def _run(params: Params, tmp_path: Path, **kwargs) -> int:
 
 
 def _curve_steps(tmp_path: Path) -> list[int]:
-    lines = (tmp_path / "reports" / "pretrain_curves.csv").read_text().splitlines()
+    lines = (tmp_path / "reports" / "pretrain_curves-xlsr.csv").read_text().splitlines()
     assert lines[0] == CURVES_HEADER
     return [int(line.split(",")[0]) for line in lines[1:]]
 
@@ -137,7 +137,7 @@ def test_resume_from_step_3_runs_two_more_updates_and_ends_at_step_5(tmp_path, c
     assert "Resuming automatically from" in printed and "checkpoint-3 at step 3" in printed
     # Run 2 continued (4, 5) instead of starting over (which would re-log 1, 2, ...).
     assert _curve_steps(tmp_path) == [1, 2, 3, 4, 5]
-    assert '"final_step": 5' in (tmp_path / "reports" / "pretrain_metrics.json").read_text()
+    assert '"final_step": 5' in (tmp_path / "reports" / "pretrain_metrics-xlsr.json").read_text()
 
 
 def test_explicit_resume_from_a_checkpoint_directory(tmp_path):
@@ -280,7 +280,7 @@ def test_pruning_keeps_milestones_plus_the_newest_few_others(tmp_path):
 
 
 def test_resuming_trims_the_loss_curve_so_it_has_no_duplicates(tmp_path):
-    curves = tmp_path / "pretrain_curves.csv"
+    curves = tmp_path / "pretrain_curves-xlsr.csv"
     rows = [f"{s},1,1,1,1,1,1,1,1" for s in (500, 1000, 1500, 2000)]
     curves.write_text("\n".join([CURVES_HEADER, *rows]) + "\n")
 
@@ -322,7 +322,7 @@ def test_a_healthy_reading_resets_the_count():
 def test_monitoring_defaults_and_validation():
     assert MonitoringConfig().perplexity_floor == 10.0
     assert MonitoringConfig().consecutive_alerts == 5
-    real = Params.from_yaml(str(REPO_ROOT / "params.yaml")).monitoring
+    real = Params.from_yaml(str(REPO_ROOT / "params-xlsr.yaml")).monitoring
     assert (real.perplexity_floor, real.consecutive_alerts) == (10.0, 5)
     with pytest.raises(ValueError):
         MonitoringConfig(consecutive_alerts=0)
@@ -341,4 +341,4 @@ def test_train_uses_the_monitoring_settings_to_stop_on_collapse(tmp_path, capsys
     with pytest.warns(UserWarning):
         assert _run(params, tmp_path) == 2
     assert "CODEBOOK COLLAPSE DETECTED" in capsys.readouterr().out
-    assert '"completed": false' in (tmp_path / "reports" / "pretrain_metrics.json").read_text()
+    assert '"completed": false' in (tmp_path / "reports" / "pretrain_metrics-xlsr.json").read_text()

@@ -1,0 +1,11 @@
+{
+  "layer": 18,
+  "num_clusters": 500,
+  "frames_used": 1998919,
+  "sampled_cuts": 7594,
+  "sampled_hours": 40.0,
+  "inertia": 89171460096.0,
+  "cluster_usage_min": 3,
+  "cluster_usage_max": 10830,
+  "clusters_used": 500
+}

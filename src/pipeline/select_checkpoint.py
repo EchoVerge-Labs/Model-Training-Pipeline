@@ -6,6 +6,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from pipeline.checkpoints import list_checkpoints
 from pipeline.schema import Params
 
 # Mirrors slsb's own per-family primary metric (see SLSB-benchmark's
@@ -15,17 +16,17 @@ PRIMARY_METRIC = {"asr": "wer", "sid": "accuracy", "er": "accuracy", "asv": "eer
 
 
 def find_milestone_checkpoints(model_dir: str, milestones: list[int]) -> list[Path]:
-    """Find the milestone checkpoint directories in the model output.
+    """Complete milestone checkpoint directories in the model output, oldest first.
 
     Only milestones are proxy-evaluated: each eval is a full downstream
     fine-tune, so scoring every rolling checkpoint is too expensive.
     """
-    model_path = Path(model_dir)
-    checkpoints = [model_path / f"checkpoint-{step}" for step in sorted(milestones)]
-    missing = [c.name for c in checkpoints if not c.is_dir()]
+    complete = dict(list_checkpoints(model_dir))
+    wanted = sorted(milestones)
+    missing = [f"checkpoint-{step}" for step in wanted if step not in complete]
     if missing:
-        print(f"WARNING: milestone checkpoints not found, skipping: {missing}")
-    return [c for c in checkpoints if c.is_dir()]
+        print(f"WARNING: milestone checkpoints missing or incomplete, skipping: {missing}")
+    return [complete[step] for step in wanted if step in complete]
 
 
 def evaluate_checkpoint(
