@@ -1,4 +1,4 @@
-.PHONY: setup lint test phase0 snapshot index select pull shard fit-kmeans labels train ckpt bench bench-frozen report all clean clean-data help
+.PHONY: setup lint test phase0 snapshot index select pull shard fit-kmeans labels copt train ckpt bench bench-frozen report all clean clean-data help
 
 # Load local credentials/config for recipes. Values already supplied by the
 # shell or command line take precedence over .env.
@@ -60,8 +60,10 @@ fit-kmeans:  ## fit k-means on layer features of the base model (hubert/wavlm/mh
 labels:  ## assign cluster-id pseudo-labels to every training cut (needs `make fit-kmeans` first)
 	$(PYTHON) -m pipeline.labels.assign_cluster_labels --config params.yaml $(MODEL_FLAG)
 
-train:  ## continued pre-training of MODEL (the label models need `make shard` and `make labels` first)
+copt:  ## FULL continued pre-training (not PE-CoPT: no adapters/LoRA) of MODEL; label models need `make labels` first
 	bash scripts/launch_pretrain.sh
+
+train: copt  ## alias of `make copt` (full continued pre-training, not parameter-efficient)
 
 ckpt:  ## select best checkpoint via proxy eval
 	$(PYTHON) -m pipeline.select_checkpoint --config params.yaml $(MODEL_FLAG)

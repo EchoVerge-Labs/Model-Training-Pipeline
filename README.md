@@ -129,7 +129,7 @@ make shard      # pack into Lhotse Shar tarballs -> data/shars/
 # 4. Train a model (MODEL= any of xlsr wav2vec2 wavlm hubert mhubert; unset = xlsr)
 make fit-kmeans MODEL=wavlm   # hubert / wavlm / mhubert only: k-means on a layer of the base model
 make labels     MODEL=wavlm   #   ... then a cluster id for every frame -> data/labels/
-make train      MODEL=wavlm   # continued pre-training -> models/wavlm-large-si-ta-200h/   (run it in tmux)
+make copt       MODEL=wavlm   # FULL continued pre-training, not adapters/LoRA (`make train` = alias) -> models/wavlm-large-si-ta-200h/   (run it in tmux)
 
 # 5. Only once training has finished: pick a checkpoint, then benchmark it
 make ckpt       MODEL=wavlm   # proxy-eval milestone checkpoints, copy the best -> models/selected_wavlm/

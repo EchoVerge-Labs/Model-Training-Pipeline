@@ -152,6 +152,8 @@ def start_tracking(params: Params, setup: RunSetup, flat_params: dict) -> MLflow
                 **({"family": params.model.family} if params.model.family else {}),
                 "kind": "adapted",
                 "method": cfg.method,
+                "training_method": "full-copt",  # all transformer weights trained; not PE-CoPT
+                "peft": "none",
                 "data": params.model.data,
                 "base_model": cfg.base_model,
                 "slsb.model": model_name,
