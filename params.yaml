@@ -25,7 +25,7 @@ shard:
 
 # ── Pre-training ────────────────────────────────────
 pretrain:
-  base_model: facebook/wav2vec2-xls-r-300m
+  base_model: facebook/wav2vec2-large-lv60  # monolingual (English) counterpart to XLS-R
   precision: bf16
   freeze_feature_encoder: true
 
@@ -63,9 +63,8 @@ pretrain:
   milestone_checkpoints: [4500, 9000, 13500]   # 10, 20, 30 passes
 
   # Waveform normalisation is not a setting: it follows base_model's do_normalize
-  # (true for XLS-R), as on the HuBERT-Large / WavLM-Large branches. The first run,
-  # models/xlsr300m-si-ta-200h, predates that and trained on raw audio.
-  output_dir: models/xlsr300m-si-ta-200h-norm
+  # (true here too), as on the other branches.
+  output_dir: models/wav2vec2-mono-si-ta-200h
 
 # ── Monitoring ──────────────────────────────────────
 monitoring:
@@ -96,9 +95,12 @@ benchmark:
     wavlm_large:
       path: microsoft/wavlm-large
       name: "WavLM Large"
-    xlsr300m_adapted:
+    wav2vec2_mono_vanilla:
+      path: facebook/wav2vec2-large-lv60
+      name: "wav2vec2.0 Large (English, vanilla)"
+    wav2vec2_mono_adapted:
       path: models/selected
-      name: "XLS-R 300M (Si/Ta 200h)"
+      name: "wav2vec2.0 Large mono (Si/Ta 200h)"
       is_local: true
 
 # ── MLflow ──────────────────────────────────────────

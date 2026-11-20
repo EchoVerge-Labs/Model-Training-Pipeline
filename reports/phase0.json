@@ -7,9 +7,9 @@
     "seq_seconds": 20.0,
     "batch_seconds": 200.0,
     "steps": 100,
-    "wall_seconds": 241.0,
-    "throughput_audio_sec_per_wall_sec": 82.99,
-    "peak_gpu_memory_gb": 44.68
+    "wall_seconds": 423.4,
+    "throughput_audio_sec_per_wall_sec": 47.23,
+    "peak_gpu_memory_gb": 45.68
   },
   "model": {
     "total_params_M": 317.4,
@@ -18,9 +18,9 @@
   },
   "estimate": {
     "target_batch_seconds": 1600.0,
-    "max_updates": 50000,
-    "total_audio_hours": 22222.2,
-    "estimated_wall_hours": 267.8,
-    "estimated_wall_days": 11.2
+    "max_updates": 13500,
+    "total_audio_hours": 6000.0,
+    "estimated_wall_hours": 127.0,
+    "estimated_wall_days": 5.3
   }
 }
