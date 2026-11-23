@@ -1,6 +1,6 @@
 """Validate that params-wav2vec2.yaml matches the Pydantic schema."""
 
-from pipeline.schema_xlsr import Params
+from pipeline.schema import Params
 
 
 def test_params_loads():
@@ -27,7 +27,7 @@ def test_warmup_before_max():
 
 
 def _shard_cfg(**overrides):
-    from pipeline.schema_xlsr import ShardConfig
+    from pipeline.schema import ShardConfig
 
     base = {
         "shard_size": 1000,

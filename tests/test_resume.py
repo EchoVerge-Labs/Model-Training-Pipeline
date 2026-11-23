@@ -13,7 +13,7 @@ import torch
 from transformers import Wav2Vec2FeatureExtractor, Wav2Vec2ForPreTraining
 
 from pipeline.callbacks_xlsr import CodebookCollapseDetector
-from pipeline.schema_xlsr import MonitoringConfig, Params
+from pipeline.schema import MonitoringConfig, Params
 from pipeline.train_xlsr import (
     CURVES_HEADER,
     TRAINING_STATE_FILE,

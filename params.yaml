@@ -1,3 +1,6 @@
+# Which model this file configures; fixes its SSL objective family (see pipeline.schema).
+model_key: mhubert147
+
 # ── Data Selection ──────────────────────────────────
 select:
   seed: 1337

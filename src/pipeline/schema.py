@@ -1,4 +1,10 @@
-"""Pydantic schema for params.yaml validation."""
+"""Pydantic schema for the params*.yaml files (one per model, all validated here).
+
+The top-level `model_key` names the model and fixes its objective family:
+masked prediction on k-means cluster ids (HuBERT family) or wav2vec 2.0
+contrastive learning with a Gumbel quantiser. Fields that only one family uses are
+optional here, and `Params` requires them exactly when the family does.
+"""
 
 from typing import Literal
 
@@ -64,13 +70,25 @@ class ClusterConfig(BaseModel):
     labels_output: str
 
 
+ModelKey = Literal["mhubert147", "hubert", "wavlm", "xlsr", "wav2vec2"]
+ModelFamily = Literal["masked_prediction", "contrastive"]
+
+MODEL_FAMILIES: dict[str, ModelFamily] = {
+    "mhubert147": "masked_prediction",
+    "hubert": "masked_prediction",
+    "wavlm": "masked_prediction",
+    "xlsr": "contrastive",
+    "wav2vec2": "contrastive",
+}
+
+
 class PretrainConfig(BaseModel):
     base_model: str
     precision: Literal["bf16", "fp16", "fp32"] = "bf16"
     freeze_feature_encoder: bool = True
-    # Stock value of all three base models (XLS-R on main runs with 0.1). Layerdrop
-    # leaves parameters unused in a step, so train.py turns on DDP's
-    # find_unused_parameters when it's > 0.
+    # Stock value of the HuBERT-family base models. Layerdrop leaves parameters
+    # unused in a step, so those trainers turn on DDP's find_unused_parameters when
+    # it's > 0. The contrastive trainers don't read it.
     layerdrop: float = Field(default=0.1, ge=0, le=1)
 
     max_updates: int = Field(gt=0)
@@ -103,7 +121,14 @@ class PretrainConfig(BaseModel):
     # augmentation of the method, not a training hyperparameter.
     utterance_mix_prob: float = Field(default=0.0, ge=0, le=1)
 
-    labels_path: str
+    # ── masked prediction only (required for that family) ──
+    labels_path: str | None = None
+
+    # ── contrastive only (required for that family) ──
+    diversity_loss_weight: float | None = Field(default=None, ge=0)
+    max_gumbel_temperature: float | None = Field(default=None, gt=0)
+    min_gumbel_temperature: float | None = Field(default=None, gt=0)
+    gumbel_temperature_decay: float | None = Field(default=None, gt=0, le=1)
 
     save_every_updates: int = Field(gt=0)
     eval_every_updates: int = Field(gt=0)
@@ -125,11 +150,50 @@ class PretrainConfig(BaseModel):
         return v
 
 
+class MonitoringConfig(BaseModel):
+    """Training-health checks for the contrastive family (defaults apply if omitted)."""
+
+    # A codebook-perplexity reading below this counts as "low".
+    perplexity_floor: float = Field(default=10.0, gt=0)
+    # This many low readings in a row stop training. One reading is taken every
+    # pretrain.eval_every_updates updates, so the default is 5 x 500 = 2,500 updates.
+    consecutive_alerts: int = Field(default=5, gt=0)
+
+
+_CONTRASTIVE_FIELDS = (
+    "diversity_loss_weight",
+    "max_gumbel_temperature",
+    "min_gumbel_temperature",
+    "gumbel_temperature_decay",
+)
+
+
 class Params(BaseModel):
+    model_key: ModelKey
     select: SelectConfig
     shard: ShardConfig
-    cluster: ClusterConfig
+    cluster: ClusterConfig | None = None
     pretrain: PretrainConfig
+    monitoring: MonitoringConfig = Field(default_factory=MonitoringConfig)
+
+    @property
+    def model_family(self) -> ModelFamily:
+        return MODEL_FAMILIES[self.model_key]
+
+    @model_validator(mode="after")
+    def family_fields_are_present(self):
+        if self.model_family == "masked_prediction":
+            if self.cluster is None:
+                raise ValueError(f"model_key={self.model_key!r} needs a `cluster` section")
+            if self.pretrain.labels_path is None:
+                raise ValueError(f"model_key={self.model_key!r} needs pretrain.labels_path")
+        else:
+            missing = [f for f in _CONTRASTIVE_FIELDS if getattr(self.pretrain, f) is None]
+            if missing:
+                raise ValueError(
+                    f"model_key={self.model_key!r} needs pretrain.{', pretrain.'.join(missing)}"
+                )
+        return self
 
     @classmethod
     def from_yaml(cls, path: str = "params.yaml") -> "Params":

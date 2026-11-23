@@ -39,7 +39,7 @@ def measure_throughput(steps: int = 100, batch_seconds: float = 200.0, precision
     # Load the actual model — not a toy config
     from transformers import Wav2Vec2ForPreTraining
 
-    from pipeline.schema_xlsr import Params
+    from pipeline.schema import Params
 
     base_model = Params.from_yaml(
         str(Path(__file__).resolve().parent.parent / "params-wav2vec2.yaml")
@@ -147,7 +147,7 @@ def measure_throughput(steps: int = 100, batch_seconds: float = 200.0, precision
 
     # Estimate real pre-training time from the configured schedule, so this
     # can't drift from what train.py will actually run.
-    from pipeline.schema_xlsr import Params
+    from pipeline.schema import Params
 
     pretrain_cfg = Params.from_yaml(
         str(Path(__file__).resolve().parent.parent / "params-wav2vec2.yaml")

@@ -69,6 +69,7 @@ def _setup(tmp_path):
 
 def _params(tmp_path, base, shars, labels_path, max_updates):
     return Params(
+        model_key="mhubert147",
         select=SelectConfig(
             seed=1,
             target_hours=1.0,

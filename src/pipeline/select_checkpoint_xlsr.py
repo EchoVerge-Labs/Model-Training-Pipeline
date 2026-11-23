@@ -6,7 +6,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from pipeline.schema_xlsr import Params
+from pipeline.schema import Params
 
 # Mirrors slsb's own per-family primary metric (see SLSB-benchmark's
 # configs/tasks/*.yaml / scripts/run_all.py PRIMARY_METRIC). Lower is better

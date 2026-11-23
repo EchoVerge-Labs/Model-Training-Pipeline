@@ -120,3 +120,59 @@ def test_mhubert_targets_use_its_own_layer_count():
     assert p.cluster.num_clusters == 500
     assert "mhubert" in p.pretrain.output_dir
     assert "mhubert" in p.cluster.kmeans_output and "mhubert" in p.cluster.labels_output
+
+
+ALL_PARAMS = {
+    "params.yaml": ("mhubert147", "masked_prediction"),
+    "params-hubert.yaml": ("hubert", "masked_prediction"),
+    "params-wavlm.yaml": ("wavlm", "masked_prediction"),
+    "params-xlsr.yaml": ("xlsr", "contrastive"),
+    "params-wav2vec2.yaml": ("wav2vec2", "contrastive"),
+}
+
+
+def test_every_params_file_loads_with_its_model_family():
+    for path, (key, family) in ALL_PARAMS.items():
+        p = Params.from_yaml(path)
+        assert (p.model_key, p.model_family) == (key, family), path
+
+
+def _raw(path="params.yaml"):
+    import yaml
+
+    with open(path) as f:
+        return yaml.safe_load(f)
+
+
+def test_masked_prediction_requires_cluster_and_labels_path():
+    import pytest
+    from pydantic import ValidationError
+
+    raw = _raw()
+    del raw["cluster"]
+    with pytest.raises(ValidationError, match="cluster"):
+        Params(**raw)
+    raw = _raw()
+    del raw["pretrain"]["labels_path"]
+    with pytest.raises(ValidationError, match="labels_path"):
+        Params(**raw)
+
+
+def test_contrastive_requires_gumbel_fields():
+    import pytest
+    from pydantic import ValidationError
+
+    raw = _raw("params-xlsr.yaml")
+    del raw["pretrain"]["max_gumbel_temperature"]
+    with pytest.raises(ValidationError, match="max_gumbel_temperature"):
+        Params(**raw)
+
+
+def test_unknown_model_key_is_rejected():
+    import pytest
+    from pydantic import ValidationError
+
+    raw = _raw()
+    raw["model_key"] = "bert"
+    with pytest.raises(ValidationError):
+        Params(**raw)

@@ -110,7 +110,7 @@ rather than fabricating a score.
 ## Configuration
 
 `params-xlsr.yaml` is the single source of truth; every stage reads its own
-section from it, and `src/pipeline/schema_xlsr.py` validates the `select`,
+section from it, and `src/pipeline/schema.py` validates the `select`,
 `shard`, and `pretrain` sections with Pydantic before any stage runs (`make
 test` / CI run this validation too, so a bad config is caught before it
 wastes GPU hours).
