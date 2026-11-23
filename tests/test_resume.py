@@ -14,6 +14,7 @@ import torch
 from transformers import Wav2Vec2FeatureExtractor, Wav2Vec2ForPreTraining
 
 from pipeline.callbacks import CodebookCollapseDetector
+from pipeline.checkpoints import prepare_curves
 from pipeline.schema import MonitoringConfig, Params
 from pipeline.train_contrastive import (
     CURVES_HEADER,
@@ -22,7 +23,6 @@ from pipeline.train_contrastive import (
     find_resume,
     list_checkpoints,
     load_training_state,
-    prepare_curves,
     prune_checkpoints,
     save_checkpoint,
     train,
@@ -292,13 +292,15 @@ def test_resuming_trims_the_loss_curve_so_it_has_no_duplicates(tmp_path):
     rows = [f"{s},1,1,1,1,1,1,1,1" for s in (500, 1000, 1500, 2000)]
     curves.write_text("\n".join([CURVES_HEADER, *rows]) + "\n")
 
-    prepare_curves(curves, resume_step=1500)  # crashed after logging 2000, last checkpoint at 1500
+    prepare_curves(
+        curves, 1500, CURVES_HEADER
+    )  # crashed after logging 2000, last checkpoint at 1500
     steps = [line.split(",")[0] for line in curves.read_text().splitlines()]
     assert steps == ["step", "500", "1000", "1500"]
 
-    prepare_curves(curves, resume_step=0)  # a fresh run starts over
+    prepare_curves(curves, 0, CURVES_HEADER)  # a fresh run starts over
     assert curves.read_text() == CURVES_HEADER + "\n"
-    prepare_curves(tmp_path / "missing.csv", resume_step=1500)  # resuming with no history file
+    prepare_curves(tmp_path / "missing.csv", 1500, CURVES_HEADER)  # resuming with no history file
     assert (tmp_path / "missing.csv").read_text() == CURVES_HEADER + "\n"
 
 
@@ -398,3 +400,13 @@ def test_final_loss_is_the_last_logged_contrastive_loss_not_null(tmp_path):
     assert metrics["completed"] is True and metrics["final_loss"] is not None
     # per masked frame: the CSV's contrastive_loss column, not the batch-size-dependent sum
     assert metrics["final_loss"] == pytest.approx(float(last_row.split(",")[2]), abs=1e-4)
+
+
+def test_diversity_weight_and_negatives_from_params_reach_the_model(tmp_path):
+    """Both settings used to be read but ignored; the loss and negative sampling use the
+    model config, so what is saved must carry the params values."""
+    base = _make_base(tmp_path)
+    params = _params(tmp_path, base, diversity_loss_weight=0.3, num_negatives=7)
+    _run(params, tmp_path)
+    saved = Wav2Vec2ForPreTraining.from_pretrained(params.pretrain.output_dir).config
+    assert saved.diversity_loss_weight == 0.3 and saved.num_negatives == 7

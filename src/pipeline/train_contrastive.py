@@ -66,6 +66,7 @@ from transformers.models.wav2vec2.modeling_wav2vec2 import (
 
 from pipeline.adapters import inject_adapters
 from pipeline.callbacks import CodebookCollapseDetector, MLflowLogger
+from pipeline.checkpoints import prepare_curves
 from pipeline.datamodule import create_dataloader
 from pipeline.device import get_device
 from pipeline.model_registry import (
@@ -340,19 +341,6 @@ def prune_checkpoints(output_dir: Path, milestones: list[int], keep_last_n: int)
         shutil.rmtree(old)
 
 
-def prepare_curves(path: Path, resume_step: int) -> None:
-    """Fresh run: start the loss-curve CSV. Resume: keep the rows up to the step
-    being resumed from and drop later ones, which get re-logged when those steps
-    re-run -- so the history has no gaps and no duplicates."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    lines = path.read_text().splitlines() if resume_step > 0 and path.exists() else []
-    if not lines:
-        path.write_text(CURVES_HEADER + "\n")
-        return
-    kept = [row for row in lines[1:] if row and int(row.split(",", 1)[0]) <= resume_step]
-    path.write_text("\n".join([lines[0], *kept]) + "\n")
-
-
 def _assert_ranks_agree_on_resume(local_step: int, device) -> None:
     """A checkpoint only exists on the node that saved it. If ranks resumed from
     different steps their optimizer states would silently diverge, so fail every
@@ -452,6 +440,16 @@ def train(
 
     # ── Load model ──
     model = Wav2Vec2ForPreTraining.from_pretrained(model_source)
+    # The model computes its own loss from config.diversity_loss_weight, and negatives are
+    # sampled with config.num_negatives, so the params file only counts if it is applied here.
+    model.config.diversity_loss_weight = cfg.diversity_loss_weight
+    if cfg.num_negatives is not None:
+        model.config.num_negatives = cfg.num_negatives
+    if is_main:
+        print(
+            f"Diversity loss weight: {model.config.diversity_loss_weight}, "
+            f"negatives per position: {model.config.num_negatives}"
+        )
 
     # CRITICAL: verify quantizer weights are present
     state_keys = set(model.state_dict().keys())
@@ -618,7 +616,7 @@ def train(
     # CSV for loss curves (kept across a resume, see prepare_curves)
     curves_path = reports_dir / f"pretrain_curves{suffix}.csv"
     if is_main:
-        prepare_curves(curves_path, resume_step)
+        prepare_curves(curves_path, resume_step, CURVES_HEADER)
 
     if is_main:
         print(f"\n{'=' * 60}")

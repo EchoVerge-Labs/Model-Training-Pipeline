@@ -39,3 +39,17 @@ def list_checkpoints(output_dir: str | Path) -> list[tuple[int, Path]]:
 def latest_checkpoint(output_dir: str | Path) -> tuple[int, Path] | None:
     found = list_checkpoints(output_dir)
     return found[-1] if found else None
+
+
+def prepare_curves(path: Path, resume_step: int, header: str) -> None:
+    """Fresh run: start the loss-curve CSV. Resume: keep the rows up to the step
+    being resumed from and drop later ones, which get re-logged when those steps
+    re-run -- so the history has no gaps and no duplicates. `header` is the family's
+    own column list."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lines = path.read_text().splitlines() if resume_step > 0 and path.exists() else []
+    if not lines:
+        path.write_text(header + "\n")
+        return
+    kept = [row for row in lines[1:] if row and int(row.split(",", 1)[0]) <= resume_step]
+    path.write_text("\n".join([lines[0], *kept]) + "\n")

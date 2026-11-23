@@ -93,6 +93,7 @@ def fake_slsb(monkeypatch):
 
         monkeypatch.setattr(subprocess, "run", run)
 
+    install.written = written
     yield install
     for out_dir in written:
         shutil.rmtree(out_dir, ignore_errors=True)
@@ -187,3 +188,13 @@ def test_the_report_says_which_score_it_ranked_on(tmp_path, monkeypatch):
         (tmp_path / "reports" / "checkpoint_selection-wavlm-large-si-ta-200h.json").read_text()
     )
     assert report["ranked_on"] == "dev_cer"
+
+
+def test_each_evaluation_uses_a_private_dir_that_is_removed_afterwards(fake_slsb, tmp_path):
+    fake_slsb({"checkpoint-A": [_entry({}, {"dev_cer": 0.1})]})
+    assert _score("checkpoint-A") == 0.1
+    assert _score("checkpoint-A") == 0.1
+    # the stub records every --out it was given (see fake_slsb)
+    first, second = fake_slsb.written
+    assert first != second
+    assert not first.exists() and not second.exists()

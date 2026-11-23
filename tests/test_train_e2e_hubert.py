@@ -214,3 +214,17 @@ def test_final_loss_is_the_last_logged_loss_not_null(tmp_path, monkeypatch):
     assert metrics["final_step"] == 4 and metrics["completed"] is True
     assert metrics["final_loss"] is not None
     assert metrics["final_loss"] == pytest.approx(float(last_row.split(",")[1]), abs=1e-4)
+
+
+def test_resume_drops_curve_rows_logged_after_the_checkpoint(tmp_path, monkeypatch):
+    """A crash after logging step 4 but before the step-6 checkpoint used to leave step 4
+    twice in the curve CSV once the run resumed from 2."""
+    monkeypatch.chdir(tmp_path)
+    base, shars, labels_path = _setup(tmp_path)
+    train(_params(tmp_path, base, shars, labels_path, max_updates=4))
+    import shutil
+
+    shutil.rmtree(tmp_path / "out" / "checkpoint-4")  # as if training died after logging 4
+    train(_params(tmp_path, base, shars, labels_path, max_updates=4))
+    curves = (tmp_path / "reports" / "pretrain_curves-hubert-large-si-ta-200h.csv").read_text()
+    assert [int(r.split(",")[0]) for r in curves.splitlines()[1:]] == [2, 4]

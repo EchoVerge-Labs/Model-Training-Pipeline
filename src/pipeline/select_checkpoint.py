@@ -8,6 +8,7 @@ import argparse
 import json
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 from pipeline.checkpoints import has_backbone
@@ -53,8 +54,14 @@ def evaluate_checkpoint(
     {task: score} dict. See scripts/run_benchmark.sh for the same convention
     used by the dvc.yaml `benchmark` stage.
     """
+    # slsb's output is only needed to read the score: a private directory per call (so
+    # concurrent selections never collide) that is removed afterwards.
+    with tempfile.TemporaryDirectory(prefix=f"ckpt_eval_{ckpt_path.name}_") as tmp:
+        return _evaluate(ckpt_path, task, seed, data_dir, Path(tmp))
+
+
+def _evaluate(ckpt_path: Path, task: str, seed: int, data_dir: str | None, out_dir: Path) -> float:
     upstream = str(ckpt_path)
-    out_dir = Path(f"/tmp/ckpt_eval/{ckpt_path.parent.name}/{ckpt_path.name}")  # per run
     cmd = [
         "slsb",
         "run",

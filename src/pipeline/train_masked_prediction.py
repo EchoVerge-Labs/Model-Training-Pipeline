@@ -54,7 +54,7 @@ from transformers.models.hubert.modeling_hubert import _compute_mask_indices
 
 from pipeline.adapters import inject_adapters
 from pipeline.callbacks import MaskedAccuracyStallDetector, MLflowLogger
-from pipeline.checkpoints import STATE_FILE, latest_checkpoint, list_checkpoints
+from pipeline.checkpoints import STATE_FILE, latest_checkpoint, list_checkpoints, prepare_curves
 from pipeline.datamodule import create_dataloader
 from pipeline.device import get_device
 from pipeline.masked_prediction_model import MaskedPredictionModel
@@ -78,6 +78,9 @@ os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 # hold_end = warmup_updates + hold_ratio * (max_updates - warmup_updates)
 #
 # This is the schedule fairseq uses for HuBERT/Wav2Vec2 pre-training, not a cosine.
+
+
+CURVES_HEADER = "step,loss,masked_accuracy,unmasked_accuracy,pred_perplexity,grad_norm,lr,audio_sec_per_wall_sec"
 
 
 def get_tri_stage_lr(
@@ -393,13 +396,8 @@ def train(params: Params, config_path: str = "params.yaml"):
 
     # CSV for loss curves
     curves_path = Path(f"reports/pretrain_curves{suffix}.csv")
-    curves_path.parent.mkdir(parents=True, exist_ok=True)
-    if is_main and not (resume and curves_path.exists()):
-        with open(curves_path, "w") as f:
-            f.write(
-                "step,loss,masked_accuracy,unmasked_accuracy,pred_perplexity,"
-                "grad_norm,lr,audio_sec_per_wall_sec\n"
-            )
+    if is_main:
+        prepare_curves(curves_path, resume_step, CURVES_HEADER)
 
     if is_main:
         print(f"\n{'=' * 60}")

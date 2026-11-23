@@ -122,6 +122,8 @@ class PretrainConfig(BaseModel):
 
     # ── contrastive only (required for that family) ──
     diversity_loss_weight: float | None = Field(default=None, ge=0)
+    # distractors per masked position; default = the base model's own (100 for XLS-R)
+    num_negatives: int | None = Field(default=None, gt=0)
     max_gumbel_temperature: float | None = Field(default=None, gt=0)
     min_gumbel_temperature: float | None = Field(default=None, gt=0)
     gumbel_temperature_decay: float | None = Field(default=None, gt=0, le=1)
@@ -135,6 +137,32 @@ class PretrainConfig(BaseModel):
 
     # Training method: full_copt (default), or a PE-CoPT template (not implemented yet)
     pecopt: PECoPTConfig = Field(default_factory=PECoPTConfig)
+
+    @model_validator(mode="after")
+    def schedule_is_consistent(self):
+        """Catch a schedule that would silently never produce its checkpoints."""
+        if self.warmup_updates >= self.max_updates:
+            raise ValueError(
+                f"warmup_updates ({self.warmup_updates}) must be below max_updates "
+                f"({self.max_updates})"
+            )
+        for m in self.milestone_checkpoints:
+            if m > self.max_updates:
+                raise ValueError(
+                    f"milestone checkpoint {m} is beyond max_updates ({self.max_updates}), "
+                    "so it would never be written"
+                )
+            if m % self.save_every_updates:
+                raise ValueError(
+                    f"milestone checkpoint {m} is not a multiple of save_every_updates "
+                    f"({self.save_every_updates}); checkpoints are only written on those steps"
+                )
+        lo, hi = self.min_gumbel_temperature, self.max_gumbel_temperature
+        if lo is not None and hi is not None and lo > hi:
+            raise ValueError(
+                f"min_gumbel_temperature ({lo}) must not exceed max_gumbel_temperature ({hi})"
+            )
+        return self
 
     @field_validator("precision")
     @classmethod
