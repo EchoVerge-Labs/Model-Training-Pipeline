@@ -31,17 +31,7 @@ from torch import nn
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-# model key -> (params file, module holding that model's mask helpers). The trainers
-# each define their own copy for now; they collapse into one module in Phase 3.
-MODELS = {
-    "mhubert147": ("params.yaml", "pipeline.train"),
-    "hubert": ("params-hubert.yaml", "pipeline.train_hubert"),
-    "wavlm": ("params-wavlm.yaml", "pipeline.train_wavlm"),
-    "xlsr": ("params-xlsr.yaml", "pipeline.train_xlsr"),
-    "wav2vec2": ("params-wav2vec2.yaml", "pipeline.train_wav2vec2"),
-}
-# Same keys as pipeline.masked_prediction_model.BACKBONES
-MASKED_PREDICTION_TYPES = {"mhubert147": "hubert", "hubert": "hubert", "wavlm": "wavlm"}
+from pipeline.model_registry import MODEL_REGISTRY
 
 
 def _sync(device):
@@ -61,7 +51,7 @@ def load_model(model_key: str, params, device):
         from pipeline.masked_prediction_model import MaskedPredictionModel
 
         model = MaskedPredictionModel(
-            MASKED_PREDICTION_TYPES[model_key],
+            MODEL_REGISTRY[model_key].hf_model_type,
             base_model,
             num_clusters=params.cluster.num_clusters,
             layerdrop=params.pretrain.layerdrop,
@@ -150,10 +140,10 @@ def measure_throughput(
     """Measure pre-training throughput with synthetic data on real model."""
     from pipeline.schema import Params
 
-    config_file, trainer_module = MODELS[model_key]
-    params = Params.from_yaml(str(REPO_ROOT / config_file))
-    assert params.model_key == model_key, f"{config_file} is for {params.model_key}"
-    trainer = importlib.import_module(trainer_module)
+    spec = MODEL_REGISTRY[model_key]
+    params = Params.from_yaml(str(REPO_ROOT / spec.params_file))
+    assert params.model_key == model_key, f"{spec.params_file} is for {params.model_key}"
+    trainer = importlib.import_module(spec.trainer_module)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Device: {device}")
@@ -286,7 +276,7 @@ def measure_throughput(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Phase 0 throughput measurement")
-    parser.add_argument("--model", default="mhubert147", choices=sorted(MODELS))
+    parser.add_argument("--model", default="mhubert147", choices=sorted(MODEL_REGISTRY))
     parser.add_argument("--steps", type=int, default=100, help="Steps to time")
     parser.add_argument(
         "--batch-seconds", type=float, default=200.0, help="Audio seconds per synthetic batch"

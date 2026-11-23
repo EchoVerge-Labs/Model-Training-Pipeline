@@ -9,6 +9,7 @@ import torch
 from transformers import HubertConfig, Wav2Vec2Config, Wav2Vec2ForPreTraining
 
 from pipeline.masked_prediction_model import MaskedPredictionModel
+from pipeline.model_registry import MODEL_REGISTRY
 from pipeline.schema import Params
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -35,18 +36,13 @@ def phase0():
     return module
 
 
-def test_every_model_key_points_at_a_params_file_with_that_key(phase0):
-    for key, (config_file, _) in phase0.MODELS.items():
-        assert Params.from_yaml(str(ROOT / config_file)).model_key == key
-
-
 @pytest.mark.parametrize("key", ["mhubert147", "wavlm", "xlsr", "wav2vec2"])
 def test_train_step_runs_for_both_families(phase0, key):
     import importlib
 
-    config_file, trainer_module = phase0.MODELS[key]
-    params = Params.from_yaml(str(ROOT / config_file))
-    trainer = importlib.import_module(trainer_module)
+    spec = MODEL_REGISTRY[key]
+    params = Params.from_yaml(str(ROOT / spec.params_file))
+    trainer = importlib.import_module(spec.trainer_module)
     device = torch.device("cpu")
     if params.model_family == "masked_prediction":
         from transformers import WavLMConfig

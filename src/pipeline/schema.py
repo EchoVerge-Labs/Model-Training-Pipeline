@@ -10,6 +10,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from pipeline.model_registry import MODEL_REGISTRY, ModelFamily
+
 
 class SelectConfig(BaseModel):
     seed: int
@@ -71,15 +73,6 @@ class ClusterConfig(BaseModel):
 
 
 ModelKey = Literal["mhubert147", "hubert", "wavlm", "xlsr", "wav2vec2"]
-ModelFamily = Literal["masked_prediction", "contrastive"]
-
-MODEL_FAMILIES: dict[str, ModelFamily] = {
-    "mhubert147": "masked_prediction",
-    "hubert": "masked_prediction",
-    "wavlm": "masked_prediction",
-    "xlsr": "contrastive",
-    "wav2vec2": "contrastive",
-}
 
 
 class PretrainConfig(BaseModel):
@@ -178,7 +171,7 @@ class Params(BaseModel):
 
     @property
     def model_family(self) -> ModelFamily:
-        return MODEL_FAMILIES[self.model_key]
+        return MODEL_REGISTRY[self.model_key].family
 
     @model_validator(mode="after")
     def family_fields_are_present(self):
