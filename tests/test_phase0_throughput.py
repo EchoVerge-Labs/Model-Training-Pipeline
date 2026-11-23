@@ -1,4 +1,4 @@
-"""scripts/phase0_throughput.py: one train step per objective family, on tiny CPU models."""
+"""scripts/phase0_throughput.py: one train step per objective family, on tiny models on the GPU."""
 
 import importlib.util
 import sys
@@ -43,7 +43,7 @@ def test_train_step_runs_for_both_families(phase0, key):
     spec = MODEL_REGISTRY[key]
     params = Params.from_yaml(str(ROOT / spec.params_file))
     trainer = importlib.import_module(spec.trainer_module)
-    device = torch.device("cpu")
+    device = torch.device("cuda")
     if params.model_family == "masked_prediction":
         from transformers import WavLMConfig
 
@@ -63,6 +63,7 @@ def test_train_step_runs_for_both_families(phase0, key):
             )
         )
     model.freeze_feature_encoder()
+    model.to(device)
     step = phase0.make_train_step(key, model, params, trainer, 2, 8000, device, torch.bfloat16)
     model.train()
     assert torch.isfinite(step())

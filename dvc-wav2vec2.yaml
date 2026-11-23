@@ -78,9 +78,9 @@ stages:
       - data/shars/
 
   pretrain:
-    cmd: SCRIPT=src/pipeline/train_wav2vec2.py bash scripts/launch_pretrain.sh --config params-wav2vec2.yaml
+    cmd: SCRIPT=src/pipeline/train_contrastive.py bash scripts/launch_pretrain.sh --config params-wav2vec2.yaml
     deps:
-      - src/pipeline/train_wav2vec2.py
+      - src/pipeline/train_contrastive.py
       - src/pipeline/datamodule.py
       - src/pipeline/callbacks.py
       - data/shars/

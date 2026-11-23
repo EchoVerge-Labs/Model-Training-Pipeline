@@ -28,11 +28,11 @@ else ifeq ($(MODEL),wavlm)
   DVC_FILE := dvc-wavlm.yaml
   HAS_KMEANS := 1
 else ifeq ($(MODEL),xlsr)
-  TRAIN_SCRIPT := src/pipeline/train_xlsr.py
+  TRAIN_SCRIPT := src/pipeline/train_contrastive.py
   CONFIG := params-xlsr.yaml
   DVC_FILE := dvc-xlsr.yaml
 else ifeq ($(MODEL),wav2vec2)
-  TRAIN_SCRIPT := src/pipeline/train_wav2vec2.py
+  TRAIN_SCRIPT := src/pipeline/train_contrastive.py
   CONFIG := params-wav2vec2.yaml
   DVC_FILE := dvc-wav2vec2.yaml
 else

@@ -14,7 +14,7 @@ from transformers import Wav2Vec2FeatureExtractor, Wav2Vec2ForPreTraining
 
 from pipeline.callbacks import CodebookCollapseDetector
 from pipeline.schema import MonitoringConfig, Params
-from pipeline.train_xlsr import (
+from pipeline.train_contrastive import (
     CURVES_HEADER,
     TRAINING_STATE_FILE,
     checkpoint_step,
@@ -342,3 +342,20 @@ def test_train_uses_the_monitoring_settings_to_stop_on_collapse(tmp_path, capsys
         assert _run(params, tmp_path) == 2
     assert "CODEBOOK COLLAPSE DETECTED" in capsys.readouterr().out
     assert '"completed": false' in (tmp_path / "reports" / "pretrain_metrics-xlsr.json").read_text()
+
+
+def test_each_contrastive_model_key_writes_its_own_report_files(tmp_path):
+    """wav2vec2 Large runs through the same trainer; its reports carry its own suffix."""
+    base = _make_base(tmp_path)
+    params = _params(tmp_path, base).model_copy(update={"model_key": "wav2vec2"})
+    _run(params, tmp_path)
+    assert (tmp_path / "reports" / "pretrain_curves-wav2vec2.csv").exists()
+    assert (tmp_path / "reports" / "pretrain_metrics-wav2vec2.json").exists()
+    assert not (tmp_path / "reports" / "pretrain_curves-xlsr.csv").exists()
+
+
+def test_a_masked_prediction_model_key_is_rejected(tmp_path):
+    base = _make_base(tmp_path)
+    params = _params(tmp_path, base).model_copy(update={"model_key": "wavlm"})
+    with pytest.raises(ValueError, match="masked_prediction"):
+        _run(params, tmp_path)

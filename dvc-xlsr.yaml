@@ -78,9 +78,9 @@ stages:
       - data/shars/
 
   pretrain:
-    cmd: SCRIPT=src/pipeline/train_xlsr.py bash scripts/launch_pretrain.sh --config params-xlsr.yaml
+    cmd: SCRIPT=src/pipeline/train_contrastive.py bash scripts/launch_pretrain.sh --config params-xlsr.yaml
     deps:
-      - src/pipeline/train_xlsr.py
+      - src/pipeline/train_contrastive.py
       - src/pipeline/datamodule.py
       - src/pipeline/callbacks.py
       - data/shars/

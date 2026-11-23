@@ -34,15 +34,6 @@ sys.path.insert(0, str(REPO_ROOT / "src"))
 from pipeline.model_registry import MODEL_REGISTRY
 
 
-def _sync(device):
-    if device.type == "cuda":
-        torch.cuda.synchronize()
-
-
-def _peak_mem_gb(device):
-    return torch.cuda.max_memory_allocated() / 1e9 if device.type == "cuda" else 0.0
-
-
 def load_model(model_key: str, params, device):
     """-> (model, extra info for the report). Real pretrained weights, not a toy config."""
     base_model = params.pretrain.base_model
@@ -93,7 +84,7 @@ def make_train_step(model_key, model, params, trainer, batch_size, seq_len, devi
             mask_time_indices, _ = trainer.compute_mask(
                 model, x, m, cfg.mask_time_prob, cfg.mask_time_length, device
             )
-            with torch.autocast(device.type, dtype=amp_dtype):
+            with torch.autocast("cuda", dtype=amp_dtype):
                 logits = model(x, attention_mask=m, mask_time_indices=mask_time_indices)
             target = torch.randint(0, num_clusters, logits.shape[:2], device=device)
             target[~mask_time_indices] = -100
@@ -113,7 +104,7 @@ def make_train_step(model_key, model, params, trainer, batch_size, seq_len, devi
         mask_time_indices, sampled_negatives, _ = trainer.compute_mask_and_negatives(
             model, x, m, cfg.mask_time_prob, cfg.mask_time_length, device
         )
-        with torch.autocast(device.type, dtype=amp_dtype):
+        with torch.autocast("cuda", dtype=amp_dtype):
             out = model(
                 x,
                 attention_mask=m,
@@ -145,12 +136,11 @@ def measure_throughput(
     assert params.model_key == model_key, f"{spec.params_file} is for {params.model_key}"
     trainer = importlib.import_module(spec.trainer_module)
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda")
     print(f"Device: {device}")
-    if device.type == "cuda":
-        print(f"GPU: {torch.cuda.get_device_name()}")
-        mem_gb = torch.cuda.get_device_properties(0).total_memory / 1e9
-        print(f"Memory: {mem_gb:.1f} GB")
+    print(f"GPU: {torch.cuda.get_device_name()}")
+    mem_gb = torch.cuda.get_device_properties(0).total_memory / 1e9
+    print(f"Memory: {mem_gb:.1f} GB")
 
     model, model_extra = load_model(model_key, params, device)
 
@@ -178,12 +168,11 @@ def measure_throughput(
         train_step()
 
     # Reset peak memory after warmup
-    if device.type == "cuda":
-        torch.cuda.reset_peak_memory_stats()
+    torch.cuda.reset_peak_memory_stats()
 
     # Timed run
     print(f"Timing {steps} steps ...")
-    _sync(device)
+    torch.cuda.synchronize()
     t0 = time.perf_counter()
     total_audio_sec = 0.0
 
@@ -192,18 +181,18 @@ def measure_throughput(
         total_audio_sec += actual_batch_sec
 
         if (i + 1) % 20 == 0:
-            _sync(device)
+            torch.cuda.synchronize()
             elapsed = time.perf_counter() - t0
             rate = total_audio_sec / elapsed
             print(
                 f"  {i + 1}/{steps}  {rate:.1f} aud-s/s  loss={loss.item():.4f}  "
-                f"peak_mem={_peak_mem_gb(device):.1f}GB"
+                f"peak_mem={torch.cuda.max_memory_allocated() / 1e9:.1f}GB"
             )
 
-    _sync(device)
+    torch.cuda.synchronize()
     wall = time.perf_counter() - t0
     throughput = total_audio_sec / wall
-    peak_mem = _peak_mem_gb(device)
+    peak_mem = torch.cuda.max_memory_allocated() / 1e9
 
     # Estimate real pre-training time from the configured schedule, so this
     # can't drift from what the trainer will actually run.
@@ -217,7 +206,7 @@ def measure_throughput(
     results = {
         "model_key": model_key,
         "device": str(device),
-        "gpu": torch.cuda.get_device_name() if device.type == "cuda" else "cpu",
+        "gpu": torch.cuda.get_device_name(),
         "precision": precision,
         "measured": {
             "batch_size": batch_size,

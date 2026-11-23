@@ -117,14 +117,14 @@ MODEL_REGISTRY: dict[str, ModelSpec] = {
             "xlsr",
             "facebook/wav2vec2-xls-r-300m",
             "params-xlsr.yaml",
-            "pipeline.train_xlsr",
+            "pipeline.train_contrastive",
             "xlsr300m",
         ),
         _contrastive(
             "wav2vec2",
             "facebook/wav2vec2-large-lv60",
             "params-wav2vec2.yaml",
-            "pipeline.train_wav2vec2",
+            "pipeline.train_contrastive",
             "wav2vec2-mono",
         ),
     )

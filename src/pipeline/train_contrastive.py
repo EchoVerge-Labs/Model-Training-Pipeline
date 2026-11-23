@@ -1,4 +1,9 @@
-"""Continued pre-training of wav2vec2-xls-r-300m on Sinhala/Tamil.
+"""Continued pre-training of the wav2vec 2.0 models (XLS-R 300M, wav2vec2 Large) on Sinhala/Tamil.
+
+One trainer for both. `params.model_key` (set in each params file) picks the report
+file suffix and the MLflow run name; the base checkpoint comes from pretrain.base_model.
+XLS-R continues the multilingual checkpoint and wav2vec2 Large the monolingual (English)
+one, so the two runs are a fair mono-vs-multilingual base comparison.
 
 Adapted from HuggingFace's run_wav2vec2_pretraining_no_trainer.py.
 Key changes from the HF example:
@@ -8,7 +13,7 @@ Key changes from the HF example:
   - MLflow logging to DagsHub
   - Codebook collapse detection
   - Asserts quantizer weights are present in checkpoint
-  - Reads all config from params-xlsr.yaml via Pydantic schema
+  - Reads all config from the params file (--config) via Pydantic schema
 
 Mask generation and negative sampling reuse transformers' own
 `_compute_mask_indices` / `_sample_negative_indices` (the same helpers the HF
@@ -24,12 +29,12 @@ automatically from the newest complete checkpoint in pretrain.output_dir; pass
 
 Usage:
   # Single node
-  torchrun --nproc_per_node=1 -m pipeline.train_xlsr --config params-xlsr.yaml
+  torchrun --nproc_per_node=1 -m pipeline.train_contrastive --config params-xlsr.yaml
 
   # Two nodes
   torchrun --nnodes=2 --nproc_per_node=1 --node_rank=0 \
            --rdzv_backend=c10d --rdzv_endpoint=10.0.0.1:29500 \
-           -m pipeline.train_xlsr --config params-xlsr.yaml
+           -m pipeline.train_contrastive --config params-xlsr.yaml
 """
 
 import argparse
@@ -61,6 +66,7 @@ from transformers.models.wav2vec2.modeling_wav2vec2 import (
 
 from pipeline.callbacks import CodebookCollapseDetector, MLflowLogger
 from pipeline.datamodule import create_dataloader
+from pipeline.model_registry import get_model_spec
 from pipeline.schema import Params
 
 # ─── Tri-stage LR schedule ──────────────────────────────────────────────
@@ -353,7 +359,7 @@ def _assert_ranks_agree_on_resume(local_step: int, device) -> None:
 def train(
     params: Params,
     *,
-    config_path: str = "params-xlsr.yaml",
+    config_path: str = "params-xlsr.yaml",  # only read back for the MLflow section
     resume_from: str | Path | None = None,
     auto_resume: bool = True,
     dataloader=None,
@@ -370,6 +376,10 @@ def train(
     dataloader / device / reports_dir / use_mlflow: seams for tests; in a real run
         they default to the shard loader, CUDA if present, ./reports, and MLflow.
     """
+    spec = get_model_spec(params.model_key)
+    if spec.family != "contrastive":
+        raise ValueError(f"{spec.key} is a {spec.family} model; use the masked-prediction trainer")
+    suffix = f"-{spec.key}"  # per-model report files, as in dvc-<model>.yaml
     cfg = params.pretrain
     reports_dir = Path(reports_dir)
 
@@ -499,7 +509,7 @@ def train(
     # shard order of the first epoch (a fresh run has step 0, i.e. seed 0 as before).
     if dataloader is None:
         dataloader = create_dataloader(
-            shar_dir="data/shars",
+            shar_dir=params.shard.output_dir,
             per_device_max_seconds=cfg.per_device_max_seconds,
             num_workers=cfg.num_workers,
             seed=resume_step,
@@ -527,7 +537,7 @@ def train(
             try:
                 with open(config_path) as f:
                     mlflow_cfg = yaml.safe_load(f).get("mlflow", {})
-                run_name = f"xlsr300m-si-ta-{cfg.target_batch_seconds}s"
+                run_name = f"{spec.run_name_prefix}-si-ta-{cfg.target_batch_seconds}s"
                 if resume:
                     run_name += f"-resume{resume_step}"
                 mlflow_logger = MLflowLogger(
@@ -585,7 +595,7 @@ def train(
     log_start_time = time.perf_counter()
 
     # CSV for loss curves (kept across a resume, see prepare_curves)
-    curves_path = reports_dir / "pretrain_curves-xlsr.csv"
+    curves_path = reports_dir / f"pretrain_curves{suffix}.csv"
     if is_main:
         prepare_curves(curves_path, resume_step)
 
@@ -814,7 +824,7 @@ def train(
             "completed": global_step >= cfg.max_updates,
         }
         reports_dir.mkdir(parents=True, exist_ok=True)
-        with open(reports_dir / "pretrain_metrics-xlsr.json", "w") as f:
+        with open(reports_dir / f"pretrain_metrics{suffix}.json", "w") as f:
             json.dump(final_metrics, f, indent=2)
 
         if mlflow_logger:
