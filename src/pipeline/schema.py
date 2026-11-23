@@ -10,6 +10,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from pipeline.adapters.config import PECoPTConfig
 from pipeline.model_registry import MODEL_REGISTRY, ModelFamily
 
 
@@ -129,6 +130,9 @@ class PretrainConfig(BaseModel):
     milestone_checkpoints: list[int]
 
     output_dir: str
+
+    # Training method: full_copt (default), or a PE-CoPT template (not implemented yet)
+    pecopt: PECoPTConfig = Field(default_factory=PECoPTConfig)
 
     @field_validator("precision")
     @classmethod
