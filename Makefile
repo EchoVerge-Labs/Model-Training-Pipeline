@@ -56,7 +56,7 @@ test:  ## run unit tests
 # ── Individual pipeline stages ──────────────────────
 
 phase0:  ## measure GPU throughput (run first!)
-	$(PYTHON) scripts/phase0_throughput.py --steps 100
+	$(PYTHON) scripts/phase0_throughput.py --model $(MODEL) --steps 100
 
 snapshot:  ## pull catalog from Google Sheet
 	@if [ -z "$${GOOGLE_SHEET_ID:-}" ]; then \
