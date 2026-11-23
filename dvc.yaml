@@ -74,7 +74,7 @@ stages:
       - data/shars/
 
   fit_kmeans:
-    cmd: python -m pipeline.fit_kmeans --config params.yaml --report-suffix=-mhubert147
+    cmd: python -m pipeline.fit_kmeans --config params.yaml
     deps:
       - src/pipeline/fit_kmeans.py
       - src/pipeline/layer_features.py
@@ -88,7 +88,7 @@ stages:
       - models/kmeans/mhubert147-L9-k500.joblib:
           persist: true
     metrics:
-      - reports/kmeans_stats-mhubert147.json:
+      - reports/kmeans_stats-mhubert147-si-ta-200h.json:
           cache: false
 
   assign_cluster_labels:
@@ -125,53 +125,53 @@ stages:
       - models/mhubert147-si-ta-200h/:
           persist: true
     metrics:
-      - reports/pretrain_metrics-mhubert147.json:
+      - reports/pretrain_metrics-mhubert147-si-ta-200h.json:
           cache: false
     plots:
-      - reports/pretrain_curves-mhubert147.csv:
+      - reports/pretrain_curves-mhubert147-si-ta-200h.csv:
           cache: false
 
   select_checkpoint:
-    cmd: python -m pipeline.select_checkpoint --config params.yaml --report-suffix=-mhubert147
+    cmd: python -m pipeline.select_checkpoint --config params.yaml
     deps:
       - src/pipeline/select_checkpoint.py
       - models/mhubert147-si-ta-200h/
     params:
       - checkpoint_selection
     outs:
-      - models/selected-mhubert147/:
+      - models/selected-mhubert147-si-ta-200h/:
           persist: true
     metrics:
-      - reports/checkpoint_selection-mhubert147.json:
+      - reports/checkpoint_selection-mhubert147-si-ta-200h.json:
           cache: false
 
   benchmark:
     cmd: >
       bash scripts/run_benchmark.sh
-      models/selected-mhubert147
+      models/selected-mhubert147-si-ta-200h
       ${benchmark.tasks}
       ${benchmark.seeds}
-      reports/bench/mhubert147_adapted
+      reports/bench/mhubert147-si-ta-200h
       ${benchmark.mlflow_uri}
       ${benchmark.slsb_data_dir}
     deps:
-      - models/selected-mhubert147/
+      - models/selected-mhubert147-si-ta-200h/
       - scripts/run_benchmark.sh
     params:
       - benchmark.tasks
       - benchmark.seeds
       - benchmark.slsb_data_dir
     metrics:
-      - reports/bench/mhubert147_adapted/metrics.json:
+      - reports/bench/mhubert147-si-ta-200h/metrics.json:
           cache: false
 
   report:
-    cmd: python -m pipeline.report --config params.yaml --report-suffix=-mhubert147
+    cmd: python -m pipeline.report --config params.yaml
     deps:
       - src/pipeline/report.py
       - reports/bench/
     outs:
-      - reports/results-mhubert147.md:
+      - reports/results-mhubert147-si-ta-200h.md:
           cache: false
-      - reports/results_table-mhubert147.csv:
+      - reports/results_table-mhubert147-si-ta-200h.csv:
           cache: false

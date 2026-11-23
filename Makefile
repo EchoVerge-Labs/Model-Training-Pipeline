@@ -18,22 +18,17 @@ export PYTHONPATH := $(CURDIR)/src$(if $(PYTHONPATH),:$(PYTHONPATH))
 MODEL ?= mhubert147
 ifeq ($(MODEL),mhubert147)
   CONFIG := params.yaml
-  DVC_FILE := dvc.yaml
   HAS_KMEANS := 1
 else ifeq ($(MODEL),hubert)
   CONFIG := params-hubert.yaml
-  DVC_FILE := dvc-hubert.yaml
   HAS_KMEANS := 1
 else ifeq ($(MODEL),wavlm)
   CONFIG := params-wavlm.yaml
-  DVC_FILE := dvc-wavlm.yaml
   HAS_KMEANS := 1
 else ifeq ($(MODEL),xlsr)
   CONFIG := params-xlsr.yaml
-  DVC_FILE := dvc-xlsr.yaml
 else ifeq ($(MODEL),wav2vec2)
   CONFIG := params-wav2vec2.yaml
-  DVC_FILE := dvc-wav2vec2.yaml
 else
   $(error Unknown MODEL '$(MODEL)'; use mhubert147, hubert, wavlm, xlsr or wav2vec2)
 endif
@@ -111,8 +106,12 @@ report:  ## generate results table
 
 # ── Full pipeline ───────────────────────────────────
 
-all:  ## run entire DVC pipeline
-	dvc repro
+all:  ## MODEL's whole pipeline (needs data/ selected+materialised): shard, [k-means, labels,] train, ckpt, bench, report
+	$(MAKE) shard
+ifdef HAS_KMEANS
+	$(MAKE) fit-kmeans labels MODEL=$(MODEL) EXPERIMENT=$(EXPERIMENT)
+endif
+	$(MAKE) train ckpt bench report MODEL=$(MODEL) EXPERIMENT=$(EXPERIMENT)
 
 clean:  ## remove generated artifacts (keeps DVC cache)
 	rm -rf data/raw data/shars models/ reports/bench/ reports/*.json reports/*.csv

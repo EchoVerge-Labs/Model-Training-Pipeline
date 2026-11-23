@@ -39,12 +39,6 @@ def test_full_copt_injects_nothing():
     assert inject_adapters(object(), PECoPTConfig()) == 0
 
 
-@pytest.mark.parametrize("method", ["residual_adapter", "lora", "gc_lora"])
-def test_the_pe_copt_templates_are_not_implemented_yet(method):
-    with pytest.raises(NotImplementedError, match="template only"):
-        inject_adapters(object(), PECoPTConfig(method=method))
-
-
 def test_inject_dispatches_to_the_method_module(monkeypatch):
     calls = []
     fake = types.ModuleType("pipeline.adapters.lora")
