@@ -9,6 +9,42 @@ export HF_TOKEN MASTER_ADDR MASTER_PORT NNODES NODE_RANK
 PYTHON ?= $(if $(wildcard $(CURDIR)/.venv/bin/python),$(CURDIR)/.venv/bin/python,python3)
 export PYTHONPATH := $(CURDIR)/src$(if $(PYTHONPATH),:$(PYTHONPATH))
 
+# Model-specific targets (fit-kmeans, labels, train, ckpt, bench, report) take
+# MODEL=mhubert147|hubert|wavlm|xlsr|wav2vec2, e.g. `make train MODEL=wavlm`.
+MODEL ?= mhubert147
+ifeq ($(MODEL),mhubert147)
+  TRAIN_SCRIPT := src/pipeline/train.py
+  CONFIG := params.yaml
+  DVC_FILE := dvc.yaml
+  SELECT_MODULE := pipeline.select_checkpoint
+  HAS_KMEANS := 1
+else ifeq ($(MODEL),hubert)
+  TRAIN_SCRIPT := src/pipeline/train_hubert.py
+  CONFIG := params-hubert.yaml
+  DVC_FILE := dvc-hubert.yaml
+  SELECT_MODULE := pipeline.select_checkpoint
+  HAS_KMEANS := 1
+else ifeq ($(MODEL),wavlm)
+  TRAIN_SCRIPT := src/pipeline/train_wavlm.py
+  CONFIG := params-wavlm.yaml
+  DVC_FILE := dvc-wavlm.yaml
+  SELECT_MODULE := pipeline.select_checkpoint_wavlm
+  HAS_KMEANS := 1
+else ifeq ($(MODEL),xlsr)
+  TRAIN_SCRIPT := src/pipeline/train_xlsr.py
+  CONFIG := params-xlsr.yaml
+  DVC_FILE := dvc-xlsr.yaml
+  SELECT_MODULE := pipeline.select_checkpoint_xlsr
+else ifeq ($(MODEL),wav2vec2)
+  TRAIN_SCRIPT := src/pipeline/train_wav2vec2.py
+  CONFIG := params-wav2vec2.yaml
+  DVC_FILE := dvc-wav2vec2.yaml
+  SELECT_MODULE := pipeline.select_checkpoint_xlsr
+else
+  $(error Unknown MODEL '$(MODEL)'; use mhubert147, hubert, wavlm, xlsr or wav2vec2)
+endif
+SUFFIX := -$(MODEL)
+
 help:  ## show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | \
 	  awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
@@ -47,23 +83,29 @@ pull:  ## copy the selected clips from the Drive mount to data/raw/
 shard:  ## shard WAVs into Lhotse Shar tarballs
 	$(PYTHON) -m pipeline.shard --config params.yaml
 
-fit-kmeans:  ## fit k-means on layer-18 features of the base model -> models/kmeans/
-	$(PYTHON) -m pipeline.fit_kmeans --config params.yaml
+fit-kmeans:  ## fit k-means on layer features of MODEL's base model -> models/kmeans/
+ifndef HAS_KMEANS
+	$(error MODEL=$(MODEL) uses a contrastive objective and has no k-means step)
+endif
+	$(PYTHON) -m pipeline.fit_kmeans --config $(CONFIG) --report-suffix $(SUFFIX)
 
 labels:  ## assign cluster-id pseudo-labels to every training cut (needs `make fit-kmeans` first)
-	$(PYTHON) -m pipeline.assign_cluster_labels --config params.yaml
+ifndef HAS_KMEANS
+	$(error MODEL=$(MODEL) uses a contrastive objective and has no cluster labels)
+endif
+	$(PYTHON) -m pipeline.assign_cluster_labels --config $(CONFIG)
 
-train:  ## continued pre-training (needs `make shard` and `make labels` first)
-	bash scripts/launch_pretrain.sh
+train:  ## continued pre-training of MODEL (HuBERT-family needs `make shard` and `make labels` first)
+	SCRIPT=$(TRAIN_SCRIPT) CONFIG=$(CONFIG) bash scripts/launch_pretrain.sh
 
 ckpt:  ## select best checkpoint via proxy eval
-	$(PYTHON) -m pipeline.select_checkpoint --config params.yaml
+	$(PYTHON) -m $(SELECT_MODULE) --config $(CONFIG) --report-suffix $(SUFFIX)
 
 bench:  ## run SLSB benchmark on selected checkpoint
-	dvc repro benchmark
+	dvc repro $(DVC_FILE):benchmark
 
 report:  ## generate results table
-	$(PYTHON) -m pipeline.report --config params.yaml
+	$(PYTHON) -m pipeline.report --config $(CONFIG) --report-suffix $(SUFFIX)
 
 # ── Full pipeline ───────────────────────────────────
 

@@ -2,8 +2,10 @@
 set -euo pipefail
 
 # ─── Config ───────────────────────────────────────────
-SCRIPT="${SCRIPT:-src/pipeline/train_xlsr.py}"
-CONFIG="${CONFIG:-params-xlsr.yaml}"
+# Defaults are mHuBERT-147 (the Makefile and dvc.yaml default). For another model,
+# set SCRIPT and CONFIG, e.g. SCRIPT=src/pipeline/train_wavlm.py CONFIG=params-wavlm.yaml
+SCRIPT="${SCRIPT:-src/pipeline/train.py}"
+CONFIG="${CONFIG:-params.yaml}"
 
 # Source NCCL env for GB10
 source configs/nccl-env.sh
