@@ -30,7 +30,7 @@ shard:
 pretrain:
   base_model: facebook/wav2vec2-large-lv60  # monolingual (English) counterpart to XLS-R
   precision: bf16
-  freeze_feature_encoder: true
+  freeze_feature_encoder: true   # false = full CoPT, the CNN trains too (more memory; check `make phase0`)
 
   max_updates: 13500          # ~30 passes over 200h (was 50000 / 111 passes)
   warmup_updates: 1000        # ~8% (was 4000)

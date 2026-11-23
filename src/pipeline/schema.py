@@ -79,6 +79,8 @@ ModelKey = Literal["mhubert147", "hubert", "wavlm", "xlsr", "wav2vec2"]
 class PretrainConfig(BaseModel):
     base_model: str
     precision: Literal["bf16", "fp16", "fp32"] = "bf16"
+    # CNN feature encoder. false = full CoPT (the CNN trains too, as in fairseq pre-training);
+    # true = transformer-only. Works for every model; a trainable CNN needs much more memory.
     freeze_feature_encoder: bool = True
     # Stock value of the HuBERT-family base models. Layerdrop leaves parameters
     # unused in a step, so those trainers turn on DDP's find_unused_parameters when

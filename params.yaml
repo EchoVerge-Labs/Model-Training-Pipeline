@@ -45,7 +45,7 @@ cluster:
 pretrain:
   base_model: utter-project/mHuBERT-147
   precision: bf16
-  freeze_feature_encoder: true
+  freeze_feature_encoder: true   # false = full CoPT, the CNN trains too (more memory; check `make phase0`)
   layerdrop: 0.1              # same as main: XLS-R's stock config value (HuBERT/WavLM stock is 0.1 too)
 
   max_updates: 13500          # ~30 passes over 200h (was 50000 / 111 passes)

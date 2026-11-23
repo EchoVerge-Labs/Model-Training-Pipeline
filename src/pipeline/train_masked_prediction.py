@@ -58,7 +58,11 @@ from pipeline.checkpoints import STATE_FILE, latest_checkpoint, list_checkpoints
 from pipeline.datamodule import create_dataloader
 from pipeline.device import get_device
 from pipeline.masked_prediction_model import MaskedPredictionModel
-from pipeline.model_registry import get_model_spec
+from pipeline.model_registry import (
+    describe_feature_encoder,
+    feature_encoder_status,
+    get_model_spec,
+)
 from pipeline.schema import Params
 
 # Must be set before the first CUDA allocation. Less fragmentation on the GB10's
@@ -241,17 +245,16 @@ def train(params: Params, config_path: str = "params.yaml"):
     # templates and stop here with NotImplementedError until they are implemented.
     inject_adapters(model, cfg.pecopt)
 
-    # Freeze CNN feature encoder — standard for continued pre-training
+    # Full CoPT trains the CNN feature encoder too; pretrain.freeze_feature_encoder: true
+    # freezes it (transformer-only). Same switch for every model.
     if cfg.freeze_feature_encoder:
         model.freeze_feature_encoder()
 
     if is_main:
         trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
         total = sum(p.numel() for p in model.parameters())
-        frozen_note = " (CNN frozen)" if cfg.freeze_feature_encoder else ""
-        print(
-            f"Parameters: {total / 1e6:.1f}M total, {trainable / 1e6:.1f}M trainable{frozen_note}"
-        )
+        print(f"Parameters: {total / 1e6:.1f}M total, {trainable / 1e6:.1f}M trainable")
+        print(describe_feature_encoder(model, spec))
 
     model.to(device)
 
@@ -349,6 +352,7 @@ def train(params: Params, config_path: str = "params.yaml"):
                 "mask_time_length": cfg.mask_time_length,
                 "num_clusters": num_clusters,
                 "freeze_feature_encoder": cfg.freeze_feature_encoder,
+                "cnn_params_trainable": feature_encoder_status(raw_model, spec)[1],
                 "pecopt_method": cfg.pecopt.method,
                 "layerdrop": cfg.layerdrop,
                 "head_lr_mult": cfg.head_lr_mult,

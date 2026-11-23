@@ -50,8 +50,8 @@ test:  ## run unit tests
 
 # ── Individual pipeline stages ──────────────────────
 
-phase0:  ## measure GPU throughput (run first!)
-	$(PYTHON) scripts/phase0_throughput.py --model $(MODEL) --steps 100
+phase0:  ## measure GPU throughput (run first!); PHASE0_ARGS=--no-freeze-cnn to measure a trainable CNN
+	$(PYTHON) scripts/phase0_throughput.py --model $(MODEL) --steps 100 $(PHASE0_ARGS)
 
 snapshot:  ## pull catalog from Google Sheet
 	@if [ -z "$${GOOGLE_SHEET_ID:-}" ]; then \

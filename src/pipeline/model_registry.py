@@ -131,6 +131,24 @@ MODEL_REGISTRY: dict[str, ModelSpec] = {
 }
 
 
+def feature_encoder_status(model, spec: ModelSpec) -> tuple[int, int]:
+    """(CNN parameters, CNN parameters that train), read from the model itself -- so it
+    reports what will really happen, not just what the config asked for."""
+    cnn = list(getattr(model, spec.backbone_attr).feature_extractor.parameters())
+    return sum(p.numel() for p in cnn), sum(p.numel() for p in cnn if p.requires_grad)
+
+
+def describe_feature_encoder(model, spec: ModelSpec) -> str:
+    total, trainable = feature_encoder_status(model, spec)
+    if trainable == total:
+        state = "TRAINABLE"
+    elif trainable == 0:
+        state = "frozen"
+    else:
+        state = f"PARTLY trainable ({trainable / 1e6:.1f}M)"
+    return f"CNN feature encoder ({total / 1e6:.1f}M params): {state}"
+
+
 def get_model_spec(key: str) -> ModelSpec:
     if key not in MODEL_REGISTRY:
         raise ValueError(f"unknown model {key!r}; expected one of {sorted(MODEL_REGISTRY)}")

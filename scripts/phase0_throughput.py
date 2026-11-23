@@ -31,10 +31,10 @@ from torch import nn
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from pipeline.model_registry import MODEL_REGISTRY
+from pipeline.model_registry import MODEL_REGISTRY, describe_feature_encoder
 
 
-def load_model(model_key: str, params, device):
+def load_model(model_key: str, params, device, freeze_cnn: bool):
     """-> (model, extra info for the report). Real pretrained weights, not a toy config."""
     base_model = params.pretrain.base_model
     print(f"Loading {base_model} ...")
@@ -56,7 +56,9 @@ def load_model(model_key: str, params, device):
         assert len(quantizer_keys) > 0, "No quantizer weights — wrong checkpoint?"
         print(f"Quantizer keys present: {len(quantizer_keys)} ✓")
         extra = {"quantizer_keys": len(quantizer_keys)}
-    model.freeze_feature_encoder()
+    if freeze_cnn:
+        model.freeze_feature_encoder()
+    print(describe_feature_encoder(model, MODEL_REGISTRY[model_key]))
     return model.to(device), extra
 
 
@@ -127,6 +129,7 @@ def measure_throughput(
     steps: int = 100,
     batch_seconds: float = 200.0,
     precision: str = "bf16",
+    freeze_cnn: bool | None = None,
 ):
     """Measure pre-training throughput with synthetic data on real model."""
     from pipeline.schema import Params
@@ -142,7 +145,10 @@ def measure_throughput(
     mem_gb = torch.cuda.get_device_properties(0).total_memory / 1e9
     print(f"Memory: {mem_gb:.1f} GB")
 
-    model, model_extra = load_model(model_key, params, device)
+    # follow pretrain.freeze_feature_encoder (a trainable CNN costs much more activation
+    # memory, so measure the setup the real run uses), unless overridden on the command line
+    freeze_cnn = params.pretrain.freeze_feature_encoder if freeze_cnn is None else freeze_cnn
+    model, model_extra = load_model(model_key, params, device, freeze_cnn)
 
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -208,6 +214,7 @@ def measure_throughput(
         "device": str(device),
         "gpu": torch.cuda.get_device_name(),
         "precision": precision,
+        "freeze_feature_encoder": freeze_cnn,
         "measured": {
             "batch_size": batch_size,
             "seq_seconds": seq_seconds,
@@ -271,5 +278,11 @@ if __name__ == "__main__":
         "--batch-seconds", type=float, default=200.0, help="Audio seconds per synthetic batch"
     )
     parser.add_argument("--precision", default="bf16", choices=["bf16", "fp16"])
+    parser.add_argument(
+        "--freeze-cnn",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="override pretrain.freeze_feature_encoder (default: follow the params file)",
+    )
     args = parser.parse_args()
-    measure_throughput(args.model, args.steps, args.batch_seconds, args.precision)
+    measure_throughput(args.model, args.steps, args.batch_seconds, args.precision, args.freeze_cnn)

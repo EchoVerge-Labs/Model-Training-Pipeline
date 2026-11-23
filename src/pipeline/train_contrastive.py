@@ -68,7 +68,11 @@ from pipeline.adapters import inject_adapters
 from pipeline.callbacks import CodebookCollapseDetector, MLflowLogger
 from pipeline.datamodule import create_dataloader
 from pipeline.device import get_device
-from pipeline.model_registry import get_model_spec
+from pipeline.model_registry import (
+    describe_feature_encoder,
+    feature_encoder_status,
+    get_model_spec,
+)
 from pipeline.schema import Params
 
 # ─── Tri-stage LR schedule ──────────────────────────────────────────────
@@ -472,16 +476,15 @@ def train(
     # templates and stop here with NotImplementedError until they are implemented.
     inject_adapters(model, cfg.pecopt)
 
-    # Freeze CNN feature encoder — standard for continued pre-training
+    # Full CoPT trains the CNN feature encoder too; pretrain.freeze_feature_encoder: true
+    # freezes it (transformer-only). Same switch for every model.
     if cfg.freeze_feature_encoder:
         model.freeze_feature_encoder()
-        if is_main:
-            trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
-            total = sum(p.numel() for p in model.parameters())
-            print(
-                f"Parameters: {total / 1e6:.1f}M total, {trainable / 1e6:.1f}M trainable "
-                f"(CNN frozen)"
-            )
+    if is_main:
+        trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        total = sum(p.numel() for p in model.parameters())
+        print(f"Parameters: {total / 1e6:.1f}M total, {trainable / 1e6:.1f}M trainable")
+        print(describe_feature_encoder(model, spec))
 
     model.to(device)
 
@@ -580,6 +583,7 @@ def train(
                     "min_gumbel_temperature": cfg.min_gumbel_temperature,
                     "gumbel_temperature_decay": cfg.gumbel_temperature_decay,
                     "freeze_feature_encoder": cfg.freeze_feature_encoder,
+                    "cnn_params_trainable": feature_encoder_status(raw_model, spec)[1],
                     "pecopt_method": cfg.pecopt.method,
                     "normalize": normalize,
                     "resumed_from_step": resume_step,
