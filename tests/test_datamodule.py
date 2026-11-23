@@ -20,17 +20,22 @@ def _wave(seconds):
     return torch.zeros(int(seconds * SAMPLE_RATE))
 
 
-def _make_shars(tmp_path, durations, shard_size):
+def _make_shars(tmp_path, durations, shard_size, noise_std=None):
     """One clip per duration; clip i is a constant signal of (i+1)/200, so the clip
-    can be identified from its audio after batching."""
+    can be identified from its audio after batching -- or, with noise_std, Gaussian
+    noise at that scale (a constant clip normalises to all zeros)."""
+    rng = np.random.default_rng(0)
     raw = tmp_path / "raw"
     raw.mkdir()
     cuts = []
     for i, seconds in enumerate(durations):
         path = raw / f"{i}.wav"
-        sf.write(
-            path, np.full(int(seconds * SAMPLE_RATE), (i + 1) / 200, dtype="float32"), SAMPLE_RATE
-        )
+        n = int(seconds * SAMPLE_RATE)
+        if noise_std is None:
+            audio = np.full(n, (i + 1) / 200, dtype="float32")
+        else:
+            audio = (0.01 + rng.normal(0, noise_std, n)).astype("float32")
+        sf.write(path, audio, SAMPLE_RATE)
         rec = Recording.from_file(path, recording_id=f"c{i}")
         cuts.append(MonoCut(id=f"c{i}", start=0, duration=rec.duration, channel=0, recording=rec))
     out = tmp_path / "shars"
@@ -222,3 +227,32 @@ def test_pad_batch_mixes_after_normalising_and_keeps_padding_and_labels():
     assert int(batch["attention_mask"][0].sum()) == 4000
     with pytest.raises(ValueError, match="rng"):
         pad_batch([short, long], mix_prob=0.5)
+
+
+def test_normalize_waveform_matches_the_wav2vec2_feature_extractor():
+    transformers = pytest.importorskip("transformers")
+    from pipeline.datamodule import normalize_waveform
+
+    w = torch.from_numpy(np.random.default_rng(0).normal(0.01, 0.066, 16000).astype("float32"))
+    fe = transformers.Wav2Vec2FeatureExtractor(do_normalize=True)
+    expected = fe(w.numpy(), sampling_rate=SAMPLE_RATE, return_tensors="pt")["input_values"][0]
+    torch.testing.assert_close(normalize_waveform(w), expected, atol=1e-4, rtol=1e-4)
+
+
+def test_dataloader_without_labels_or_mixing_normalizes_each_clip_on_its_own_samples(tmp_path):
+    """The contrastive models (XLS-R, wav2vec2) use the loader this way."""
+    shars = _make_shars(tmp_path, DURATIONS[:12], shard_size=6, noise_std=0.066)
+    loader = create_dataloader(
+        str(shars), per_device_max_seconds=12.0, num_workers=0, seed=1, normalize=True
+    )
+    rows = 0
+    for batch in loader:
+        assert "labels" not in batch
+        x, mask = batch["input_values"], batch["attention_mask"]
+        for row in range(x.shape[0]):
+            n = int(mask[row].sum())
+            assert abs(float(x[row, :n].mean())) < 1e-3
+            assert abs(float(x[row, :n].std(unbiased=False)) - 1.0) < 1e-3
+            assert not x[row, n:].any()
+            rows += 1
+    assert rows == 12

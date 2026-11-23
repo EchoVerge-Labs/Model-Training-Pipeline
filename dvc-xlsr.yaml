@@ -81,7 +81,7 @@ stages:
     cmd: SCRIPT=src/pipeline/train_xlsr.py bash scripts/launch_pretrain.sh --config params-xlsr.yaml
     deps:
       - src/pipeline/train_xlsr.py
-      - src/pipeline/datamodule_xlsr.py
+      - src/pipeline/datamodule.py
       - src/pipeline/callbacks_xlsr.py
       - data/shars/
     params:

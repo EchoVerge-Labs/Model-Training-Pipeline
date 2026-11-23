@@ -4,6 +4,10 @@ The dataset yields ready-made batches (use DataLoader(batch_size=None)) packed
 by *seconds of padded audio*, not by clip count, so per-step memory is bounded
 whatever the clip lengths. Every clip that is read ends up in a batch -- nothing
 is dropped to fit a budget.
+
+One loader serves every model. Without `labels_path` batches carry no labels (the
+contrastive XLS-R / wav2vec2 trainers); with it they carry -100-padded cluster ids
+(the HuBERT family); `utterance_mix_prob` > 0 adds WavLM's utterance mixing.
 """
 
 import gzip
@@ -38,8 +42,8 @@ def load_labels(labels_path: str) -> dict[str, list[int]]:
 
 def normalize_waveform(waveform: torch.Tensor) -> torch.Tensor:
     """Zero-mean / unit-variance over one un-padded utterance -- what
-    Wav2Vec2FeatureExtractor does when do_normalize is set (wavlm-large
-    expects it). Also used when extracting the k-means layer features, so
+    Wav2Vec2FeatureExtractor does when do_normalize is set (the large models
+    and XLS-R expect it). Also used when extracting the k-means layer features, so
     labels and training see identical inputs."""
     return (waveform - waveform.mean()) / torch.sqrt(waveform.var(unbiased=False) + 1e-7)
 

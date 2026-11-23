@@ -65,7 +65,7 @@ from transformers.models.wav2vec2.modeling_wav2vec2 import (
 )
 
 from pipeline.callbacks_xlsr import CodebookCollapseDetector, MLflowLogger
-from pipeline.datamodule_xlsr import create_dataloader
+from pipeline.datamodule import create_dataloader
 from pipeline.schema import Params
 
 # ─── Tri-stage LR schedule ──────────────────────────────────────────────

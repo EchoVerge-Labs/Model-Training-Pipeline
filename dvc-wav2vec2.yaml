@@ -81,7 +81,7 @@ stages:
     cmd: SCRIPT=src/pipeline/train_wav2vec2.py bash scripts/launch_pretrain.sh --config params-wav2vec2.yaml
     deps:
       - src/pipeline/train_wav2vec2.py
-      - src/pipeline/datamodule_xlsr.py
+      - src/pipeline/datamodule.py
       - src/pipeline/callbacks_xlsr.py
       - data/shars/
     params:
