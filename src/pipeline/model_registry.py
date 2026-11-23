@@ -30,6 +30,7 @@ class ModelSpec:
     params_file: str
     trainer_module: str  # where this model's mask helpers live, until the trainers merge
     mask_function: str  # that module's masking function
+    run_name_prefix: str  # MLflow run names are "<prefix>-si-ta-<batch seconds>s"
 
     @property
     def needs_labels(self) -> bool:
@@ -45,7 +46,7 @@ class ModelSpec:
         return getattr(importlib.import_module("transformers"), self.model_class_name)
 
 
-def _masked(key, base_model, hf_type, config_cls, model_cls, hidden_size, params, trainer):
+def _masked(key, base_model, hf_type, config_cls, model_cls, hidden_size, params, run_prefix):
     return ModelSpec(
         key=key,
         family="masked_prediction",
@@ -56,12 +57,13 @@ def _masked(key, base_model, hf_type, config_cls, model_cls, hidden_size, params
         backbone_attr="backbone",  # MaskedPredictionModel.backbone
         hidden_size=hidden_size,
         params_file=params,
-        trainer_module=trainer,
+        trainer_module="pipeline.train_masked_prediction",
         mask_function="compute_mask",
+        run_name_prefix=run_prefix,
     )
 
 
-def _contrastive(key, base_model, params, trainer):
+def _contrastive(key, base_model, params, trainer, run_prefix):
     return ModelSpec(
         key=key,
         family="contrastive",
@@ -74,6 +76,7 @@ def _contrastive(key, base_model, params, trainer):
         params_file=params,
         trainer_module=trainer,
         mask_function="compute_mask_and_negatives",
+        run_name_prefix=run_prefix,
     )
 
 
@@ -88,7 +91,7 @@ MODEL_REGISTRY: dict[str, ModelSpec] = {
             "HubertModel",
             768,
             "params.yaml",
-            "pipeline.train",
+            "mhubert147",
         ),
         _masked(
             "hubert",
@@ -98,7 +101,7 @@ MODEL_REGISTRY: dict[str, ModelSpec] = {
             "HubertModel",
             1024,
             "params-hubert.yaml",
-            "pipeline.train_hubert",
+            "hubert-large",
         ),
         _masked(
             "wavlm",
@@ -108,16 +111,21 @@ MODEL_REGISTRY: dict[str, ModelSpec] = {
             "WavLMModel",
             1024,
             "params-wavlm.yaml",
-            "pipeline.train_wavlm",
+            "wavlm-large",
         ),
         _contrastive(
-            "xlsr", "facebook/wav2vec2-xls-r-300m", "params-xlsr.yaml", "pipeline.train_xlsr"
+            "xlsr",
+            "facebook/wav2vec2-xls-r-300m",
+            "params-xlsr.yaml",
+            "pipeline.train_xlsr",
+            "xlsr300m",
         ),
         _contrastive(
             "wav2vec2",
             "facebook/wav2vec2-large-lv60",
             "params-wav2vec2.yaml",
             "pipeline.train_wav2vec2",
+            "wav2vec2-mono",
         ),
     )
 }

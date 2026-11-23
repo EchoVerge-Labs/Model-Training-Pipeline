@@ -7,7 +7,7 @@ from transformers import HubertConfig, HubertModel, Wav2Vec2FeatureExtractor
 from pipeline.callbacks import MaskedAccuracyStallDetector
 from pipeline.checkpoints import STATE_FILE, latest_checkpoint, list_checkpoints
 from pipeline.masked_prediction_model import MaskedPredictionModel
-from pipeline.train_hubert import prediction_perplexity, save_checkpoint
+from pipeline.train_masked_prediction import prediction_perplexity, save_checkpoint
 
 CONFIG = {
     "hidden_size": 32,

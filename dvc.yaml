@@ -110,7 +110,7 @@ stages:
   pretrain:
     cmd: bash scripts/launch_pretrain.sh
     deps:
-      - src/pipeline/train.py
+      - src/pipeline/train_masked_prediction.py
       - src/pipeline/datamodule.py
       - src/pipeline/callbacks.py
       - src/pipeline/masked_prediction_model.py
@@ -124,10 +124,10 @@ stages:
       - models/mhubert147-si-ta-200h/:
           persist: true
     metrics:
-      - reports/pretrain_metrics.json:
+      - reports/pretrain_metrics-mhubert147.json:
           cache: false
     plots:
-      - reports/pretrain_curves.csv:
+      - reports/pretrain_curves-mhubert147.csv:
           cache: false
 
   select_checkpoint:

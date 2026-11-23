@@ -114,9 +114,9 @@ stages:
           persist: true
 
   pretrain:
-    cmd: SCRIPT=src/pipeline/train_hubert.py bash scripts/launch_pretrain.sh --config params-hubert.yaml
+    cmd: SCRIPT=src/pipeline/train_masked_prediction.py bash scripts/launch_pretrain.sh --config params-hubert.yaml
     deps:
-      - src/pipeline/train_hubert.py
+      - src/pipeline/train_masked_prediction.py
       - src/pipeline/datamodule.py
       - src/pipeline/callbacks.py
       - src/pipeline/masked_prediction_model.py

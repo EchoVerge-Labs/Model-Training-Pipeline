@@ -9,7 +9,7 @@ the usual masked-prediction cross-entropy -- no second model runs during
 training.
 
 The frame rate is the model's own CNN downsampling, so labels line up 1:1 with
-the sequence length train.py computes. Waveforms are normalised exactly as in
+the sequence length the trainer computes. Waveforms are normalised exactly as in
 training (datamodule.normalize_waveform), so the features seen here are the
 ones the checkpoint was pretrained on.
 """

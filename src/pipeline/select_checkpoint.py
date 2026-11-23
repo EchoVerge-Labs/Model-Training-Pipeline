@@ -24,7 +24,7 @@ def find_milestone_checkpoints(model_dir: str, milestones: list[int]) -> list[Pa
 
     Only milestones are proxy-evaluated: each eval is a full downstream
     fine-tune, so scoring every rolling checkpoint is too expensive. Checkpoints
-    are written atomically (see train.py), so a checkpoint-<step> directory
+    are written atomically (see train_masked_prediction.py), so a checkpoint-<step> directory
     that has a backbone is a finished one, for the contrastive models too, whose
     checkpoints have no masked-prediction head.
     """

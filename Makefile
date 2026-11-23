@@ -13,17 +13,17 @@ export PYTHONPATH := $(CURDIR)/src$(if $(PYTHONPATH),:$(PYTHONPATH))
 # MODEL=mhubert147|hubert|wavlm|xlsr|wav2vec2, e.g. `make train MODEL=wavlm`.
 MODEL ?= mhubert147
 ifeq ($(MODEL),mhubert147)
-  TRAIN_SCRIPT := src/pipeline/train.py
+  TRAIN_SCRIPT := src/pipeline/train_masked_prediction.py
   CONFIG := params.yaml
   DVC_FILE := dvc.yaml
   HAS_KMEANS := 1
 else ifeq ($(MODEL),hubert)
-  TRAIN_SCRIPT := src/pipeline/train_hubert.py
+  TRAIN_SCRIPT := src/pipeline/train_masked_prediction.py
   CONFIG := params-hubert.yaml
   DVC_FILE := dvc-hubert.yaml
   HAS_KMEANS := 1
 else ifeq ($(MODEL),wavlm)
-  TRAIN_SCRIPT := src/pipeline/train_wavlm.py
+  TRAIN_SCRIPT := src/pipeline/train_masked_prediction.py
   CONFIG := params-wavlm.yaml
   DVC_FILE := dvc-wavlm.yaml
   HAS_KMEANS := 1

@@ -1,6 +1,6 @@
-"""Checkpoint directory conventions shared by train.py and select_checkpoint.py.
+"""Checkpoint directory conventions shared by the trainer and select_checkpoint.py.
 
-A checkpoint is `<output_dir>/checkpoint-<step>/`. train.py writes it to
+A checkpoint is `<output_dir>/checkpoint-<step>/`. the trainer writes it to
 `checkpoint-<step>.tmp` first and renames it, so a crash mid-save never leaves
 a half-written directory that looks complete; `.tmp` dirs don't match
 CHECKPOINT_RE and are ignored (and cleaned up on the next start).

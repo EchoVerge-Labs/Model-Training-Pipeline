@@ -5,7 +5,7 @@ from torch import nn
 from transformers import WavLMConfig
 
 from pipeline.masked_prediction_model import MaskedPredictionModel
-from pipeline.train_wavlm import compute_mask, get_tri_stage_lr
+from pipeline.train_masked_prediction import compute_mask, get_tri_stage_lr
 
 NUM_CLUSTERS = 8
 

@@ -3,8 +3,8 @@ set -euo pipefail
 
 # ─── Config ───────────────────────────────────────────
 # Defaults are mHuBERT-147 (the Makefile and dvc.yaml default). For another model,
-# set SCRIPT and CONFIG, e.g. SCRIPT=src/pipeline/train_wavlm.py CONFIG=params-wavlm.yaml
-SCRIPT="${SCRIPT:-src/pipeline/train.py}"
+# set SCRIPT and CONFIG, e.g. SCRIPT=src/pipeline/train_xlsr.py CONFIG=params-xlsr.yaml (the HuBERT family shares train_masked_prediction.py; the model comes from CONFIG)
+SCRIPT="${SCRIPT:-src/pipeline/train_masked_prediction.py}"
 CONFIG="${CONFIG:-params.yaml}"
 
 # Source NCCL env for GB10

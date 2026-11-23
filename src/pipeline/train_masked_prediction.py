@@ -1,20 +1,18 @@
-"""Continued pre-training of mHuBERT-147 on Sinhala/Tamil.
+"""Continued pre-training of the HuBERT family (mHuBERT-147, HuBERT Large, WavLM Large).
 
-Same masked-prediction trainer as the HuBERT-Large branch (mHuBERT-147 is
-architecturally a HubertModel too: 12 layers, 768 hidden, multilingual
-pretrained); only pretrain.base_model, cluster.layer (9, its own 3/4 point)
-and the output/benchmark paths in params.yaml differ.
-
-HuBERT's real pretraining objective is masked prediction of k-means
+One trainer for all three models. `params.model_key` (set in each params file) picks
+the encoder class, the report file suffix and the MLflow run name; everything else is
+shared. All three keep the HuBERT objective: masked prediction of k-means
 pseudo-labels (data/labels/, produced by pipeline.fit_kmeans +
 pipeline.assign_cluster_labels from layer-N features of the original
-pretrained model -- see layer_features.py), not wav2vec2's contrastive learning with a quantizer/codebook. transformers
-has no HubertForPreTraining class for the latter to even target, so this
-loads a plain HubertModel encoder (pipeline.masked_prediction_model.MaskedPredictionModel)
-and trains a linear head against the precomputed cluster ids. The encoder is
-the already-pretrained checkpoint; its architecture and the objective are not
-changed. Re-running the launch script resumes from the newest complete
-checkpoint (backbone + head + optimizer + step).
+pretrained model -- see layer_features.py), not wav2vec2's contrastive learning with a
+quantizer/codebook. transformers has no pretraining class for it, so this loads the
+plain encoder (pipeline.masked_prediction_model.MaskedPredictionModel) and trains a
+linear head against the precomputed cluster ids. The encoder is the already-pretrained
+checkpoint; its architecture and the objective are not changed. WavLM additionally mixes
+utterances (pretrain.utterance_mix_prob > 0; the labels stay those of the clean primary).
+Re-running the launch script resumes from the newest complete checkpoint
+(backbone + head + optimizer + step).
 
 Key changes from a typical HF fine-tuning script:
   - Loads from Lhotse Shar tarballs (not HF datasets)
@@ -23,22 +21,21 @@ Key changes from a typical HF fine-tuning script:
   - MLflow logging to DagsHub
 
 Mask generation reuses transformers' own `_compute_mask_indices` (the same
-helper HubertModel._mask_hidden_states falls back to when no
+helper the encoders' `_mask_hidden_states` fall back to when no
 mask_time_indices is given) so training explicitly controls which frames are
-masked -- masking is HubertModel's own mechanism (via `masked_spec_embed`,
-see modeling_hubert.py's `_mask_hidden_states`), not a hand-rolled one.
-`mask_time_indices` must be `torch.bool`: HubertModel indexes
+masked -- masking is the encoder's own mechanism (via `masked_spec_embed`),
+not a hand-rolled one. `mask_time_indices` must be `torch.bool`: the encoders index
 `hidden_states[mask_time_indices] = ...` directly with no internal dtype
 cast (unlike Wav2Vec2ForPreTraining, which casts before use).
 
 Usage:
-  # Single node
-  torchrun --nproc_per_node=1 -m pipeline.train --config params.yaml
+  # Single node (the model comes from model_key in the params file)
+  torchrun --nproc_per_node=1 -m pipeline.train_masked_prediction --config params-wavlm.yaml
 
   # Two nodes
   torchrun --nnodes=2 --nproc_per_node=1 --node_rank=0 \
            --rdzv_backend=c10d --rdzv_endpoint=10.0.0.1:29500 \
-           -m pipeline.train --config params.yaml
+           -m pipeline.train_masked_prediction --config params-wavlm.yaml
 """
 
 import argparse
@@ -59,6 +56,7 @@ from pipeline.callbacks import MaskedAccuracyStallDetector, MLflowLogger
 from pipeline.checkpoints import STATE_FILE, latest_checkpoint, list_checkpoints
 from pipeline.datamodule import create_dataloader
 from pipeline.masked_prediction_model import MaskedPredictionModel
+from pipeline.model_registry import get_model_spec
 from pipeline.schema import Params
 
 # Must be set before the first CUDA allocation. Less fragmentation on the GB10's
@@ -176,7 +174,12 @@ def prediction_perplexity(prob_sum: torch.Tensor, n_frames: int) -> float:
 # ─── Training ──────────────────────────────────────────────────────────
 
 
-def train(params: Params):
+def train(params: Params, config_path: str = "params.yaml"):
+    """config_path is only read back for the MLflow section; everything else is in `params`."""
+    spec = get_model_spec(params.model_key)
+    if spec.family != "masked_prediction":
+        raise ValueError(f"{spec.key} is a {spec.family} model; use the contrastive trainer")
+    suffix = f"-{spec.key}"  # per-model report files, as in dvc-<model>.yaml
     cfg = params.pretrain
     num_clusters = params.cluster.num_clusters
 
@@ -226,7 +229,7 @@ def train(params: Params):
 
     # ── Load model ──
     model = MaskedPredictionModel(
-        "hubert", cfg.base_model, num_clusters=num_clusters, layerdrop=cfg.layerdrop
+        spec.hf_model_type, cfg.base_model, num_clusters=num_clusters, layerdrop=cfg.layerdrop
     )
     if resume:
         model.load_checkpoint(resume[1])
@@ -291,6 +294,7 @@ def train(params: Params):
         seed=0,
         labels_path=cfg.labels_path,
         normalize=normalize,
+        utterance_mix_prob=cfg.utterance_mix_prob,
     )
     data_iter = iter(dataloader)
 
@@ -315,13 +319,13 @@ def train(params: Params):
         try:
             import yaml
 
-            with open("params.yaml") as f:
+            with open(config_path) as f:
                 raw_params = yaml.safe_load(f)
             mlflow_cfg = raw_params.get("mlflow", {})
             mlflow_logger = MLflowLogger(
                 tracking_uri=mlflow_cfg.get("tracking_uri", ""),
                 experiment_name=mlflow_cfg.get("experiment_name", "ssl-pretraining"),
-                run_name=f"mhubert147-si-ta-{cfg.target_batch_seconds}s",
+                run_name=f"{spec.run_name_prefix}-si-ta-{cfg.target_batch_seconds}s",
             )
             # Log all params
             flat_params = {
@@ -342,6 +346,7 @@ def train(params: Params):
                 "freeze_feature_encoder": cfg.freeze_feature_encoder,
                 "layerdrop": cfg.layerdrop,
                 "head_lr_mult": cfg.head_lr_mult,
+                "utterance_mix_prob": cfg.utterance_mix_prob,
                 "normalize": normalize,
                 "resumed_from_step": resume_step,
             }
@@ -376,7 +381,7 @@ def train(params: Params):
     log_start_time = time.perf_counter()
 
     # CSV for loss curves
-    curves_path = Path("reports/pretrain_curves.csv")
+    curves_path = Path(f"reports/pretrain_curves{suffix}.csv")
     curves_path.parent.mkdir(parents=True, exist_ok=True)
     if is_main and not (resume and curves_path.exists()):
         with open(curves_path, "w") as f:
@@ -429,7 +434,7 @@ def train(params: Params):
                 )
 
             # Frame counts should already agree by construction (MFCC labels
-            # were extracted to the same conv-output length train.py computes
+            # were extracted to the same conv-output length the trainer computes
             # here) -- crop to the overlap as a defensive guard against any
             # off-by-a-few edge case rather than crashing mid-run.
             common_len = min(logits.shape[1], labels.shape[1])
@@ -599,7 +604,7 @@ def train(params: Params):
             else None,
             "completed": global_step >= cfg.max_updates,
         }
-        with open("reports/pretrain_metrics.json", "w") as f:
+        with open(f"reports/pretrain_metrics{suffix}.json", "w") as f:
             json.dump(final_metrics, f, indent=2)
 
         if mlflow_logger:
@@ -622,7 +627,7 @@ def main():
     args = parser.parse_args()
 
     params = Params.from_yaml(args.config)
-    train(params)
+    train(params, args.config)
 
 
 if __name__ == "__main__":

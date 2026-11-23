@@ -23,7 +23,7 @@ from pipeline.schema import (
     ShardConfig,
 )
 from pipeline.shard import shard_cuts
-from pipeline.train_hubert import train
+from pipeline.train_masked_prediction import train
 
 K = 6
 
@@ -67,9 +67,9 @@ def _setup(tmp_path):
     return base, shars, labels_path
 
 
-def _params(tmp_path, base, shars, labels_path, max_updates):
+def _params(tmp_path, base, shars, labels_path, max_updates, model_key="hubert"):
     return Params(
-        model_key="hubert",
+        model_key=model_key,
         select=SelectConfig(
             seed=1,
             target_hours=1.0,
@@ -156,3 +156,23 @@ def test_train_runs_checkpoints_atomically_and_resumes(tmp_path, monkeypatch, ca
     curves = (tmp_path / "reports" / "pretrain_curves-hubert.csv").read_text().splitlines()
     assert [int(r.split(",")[0]) for r in curves[1:]] == [2, 4, 6]  # appended, not restarted
     assert "Waveform normalisation (do_normalize): True" in printed
+
+
+def test_each_model_key_writes_its_own_report_files(tmp_path, monkeypatch):
+    """mHuBERT-147 runs through the same trainer; its reports carry its own suffix."""
+    monkeypatch.chdir(tmp_path)
+    base, shars, labels_path = _setup(tmp_path)
+    train(_params(tmp_path, base, shars, labels_path, max_updates=2, model_key="mhubert147"))
+    assert (tmp_path / "reports" / "pretrain_curves-mhubert147.csv").exists()
+    assert (tmp_path / "reports" / "pretrain_metrics-mhubert147.json").exists()
+    assert not (tmp_path / "reports" / "pretrain_curves-hubert.csv").exists()
+
+
+def test_a_contrastive_model_key_is_rejected(tmp_path):
+    import pytest
+
+    base, shars, labels_path = _setup(tmp_path)
+    params = _params(tmp_path, base, shars, labels_path, max_updates=2)
+    params.model_key = "xlsr"
+    with pytest.raises(ValueError, match="contrastive"):
+        train(params)

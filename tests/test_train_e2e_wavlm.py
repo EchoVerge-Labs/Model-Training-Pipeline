@@ -23,7 +23,7 @@ from pipeline.schema import (
     ShardConfig,
 )
 from pipeline.shard import shard_cuts
-from pipeline.train_wavlm import train
+from pipeline.train_masked_prediction import train
 
 K = 6
 

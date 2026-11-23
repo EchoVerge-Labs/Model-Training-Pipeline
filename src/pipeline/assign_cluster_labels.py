@@ -1,5 +1,5 @@
 """Assign k-means cluster ids to every training cut's layer features -- the
-masked-prediction targets pipeline.train reads via pretrain.labels_path.
+masked-prediction targets pipeline.train_masked_prediction reads via pretrain.labels_path.
 
 Usage:
   python -m pipeline.assign_cluster_labels --config params.yaml
