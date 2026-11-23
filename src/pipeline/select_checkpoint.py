@@ -50,6 +50,9 @@ def evaluate_checkpoint(
     ]
     if data_dir:
         cmd.extend(["--data-dir", data_dir])
+        slsb_params = Path(data_dir).parent / "params.yaml"
+        if slsb_params.exists():
+            cmd.extend(["--params", str(slsb_params)])
 
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode != 0:

@@ -14,7 +14,9 @@ SEEDS="${3:?}"
 OUT_DIR="${4:?}"
 MLFLOW_URI="${5:-}"
 
-ARGS=(run --upstream "$UPSTREAM" --tasks "$TASKS" --seeds "$SEEDS" --out "$OUT_DIR")
+SLSB_DIR="${SLSB_DIR:-$(cd "$(dirname "$0")/../.." && pwd)/SLSB-benchmark}"
+ARGS=(run --upstream "$UPSTREAM" --tasks "$TASKS" --seeds "$SEEDS" --out "$OUT_DIR"
+      --data-dir "$SLSB_DIR/data" --params "$SLSB_DIR/params.yaml")
 if [ -n "$MLFLOW_URI" ]; then
     ARGS+=(--mlflow-uri "$MLFLOW_URI")
 fi
