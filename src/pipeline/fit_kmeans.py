@@ -71,6 +71,11 @@ def fit_kmeans(features: np.ndarray, num_clusters: int, seed: int) -> MiniBatchK
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="params.yaml")
+    parser.add_argument(
+        "--report-suffix",
+        default="",
+        help="Suffix for the report file, e.g. '-hubert' -> kmeans_stats-hubert.json",
+    )
     args = parser.parse_args()
 
     params = Params.from_yaml(args.config)
@@ -112,7 +117,7 @@ def main():
         "cluster_usage_max": int(counts.max()) if len(counts) else 0,
         "clusters_used": len(counts),
     }
-    reports_path = Path("reports/kmeans_stats.json")
+    reports_path = Path(f"reports/kmeans_stats{args.report_suffix}.json")
     reports_path.parent.mkdir(parents=True, exist_ok=True)
     with open(reports_path, "w") as f:
         json.dump(stats, f, indent=2)

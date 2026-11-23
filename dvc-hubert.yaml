@@ -78,7 +78,7 @@ stages:
       - data/shars/
 
   fit_kmeans:
-    cmd: python -m pipeline.fit_kmeans --config params-hubert.yaml
+    cmd: python -m pipeline.fit_kmeans --config params-hubert.yaml --report-suffix -hubert
     deps:
       - src/pipeline/fit_kmeans.py
       - src/pipeline/layer_features.py
@@ -93,7 +93,7 @@ stages:
       - models/kmeans/km_model.joblib:
           persist: true
     metrics:
-      - reports/kmeans_stats.json:
+      - reports/kmeans_stats-hubert.json:
           cache: false
 
   assign_cluster_labels:
@@ -138,7 +138,7 @@ stages:
           cache: false
 
   select_checkpoint:
-    cmd: python -m pipeline.select_checkpoint --config params-hubert.yaml
+    cmd: python -m pipeline.select_checkpoint --config params-hubert.yaml --report-suffix -hubert
     deps:
       - src/pipeline/select_checkpoint.py
       - models/hubert-large-si-ta-200h/
@@ -149,7 +149,7 @@ stages:
       - models/selected/:
           persist: true
     metrics:
-      - reports/checkpoint_selection.json:
+      - reports/checkpoint_selection-hubert.json:
           cache: false
 
   benchmark:

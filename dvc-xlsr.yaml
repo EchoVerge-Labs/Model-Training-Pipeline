@@ -99,7 +99,7 @@ stages:
           cache: false
 
   select_checkpoint:
-    cmd: python -m pipeline.select_checkpoint_xlsr --config params-xlsr.yaml
+    cmd: python -m pipeline.select_checkpoint_xlsr --config params-xlsr.yaml --report-suffix -xlsr
     deps:
       - src/pipeline/select_checkpoint_xlsr.py
       - models/xlsr300m-si-ta-200h-norm/

@@ -87,6 +87,11 @@ def evaluate_checkpoint(
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="params-wavlm.yaml")
+    parser.add_argument(
+        "--report-suffix",
+        default="-wavlm",
+        help="Suffix for the report file, e.g. '-wavlm' -> checkpoint_selection-wavlm.json",
+    )
     args = parser.parse_args()
 
     params = Params.from_yaml(args.config)
@@ -141,7 +146,9 @@ def main():
         "best_score": results[best_name],
         "all_scores": results,
     }
-    with open("reports/checkpoint_selection-wavlm.json", "w") as f:
+    report_path = Path(f"reports/checkpoint_selection{args.report_suffix}.json")
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(report_path, "w") as f:
         json.dump(report, f, indent=2)
 
 

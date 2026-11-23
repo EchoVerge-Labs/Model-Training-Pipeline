@@ -99,7 +99,7 @@ stages:
           cache: false
 
   select_checkpoint:
-    cmd: python -m pipeline.select_checkpoint_xlsr --config params-wav2vec2.yaml
+    cmd: python -m pipeline.select_checkpoint_xlsr --config params-wav2vec2.yaml --report-suffix -wav2vec2
     deps:
       - src/pipeline/select_checkpoint_xlsr.py
       - models/wav2vec2-mono-si-ta-200h/
@@ -110,7 +110,7 @@ stages:
       - models/selected/:
           persist: true
     metrics:
-      - reports/checkpoint_selection-xlsr.json:
+      - reports/checkpoint_selection-wav2vec2.json:
           cache: false
 
   benchmark:

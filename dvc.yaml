@@ -74,7 +74,7 @@ stages:
       - data/shars/
 
   fit_kmeans:
-    cmd: python -m pipeline.fit_kmeans --config params.yaml
+    cmd: python -m pipeline.fit_kmeans --config params.yaml --report-suffix -mhubert147
     deps:
       - src/pipeline/fit_kmeans.py
       - src/pipeline/layer_features.py
@@ -88,7 +88,7 @@ stages:
       - models/kmeans/mhubert147-L9-k500.joblib:
           persist: true
     metrics:
-      - reports/kmeans_stats.json:
+      - reports/kmeans_stats-mhubert147.json:
           cache: false
 
   assign_cluster_labels:
@@ -131,7 +131,7 @@ stages:
           cache: false
 
   select_checkpoint:
-    cmd: python -m pipeline.select_checkpoint --config params.yaml
+    cmd: python -m pipeline.select_checkpoint --config params.yaml --report-suffix -mhubert147
     deps:
       - src/pipeline/select_checkpoint.py
       - models/mhubert147-si-ta-200h/
@@ -141,7 +141,7 @@ stages:
       - models/selected/:
           persist: true
     metrics:
-      - reports/checkpoint_selection.json:
+      - reports/checkpoint_selection-mhubert147.json:
           cache: false
 
   benchmark:
