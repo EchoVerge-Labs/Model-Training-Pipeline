@@ -77,7 +77,7 @@ checkpoint_selection:
   proxy_task: asr
   proxy_data_dir: ../SLSB-benchmark/data   # relative to this repo root
   proxy_seed: 0
-  output_dir: models/selected
+  output_dir: models/selected-wav2vec2
 
 # ── Benchmark ───────────────────────────────────────
 benchmark:
@@ -99,7 +99,7 @@ benchmark:
       path: facebook/wav2vec2-large-lv60
       name: "wav2vec2.0 Large (English, vanilla)"
     wav2vec2_mono_adapted:
-      path: models/selected
+      path: models/selected-wav2vec2
       name: "wav2vec2.0 Large mono (Si/Ta 200h)"
       is_local: true
 

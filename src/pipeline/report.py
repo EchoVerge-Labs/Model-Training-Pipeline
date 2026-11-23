@@ -73,7 +73,7 @@ def load_upstream_metrics(name: str) -> dict | None:
     }
 
 
-def build_report(config_path: str = "params.yaml"):
+def build_report(config_path: str = "params.yaml", suffix: str = ""):
     with open(config_path) as f:
         cfg = yaml.safe_load(f)
 
@@ -117,8 +117,8 @@ def build_report(config_path: str = "params.yaml"):
     lines.append("\n")
 
     md_content = "\n".join(lines)
-    md_path = out_dir / "results.md"
-    csv_path = out_dir / "results_table.csv"
+    md_path = out_dir / f"results{suffix}.md"
+    csv_path = out_dir / f"results_table{suffix}.csv"
 
     with open(md_path, "w") as f:
         f.write(md_content)
@@ -148,8 +148,13 @@ def build_report(config_path: str = "params.yaml"):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="params.yaml")
+    parser.add_argument(
+        "--report-suffix",
+        default="",
+        help="Suffix for output files, e.g. '-hubert' -> results-hubert.md",
+    )
     args = parser.parse_args()
-    build_report(args.config)
+    build_report(args.config, suffix=args.report_suffix)
 
 
 if __name__ == "__main__":

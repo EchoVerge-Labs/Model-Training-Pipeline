@@ -87,7 +87,7 @@ checkpoint_selection:
   proxy_task: asr
   proxy_data_dir: /home/anas22/EchoVerge-LABS/SLSB-benchmark/data
   proxy_seed: 0
-  output_dir: models/selected
+  output_dir: models/selected-wavlm
 
 # ── Benchmark ───────────────────────────────────────
 benchmark:
@@ -106,7 +106,7 @@ benchmark:
       path: microsoft/wavlm-large
       name: "WavLM Large"
     wavlm_large_adapted:
-      path: models/selected
+      path: models/selected-wavlm
       name: "WavLM Large (Si/Ta 200h)"
       is_local: true
 

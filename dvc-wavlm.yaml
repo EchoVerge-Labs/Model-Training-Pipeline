@@ -146,7 +146,7 @@ stages:
       - params-wavlm.yaml:
           - checkpoint_selection
     outs:
-      - models/selected/:
+      - models/selected-wavlm/:
           persist: true
     metrics:
       - reports/checkpoint_selection-wavlm.json:
@@ -155,13 +155,13 @@ stages:
   benchmark:
     cmd: >
       bash scripts/run_benchmark.sh
-      models/selected
+      models/selected-wavlm
       ${benchmark.tasks}
       ${benchmark.seeds}
       reports/bench/wavlm_large_adapted
       ${benchmark.mlflow_uri}
     deps:
-      - models/selected/
+      - models/selected-wavlm/
       - scripts/run_benchmark.sh
     params:
       - params-wavlm.yaml:
@@ -172,12 +172,12 @@ stages:
           cache: false
 
   report:
-    cmd: python -m pipeline.report --config params-wavlm.yaml
+    cmd: python -m pipeline.report --config params-wavlm.yaml --report-suffix -wavlm
     deps:
       - src/pipeline/report.py
       - reports/bench/
     outs:
-      - reports/results.md:
+      - reports/results-wavlm.md:
           cache: false
-      - reports/results_table.csv:
+      - reports/results_table-wavlm.csv:
           cache: false

@@ -138,7 +138,7 @@ stages:
     params:
       - checkpoint_selection
     outs:
-      - models/selected/:
+      - models/selected-mhubert147/:
           persist: true
     metrics:
       - reports/checkpoint_selection-mhubert147.json:
@@ -147,14 +147,14 @@ stages:
   benchmark:
     cmd: >
       bash scripts/run_benchmark.sh
-      models/selected
+      models/selected-mhubert147
       ${benchmark.tasks}
       ${benchmark.seeds}
       reports/bench/mhubert147_adapted
       ${benchmark.mlflow_uri}
       ${benchmark.slsb_data_dir}
     deps:
-      - models/selected/
+      - models/selected-mhubert147/
       - scripts/run_benchmark.sh
     params:
       - benchmark.tasks
@@ -165,12 +165,12 @@ stages:
           cache: false
 
   report:
-    cmd: python -m pipeline.report --config params.yaml
+    cmd: python -m pipeline.report --config params.yaml --report-suffix -mhubert147
     deps:
       - src/pipeline/report.py
       - reports/bench/
     outs:
-      - reports/results.md:
+      - reports/results-mhubert147.md:
           cache: false
-      - reports/results_table.csv:
+      - reports/results_table-mhubert147.csv:
           cache: false

@@ -83,7 +83,7 @@ checkpoint_selection:
   proxy_task: asr
   proxy_data_dir: ../SLSB-benchmark/data   # relative to this repo root
   proxy_seed: 0
-  output_dir: models/selected
+  output_dir: models/selected-hubert
 
 # ── Benchmark ───────────────────────────────────────
 benchmark:
@@ -102,7 +102,7 @@ benchmark:
       path: microsoft/wavlm-large
       name: "WavLM Large"
     hubert_large_adapted:
-      path: models/selected
+      path: models/selected-hubert
       name: "HuBERT Large (Si/Ta 200h)"
       is_local: true
 

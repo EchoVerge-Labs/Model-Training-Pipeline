@@ -107,7 +107,7 @@ stages:
       - params-wav2vec2.yaml:
           - checkpoint_selection
     outs:
-      - models/selected/:
+      - models/selected-wav2vec2/:
           persist: true
     metrics:
       - reports/checkpoint_selection-wav2vec2.json:
@@ -116,14 +116,14 @@ stages:
   benchmark:
     cmd: >
       bash scripts/run_benchmark-xlsr.sh
-      models/selected
+      models/selected-wav2vec2
       ${benchmark.tasks}
       ${benchmark.seeds}
       reports/bench/wav2vec2_mono_adapted
       ${benchmark.mlflow_uri}
       ${benchmark.slsb_data_dir}
     deps:
-      - models/selected/
+      - models/selected-wav2vec2/
       - scripts/run_benchmark-xlsr.sh
     params:
       - params-wav2vec2.yaml:
@@ -135,12 +135,12 @@ stages:
           cache: false
 
   report:
-    cmd: python -m pipeline.report --config params-wav2vec2.yaml
+    cmd: python -m pipeline.report --config params-wav2vec2.yaml --report-suffix -wav2vec2
     deps:
       - src/pipeline/report.py
       - reports/bench/
     outs:
-      - reports/results.md:
+      - reports/results-wav2vec2.md:
           cache: false
-      - reports/results_table.csv:
+      - reports/results_table-wav2vec2.csv:
           cache: false
