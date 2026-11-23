@@ -10,8 +10,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from pipeline.adapters.config import PECoPTConfig
 from pipeline.model_registry import MODEL_REGISTRY, ModelFamily
+from pipeline.pecopt.config import PECoPTConfig
 
 
 class SelectConfig(BaseModel):

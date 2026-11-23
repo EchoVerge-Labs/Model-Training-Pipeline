@@ -52,7 +52,6 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from transformers import Wav2Vec2FeatureExtractor
 from transformers.models.hubert.modeling_hubert import _compute_mask_indices
 
-from pipeline.adapters import inject_adapters
 from pipeline.callbacks import MaskedAccuracyStallDetector, MLflowLogger
 from pipeline.checkpoints import STATE_FILE, latest_checkpoint, list_checkpoints, prepare_curves
 from pipeline.datamodule import create_dataloader
@@ -63,6 +62,7 @@ from pipeline.model_registry import (
     feature_encoder_status,
     get_model_spec,
 )
+from pipeline.pecopt import apply_pecopt
 from pipeline.schema import Params
 
 # Must be set before the first CUDA allocation. Less fragmentation on the GB10's
@@ -246,7 +246,7 @@ def train(params: Params, config_path: str = "params.yaml"):
 
     # Training method: full_copt (the default) changes nothing; the PE-CoPT methods are
     # templates and stop here with NotImplementedError until they are implemented.
-    inject_adapters(model, cfg.pecopt)
+    apply_pecopt(model, cfg.pecopt)
 
     # Full CoPT trains the CNN feature encoder too; pretrain.freeze_feature_encoder: true
     # freezes it (transformer-only). Same switch for every model.

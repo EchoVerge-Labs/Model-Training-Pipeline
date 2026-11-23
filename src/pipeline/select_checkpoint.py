@@ -133,7 +133,7 @@ def main():
     proxy_task = sel_cfg.get("proxy_task", "asr")
     proxy_seed = sel_cfg.get("proxy_seed", 0)
     proxy_data = sel_cfg.get("proxy_data_dir")
-    output_dir = Path(sel_cfg.get("output_dir", "models/selected"))
+    output_dir = Path(sel_cfg.get("output_dir", f"models/selected-{params.run}"))
 
     if proxy_task not in DEV_SCORE:
         raise SystemExit(

@@ -188,7 +188,7 @@ def test_a_contrastive_model_key_is_rejected(tmp_path):
 def test_a_pe_copt_method_stops_at_the_template_until_it_is_implemented(tmp_path):
     import pytest
 
-    from pipeline.adapters import PECoPTConfig
+    from pipeline.pecopt import PECoPTConfig
 
     base, shars, labels_path = _setup(tmp_path)
     params = _params(tmp_path, base, shars, labels_path, max_updates=2)

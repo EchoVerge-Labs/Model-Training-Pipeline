@@ -1,4 +1,4 @@
-"""adapters: the training-method config and the PE-CoPT templates."""
+"""PE-CoPT config and templates."""
 
 import sys
 import types
@@ -6,7 +6,7 @@ import types
 import pytest
 from pydantic import ValidationError
 
-from pipeline.adapters import PECoPTConfig, inject_adapters
+from pipeline.pecopt import PECoPTConfig, apply_pecopt
 from pipeline.schema import Params
 
 
@@ -36,14 +36,14 @@ def test_invalid_settings_are_rejected(bad):
 
 
 def test_full_copt_injects_nothing():
-    assert inject_adapters(object(), PECoPTConfig()) == 0
+    assert apply_pecopt(object(), PECoPTConfig()) == 0
 
 
 def test_inject_dispatches_to_the_method_module(monkeypatch):
     calls = []
-    fake = types.ModuleType("pipeline.adapters.lora")
+    fake = types.ModuleType("pipeline.pecopt.lora")
     fake.inject_into_model = lambda model, config: calls.append((model, config)) or 24
-    monkeypatch.setitem(sys.modules, "pipeline.adapters.lora", fake)
+    monkeypatch.setitem(sys.modules, "pipeline.pecopt.lora", fake)
     model, config = object(), PECoPTConfig(method="lora")
-    assert inject_adapters(model, config) == 24
+    assert apply_pecopt(model, config) == 24
     assert calls == [(model, config)]

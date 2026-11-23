@@ -64,7 +64,6 @@ from transformers.models.wav2vec2.modeling_wav2vec2 import (
     _sample_negative_indices,
 )
 
-from pipeline.adapters import inject_adapters
 from pipeline.callbacks import CodebookCollapseDetector, MLflowLogger
 from pipeline.checkpoints import prepare_curves
 from pipeline.datamodule import create_dataloader
@@ -74,6 +73,7 @@ from pipeline.model_registry import (
     feature_encoder_status,
     get_model_spec,
 )
+from pipeline.pecopt import apply_pecopt
 from pipeline.schema import Params
 
 # ─── Tri-stage LR schedule ──────────────────────────────────────────────
@@ -472,7 +472,7 @@ def train(
 
     # Training method: full_copt (the default) changes nothing; the PE-CoPT methods are
     # templates and stop here with NotImplementedError until they are implemented.
-    inject_adapters(model, cfg.pecopt)
+    apply_pecopt(model, cfg.pecopt)
 
     # Full CoPT trains the CNN feature encoder too; pretrain.freeze_feature_encoder: true
     # freezes it (transformer-only). Same switch for every model.

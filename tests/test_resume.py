@@ -375,7 +375,7 @@ def test_a_masked_prediction_model_key_is_rejected(tmp_path):
 
 
 def test_a_pe_copt_method_stops_at_the_template_until_it_is_implemented(tmp_path):
-    from pipeline.adapters import PECoPTConfig
+    from pipeline.pecopt import PECoPTConfig
 
     base = _make_base(tmp_path)
     params = _params(tmp_path, base)

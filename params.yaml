@@ -1,3 +1,5 @@
+# This is the mHuBERT-147 file (the default of `make`, `--config` and the shared data stages:
+# select / materialise / shard). The other models have params-<model>.yaml.
 # Which model this file configures; fixes its SSL objective family (see pipeline.schema).
 model_key: mhubert147
 experiment: si-ta-200h   # names this run: <model>-<experiment> -> models/, reports/, bench/, MLflow
