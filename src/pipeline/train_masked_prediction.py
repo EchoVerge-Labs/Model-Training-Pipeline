@@ -53,7 +53,13 @@ from transformers import Wav2Vec2FeatureExtractor
 from transformers.models.hubert.modeling_hubert import _compute_mask_indices
 
 from pipeline.callbacks import MaskedAccuracyStallDetector, MLflowLogger
-from pipeline.checkpoints import STATE_FILE, latest_checkpoint, list_checkpoints, prepare_curves
+from pipeline.checkpoints import (
+    STATE_FILE,
+    latest_checkpoint,
+    prepare_curves,
+    prune_checkpoints,
+    save_checkpoint,
+)
 from pipeline.datamodule import create_dataloader
 from pipeline.device import get_device
 from pipeline.masked_prediction_model import MaskedPredictionModel
@@ -154,21 +160,6 @@ def compute_mask(
 
 
 # ─── Checkpointing ───────────────────────────────────────────────────────
-
-
-def save_checkpoint(raw_model, feature_extractor, optimizer, global_step: int, ckpt_dir: Path):
-    """Writes ckpt_dir atomically: everything goes to <ckpt_dir>.tmp, then one
-    rename, so a crash mid-save can't leave a directory that looks complete."""
-    tmp = ckpt_dir.with_name(ckpt_dir.name + ".tmp")
-    if tmp.exists():
-        shutil.rmtree(tmp)
-    tmp.mkdir(parents=True)
-    raw_model.save_pretrained(tmp)
-    feature_extractor.save_pretrained(tmp)
-    torch.save({"optimizer": optimizer.state_dict(), "global_step": global_step}, tmp / STATE_FILE)
-    if ckpt_dir.exists():
-        shutil.rmtree(ckpt_dir)
-    os.replace(tmp, ckpt_dir)
 
 
 def prediction_perplexity(prob_sum: torch.Tensor, n_frames: int) -> float:
@@ -587,19 +578,7 @@ def train(params: Params, config_path: str = "params-mhubert147.yaml"):
             save_checkpoint(raw_model, feature_extractor, optimizer, global_step, ckpt_dir)
             print(f"  Saved checkpoint: {ckpt_dir}")
 
-            # Manage checkpoint retention
-            is_milestone = global_step in cfg.milestone_checkpoints
-            if not is_milestone:
-                # Remove old non-milestone checkpoints beyond keep_last_n
-                non_milestones = [
-                    path
-                    for step, path in list_checkpoints(output_dir)
-                    if step not in cfg.milestone_checkpoints
-                ]
-                while len(non_milestones) > cfg.keep_last_n_checkpoints:
-                    oldest = non_milestones.pop(0)
-                    print(f"  Removing old checkpoint: {oldest.name}")
-                    shutil.rmtree(oldest)
+            prune_checkpoints(output_dir, cfg.milestone_checkpoints, cfg.keep_last_n_checkpoints)
 
     # ── Final save ──
     if is_main:

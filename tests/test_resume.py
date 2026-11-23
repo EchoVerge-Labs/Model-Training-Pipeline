@@ -14,17 +14,19 @@ import torch
 from transformers import Wav2Vec2FeatureExtractor, Wav2Vec2ForPreTraining
 
 from pipeline.callbacks import CodebookCollapseDetector
-from pipeline.checkpoints import prepare_curves
-from pipeline.schema import MonitoringConfig, Params
-from pipeline.train_contrastive import (
-    CURVES_HEADER,
-    TRAINING_STATE_FILE,
+from pipeline.checkpoints import (
+    STATE_FILE,
     checkpoint_step,
     find_resume,
     list_checkpoints,
     load_training_state,
+    prepare_curves,
     prune_checkpoints,
     save_checkpoint,
+)
+from pipeline.schema import MonitoringConfig, Params
+from pipeline.train_contrastive import (
+    CURVES_HEADER,
     train,
 )
 from tests.test_smoke_train_xlsr import _tiny_model
@@ -122,7 +124,14 @@ def _write_checkpoint(out: Path, step: int):
     """A real (tiny) complete checkpoint, written by the production save path."""
     model = _tiny_model()
     optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4)
-    return save_checkpoint(model, _feature_extractor(), optimizer, step, 0.9, out)
+    return save_checkpoint(
+        model,
+        _feature_extractor(),
+        optimizer,
+        step,
+        out / f"checkpoint-{step}",
+        gumbel_temperature=0.9,
+    )
 
 
 # ── the scenario asked for: save at step 3, resume, 2 more steps -> step 5 ──
@@ -133,7 +142,7 @@ def test_resume_from_step_3_runs_two_more_updates_and_ends_at_step_5(tmp_path, c
     out = tmp_path / "out"
 
     assert _run(_params(tmp_path, base, max_updates=3), tmp_path) == 3
-    assert (out / "checkpoint-3" / TRAINING_STATE_FILE).exists()
+    assert (out / "checkpoint-3" / STATE_FILE).exists()
 
     # Same command, longer schedule, no flags: picks up checkpoint-3 by itself.
     assert _run(_params(tmp_path, base, max_updates=5), tmp_path) == 5
@@ -199,7 +208,14 @@ def test_model_and_optimizer_state_round_trip_through_a_checkpoint(tmp_path):
         for p in params:
             p.grad = torch.randn_like(p)
         optimizer.step()
-    ckpt = save_checkpoint(model, _feature_extractor(), optimizer, 3, 0.9, tmp_path)
+    ckpt = save_checkpoint(
+        model,
+        _feature_extractor(),
+        optimizer,
+        3,
+        tmp_path / "checkpoint-3",
+        gumbel_temperature=0.9,
+    )
 
     restored = Wav2Vec2ForPreTraining.from_pretrained(ckpt).to(DEVICE)
     optimizer2 = torch.optim.AdamW(list(restored.parameters()), lr=1e-3)
@@ -226,12 +242,12 @@ def test_auto_resume_picks_the_newest_complete_checkpoint_and_ignores_debris(tmp
     _write_checkpoint(out, 3)
     _write_checkpoint(out, 6)
     incomplete = _write_checkpoint(out, 9)
-    (incomplete / TRAINING_STATE_FILE).unlink()  # a save that died before its last file
-    (out / ".tmp-checkpoint-12").mkdir()  # a save that never finished renaming
+    (incomplete / STATE_FILE).unlink()  # a save that died before its last file
+    (out / "checkpoint-12.tmp").mkdir()  # a save that never finished renaming
     (out / "checkpoint-final").mkdir()  # not a numbered checkpoint
 
-    assert [checkpoint_step(p) for p in list_checkpoints(out)] == [6, 3]
-    path, state = find_resume(None, out, DEVICE)
+    assert [step for step, _ in list_checkpoints(out, with_head=False)] == [3, 6]
+    path, state = find_resume(None, out, DEVICE, with_head=False)
     assert path.name == "checkpoint-6" and state["global_step"] == 6
 
 
@@ -239,17 +255,17 @@ def test_auto_resume_falls_back_when_the_newest_checkpoint_is_unreadable(tmp_pat
     out = tmp_path / "out"
     _write_checkpoint(out, 3)
     truncated = _write_checkpoint(out, 6)
-    (truncated / TRAINING_STATE_FILE).write_bytes(b"cut off mid-write")
+    (truncated / STATE_FILE).write_bytes(b"cut off mid-write")
 
-    path, state = find_resume(None, out, DEVICE)
+    path, state = find_resume(None, out, DEVICE, with_head=False)
     assert path.name == "checkpoint-3" and state["global_step"] == 3
     assert "skipping unreadable checkpoint" in capsys.readouterr().out
 
 
 def test_no_checkpoints_means_a_fresh_start(tmp_path):
-    assert find_resume(None, tmp_path / "empty", DEVICE) is None
+    assert find_resume(None, tmp_path / "empty", DEVICE, with_head=False) is None
     _write_checkpoint(tmp_path / "out", 3)
-    assert find_resume(None, tmp_path / "out", DEVICE, auto_resume=False) is None
+    assert find_resume(None, tmp_path / "out", DEVICE, auto_resume=False, with_head=False) is None
 
 
 def test_a_crash_while_saving_leaves_no_checkpoint_that_looks_valid(tmp_path, monkeypatch):
@@ -261,15 +277,22 @@ def test_a_crash_while_saving_leaves_no_checkpoint_that_looks_valid(tmp_path, mo
 
     monkeypatch.setattr(torch, "save", die)
     with pytest.raises(RuntimeError, match="disk full"):
-        save_checkpoint(model, _feature_extractor(), optimizer, 3, 0.9, tmp_path)
+        save_checkpoint(
+            model,
+            _feature_extractor(),
+            optimizer,
+            3,
+            tmp_path / "checkpoint-3",
+            gumbel_temperature=0.9,
+        )
 
     assert not (tmp_path / "checkpoint-3").exists()
-    assert list_checkpoints(tmp_path) == []
+    assert list_checkpoints(tmp_path, with_head=False) == []
 
 
 def test_a_stale_partial_save_is_cleaned_up_at_startup(tmp_path):
     base = _make_base(tmp_path)
-    stale = tmp_path / "out" / ".tmp-checkpoint-1500"
+    stale = tmp_path / "out" / "checkpoint-1500.tmp"
     stale.mkdir(parents=True)
     (stale / "half_written.bin").write_bytes(b"x")
     _run(_params(tmp_path, base, max_updates=1), tmp_path)

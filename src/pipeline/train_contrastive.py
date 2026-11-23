@@ -40,7 +40,6 @@ Usage:
 import argparse
 import json
 import os
-import re
 import shutil
 import time
 from pathlib import Path
@@ -65,7 +64,7 @@ from transformers.models.wav2vec2.modeling_wav2vec2 import (
 )
 
 from pipeline.callbacks import CodebookCollapseDetector, MLflowLogger
-from pipeline.checkpoints import prepare_curves
+from pipeline.checkpoints import find_resume, prepare_curves, prune_checkpoints, save_checkpoint
 from pipeline.datamodule import create_dataloader
 from pipeline.device import get_device
 from pipeline.model_registry import (
@@ -223,122 +222,10 @@ def multiply_grads(params, c):
 # LR, the Gumbel temperature, the data-loader seed -- is a pure function of
 # global_step, so restoring the optimizer and the step is all a resume takes.
 
-CHECKPOINT_RE = re.compile(r"^checkpoint-(\d+)$")
-TRAINING_STATE_FILE = "training_state.pt"
 CURVES_HEADER = (
     "step,loss,contrastive_loss,diversity_loss,codebook_perplexity,"
     "grad_norm,lr,gumbel_temp,audio_sec_per_wall_sec"
 )
-
-
-def checkpoint_step(path: Path) -> int | None:
-    """The step in a checkpoint-<step> directory name, or None if it isn't one."""
-    match = CHECKPOINT_RE.match(path.name)
-    return int(match.group(1)) if match else None
-
-
-def _is_complete_checkpoint(path: Path) -> bool:
-    has_weights = any(path.glob("*.safetensors")) or any(path.glob("pytorch_model*.bin"))
-    return (
-        path.is_dir()
-        and (path / "config.json").exists()
-        and has_weights
-        and (path / TRAINING_STATE_FILE).exists()
-    )
-
-
-def list_checkpoints(output_dir: Path) -> list[Path]:
-    """Complete checkpoint directories under output_dir, newest (highest step) first."""
-    found = [
-        (step, path)
-        for path in Path(output_dir).glob("checkpoint-*")
-        if (step := checkpoint_step(path)) is not None and _is_complete_checkpoint(path)
-    ]
-    return [path for _, path in sorted(found, reverse=True)]
-
-
-def save_checkpoint(
-    raw_model, feature_extractor, optimizer, global_step: int, gumbel_temp: float, output_dir: Path
-) -> Path:
-    """Write checkpoint-<global_step>/ atomically.
-
-    Everything is built under a hidden temp name and renamed into place only
-    when complete, so a crash mid-save (a checkpoint is several GB) can never
-    leave a directory that looks like a valid checkpoint.
-    """
-    output_dir = Path(output_dir)
-    final = output_dir / f"checkpoint-{global_step}"
-    tmp = output_dir / f".tmp-checkpoint-{global_step}"
-    if tmp.exists():
-        shutil.rmtree(tmp)
-    tmp.mkdir(parents=True)
-
-    raw_model.save_pretrained(tmp)
-    feature_extractor.save_pretrained(tmp)
-    torch.save(
-        {
-            "optimizer": optimizer.state_dict(),
-            "global_step": global_step,
-            "gumbel_temperature": gumbel_temp,
-        },
-        tmp / TRAINING_STATE_FILE,
-    )
-
-    if final.exists():
-        shutil.rmtree(final)
-    os.rename(tmp, final)
-    return final
-
-
-def load_training_state(ckpt_dir: Path, device) -> dict:
-    """Read training_state.pt. weights_only: it holds tensors and plain numbers, so
-    nothing needs to be unpickled as code."""
-    state = torch.load(Path(ckpt_dir) / TRAINING_STATE_FILE, map_location=device, weights_only=True)
-    missing = {"optimizer", "global_step"} - set(state)
-    if missing:
-        raise ValueError(f"{ckpt_dir / TRAINING_STATE_FILE} is missing {sorted(missing)}")
-    return state
-
-
-def find_resume(
-    resume_from: str | Path | None, output_dir: Path, device, auto_resume: bool = True
-) -> tuple[Path, dict] | None:
-    """Decide what to resume from. Returns (checkpoint dir, training state) or None.
-
-    An explicit resume_from must be a complete, readable checkpoint (error
-    otherwise). Otherwise, with auto_resume, the newest complete checkpoint in
-    output_dir is used -- and if it turns out to be unreadable (e.g. a crash
-    truncated it) the next-newest is tried, so one bad file can't block a relaunch.
-    """
-    if resume_from is not None:
-        path = Path(resume_from)
-        if not _is_complete_checkpoint(path):
-            raise FileNotFoundError(
-                f"--resume-from {path}: not a complete checkpoint "
-                f"(needs config.json, model weights and {TRAINING_STATE_FILE})"
-            )
-        return path, load_training_state(path, device)
-    if not auto_resume:
-        return None
-    for path in list_checkpoints(output_dir):
-        try:
-            return path, load_training_state(path, device)
-        except Exception as e:  # noqa: BLE001 -- any unreadable file just means "try the previous one"
-            print(f"WARNING: skipping unreadable checkpoint {path}: {e}")
-    return None
-
-
-def prune_checkpoints(output_dir: Path, milestones: list[int], keep_last_n: int) -> None:
-    """Keep every milestone checkpoint, plus the newest keep_last_n of the others."""
-    numbered = sorted(
-        (step, path)
-        for path in Path(output_dir).glob("checkpoint-*")
-        if (step := checkpoint_step(path)) is not None
-    )
-    rotating = [path for step, path in numbered if step not in milestones]
-    for old in rotating[: max(0, len(rotating) - keep_last_n)]:
-        print(f"  Removing old checkpoint: {old.name}")
-        shutil.rmtree(old)
 
 
 def _assert_ranks_agree_on_resume(local_step: int, device) -> None:
@@ -404,10 +291,10 @@ def train(
     output_dir = Path(cfg.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     if is_main:
-        for stale in output_dir.glob(".tmp-checkpoint-*"):  # a save that never finished
+        for stale in output_dir.glob("checkpoint-*.tmp"):  # a save that never finished
             shutil.rmtree(stale, ignore_errors=True)
 
-    resume = find_resume(resume_from, output_dir, device, auto_resume)
+    resume = find_resume(resume_from, output_dir, device, auto_resume, with_head=False)
     resume_step = int(resume[1]["global_step"]) if resume else 0
     if world_size > 1:
         _assert_ranks_agree_on_resume(resume_step if resume else -1, device)
@@ -607,6 +494,7 @@ def train(
     accum_loss = 0.0
     accum_contrastive_loss = 0.0
     accum_diversity_loss = 0.0
+    accum_perplexity = 0.0
     accum_grad_norm = 0.0
     accum_num_losses = 0
     accum_audio_seconds = 0.0
@@ -702,6 +590,8 @@ def train(
                     if outputs.diversity_loss is not None
                     else 0.0
                 )
+                if getattr(outputs, "codevector_perplexity", None) is not None:
+                    accum_perplexity += outputs.codevector_perplexity.item()
                 accum_num_losses += 1
                 accum_audio_seconds += attention_mask.sum().item() / 16000.0  # 16kHz
 
@@ -751,14 +641,10 @@ def train(
             avg_grad_norm = accum_grad_norm / (cfg.eval_every_updates)
             audio_throughput = accum_audio_seconds / elapsed if elapsed > 0 else 0
 
-            # Codebook perplexity from the model
-            # wav2vec2 computes this as exp(entropy) over the codebook usage
-            codebook_perplexity = 0.0
-            if (
-                hasattr(outputs, "codevector_perplexity")
-                and outputs.codevector_perplexity is not None
-            ):
-                codebook_perplexity = outputs.codevector_perplexity.item()
+            # Codebook perplexity (exp of the entropy of codebook usage), averaged over every
+            # micro-batch since the last log -- one micro-batch is a noisy reading, and the
+            # collapse detector acts on this value.
+            codebook_perplexity = accum_perplexity / max(accum_num_losses, 1)
 
             metrics = {
                 "train/loss": round(avg_loss, 4),
@@ -807,6 +693,7 @@ def train(
             accum_loss = 0.0
             accum_contrastive_loss = 0.0
             accum_diversity_loss = 0.0
+            accum_perplexity = 0.0
             accum_grad_norm = 0.0
             accum_num_losses = 0
             accum_audio_seconds = 0.0
@@ -823,7 +710,12 @@ def train(
         # ── Checkpointing ──
         if is_main and global_step % cfg.save_every_updates == 0:
             ckpt_dir = save_checkpoint(
-                raw_model, feature_extractor, optimizer, global_step, gumbel_temp, output_dir
+                raw_model,
+                feature_extractor,
+                optimizer,
+                global_step,
+                output_dir / f"checkpoint-{global_step}",
+                gumbel_temperature=gumbel_temp,
             )
             print(f"  Saved checkpoint: {ckpt_dir}")
             prune_checkpoints(output_dir, cfg.milestone_checkpoints, cfg.keep_last_n_checkpoints)

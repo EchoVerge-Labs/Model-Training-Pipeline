@@ -26,10 +26,18 @@ FAMILY_DIR_PREFIXES = {
     "er": ("er_",),
     "sd": ("sd_",),
     "asv": ("asv",),
+    "ic": ("ic_",),
 }
 
 # The TEST metric reported per family (select_checkpoint.py ranks on the dev score instead).
-PRIMARY_METRIC = {"asr": "wer", "sid": "accuracy", "er": "accuracy", "asv": "eer"}
+PRIMARY_METRIC = {
+    "asr": "wer",
+    "sid": "accuracy",
+    "er": "accuracy",
+    "asv": "eer",
+    "sd": "der",
+    "ic": "accuracy",
+}
 
 
 def _family_of(entry_name: str) -> str | None:
