@@ -13,10 +13,17 @@ from pathlib import Path
 from pipeline.checkpoints import has_backbone
 from pipeline.schema import Params
 
-# Mirrors slsb's own per-family primary metric (see SLSB-benchmark's
-# configs/tasks/*.yaml / scripts/run_all.py PRIMARY_METRIC). Lower is better
-# for all of these once normalised in evaluate_checkpoint() below.
-PRIMARY_METRIC = {"asr": "wer", "sid": "accuracy", "er": "accuracy", "asv": "eer"}
+# Checkpoints are ranked on the DEV score slsb records in each result entry's `details` (the
+# score its probe head was selected on), never on the test metric: choosing a checkpoint by
+# test score would make the test numbers reported for it optimistic. Maps proxy task ->
+# (details key, higher is better). Emotion recognition is absent on purpose: its 5-fold runs
+# record no dev score, so it cannot be a proxy task.
+DEV_SCORE = {
+    "asr": ("dev_cer", False),
+    "sid": ("dev_accuracy", True),
+    "asv": ("dev_eer", False),
+    "sd": ("dev_der", False),
+}
 
 
 def find_milestone_checkpoints(model_dir: str, milestones: list[int]) -> list[Path]:
@@ -85,22 +92,18 @@ def evaluate_checkpoint(
         print(f"WARNING: no successful runs for {ckpt_path.name} (task={task})")
         return float("inf")
 
-    metric_name = PRIMARY_METRIC.get(task)
-    if metric_name is None:
-        print(f"WARNING: no known primary metric for proxy task '{task}'")
+    if task not in DEV_SCORE:
+        print(f"WARNING: no dev score known for proxy task '{task}'")
         return float("inf")
-
-    values = [e["metrics"][metric_name] for e in ok_entries if metric_name in e.get("metrics", {})]
+    key, higher_is_better = DEV_SCORE[task]
+    values = [e["details"][key] for e in ok_entries if key in e.get("details", {})]
     if not values:
-        print(f"WARNING: metric '{metric_name}' missing from {ckpt_path.name} results")
+        print(f"WARNING: no dev score ({key}) in the results for {ckpt_path.name} (task={task})")
         return float("inf")
 
     mean_value = sum(values) / len(values)
-
-    # For ASR/EER: lower is better already. For accuracy: higher is better, so negate.
-    if metric_name == "accuracy":
-        return -mean_value
-    return mean_value
+    # lower is better throughout: a higher-is-better score (accuracy) is negated
+    return -mean_value if higher_is_better else mean_value
 
 
 def main():
@@ -126,6 +129,12 @@ def main():
     proxy_seed = sel_cfg.get("proxy_seed", 0)
     proxy_data = sel_cfg.get("proxy_data_dir")
     output_dir = Path(sel_cfg.get("output_dir", "models/selected"))
+
+    if proxy_task not in DEV_SCORE:
+        raise SystemExit(
+            f"ERROR: checkpoint_selection.proxy_task={proxy_task!r} has no dev score to rank on; "
+            f"use one of {sorted(DEV_SCORE)} (emotion recognition records no dev score)."
+        )
 
     checkpoints = find_milestone_checkpoints(cfg.output_dir, cfg.milestone_checkpoints)
     if not checkpoints:
@@ -167,6 +176,7 @@ def main():
     report = {
         "proxy_task": proxy_task,
         "proxy_seed": proxy_seed,
+        "ranked_on": DEV_SCORE[proxy_task][0],  # a dev score, never the test metric
         "best_checkpoint": best_name,
         "best_score": results[best_name],
         "all_scores": results,

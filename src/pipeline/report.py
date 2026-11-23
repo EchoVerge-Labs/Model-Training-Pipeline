@@ -28,7 +28,7 @@ FAMILY_DIR_PREFIXES = {
     "asv": ("asv",),
 }
 
-# Mirrors select_checkpoint.py's PRIMARY_METRIC.
+# The TEST metric reported per family (select_checkpoint.py ranks on the dev score instead).
 PRIMARY_METRIC = {"asr": "wer", "sid": "accuracy", "er": "accuracy", "asv": "eer"}
 
 

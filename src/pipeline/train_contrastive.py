@@ -612,6 +612,7 @@ def train(
     accum_grad_norm = 0.0
     accum_num_losses = 0
     accum_audio_seconds = 0.0
+    last_logged_loss = None  # the accumulators reset at every log step, so keep the last value
     log_start_time = time.perf_counter()
 
     # CSV for loss curves (kept across a resume, see prepare_curves)
@@ -747,6 +748,7 @@ def train(
             elapsed = time.perf_counter() - log_start_time
             avg_loss = accum_loss / max(accum_num_losses, 1)
             avg_contrastive = accum_contrastive_loss / max(accum_num_losses, 1)
+            last_logged_loss = avg_contrastive
             avg_diversity = accum_diversity_loss / max(accum_num_losses, 1)
             avg_grad_norm = accum_grad_norm / (cfg.eval_every_updates)
             audio_throughput = accum_audio_seconds / elapsed if elapsed > 0 else 0
@@ -836,9 +838,10 @@ def train(
         # Final metrics
         final_metrics = {
             "final_step": global_step,
-            "final_loss": round(accum_loss / max(accum_num_losses, 1), 4)
-            if accum_num_losses
-            else None,
+            # the last logged contrastive loss per masked frame (the CSV's contrastive_loss
+            # column). The accumulators are freshly reset when training ends, since
+            # max_updates is usually a multiple of eval_every_updates.
+            "final_loss": round(last_logged_loss, 4) if last_logged_loss is not None else None,
             "completed": global_step >= cfg.max_updates,
         }
         reports_dir.mkdir(parents=True, exist_ok=True)

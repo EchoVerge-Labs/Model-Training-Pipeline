@@ -187,3 +187,16 @@ def test_a_pe_copt_method_stops_at_the_template_until_it_is_implemented(tmp_path
     params.pretrain.pecopt = PECoPTConfig(method="lora")
     with pytest.raises(NotImplementedError, match="template only"):
         train(params)
+
+
+def test_final_loss_is_the_last_logged_loss_not_null(tmp_path, monkeypatch):
+    """max_updates is a multiple of eval_every_updates, so the accumulators are freshly reset
+    when training ends; final_loss used to come out null every time."""
+    monkeypatch.chdir(tmp_path)
+    base, shars, labels_path = _setup(tmp_path)
+    train(_params(tmp_path, base, shars, labels_path, max_updates=4))
+    metrics = json.loads((tmp_path / "reports" / "pretrain_metrics-hubert.json").read_text())
+    last_row = (tmp_path / "reports" / "pretrain_curves-hubert.csv").read_text().splitlines()[-1]
+    assert metrics["final_step"] == 4 and metrics["completed"] is True
+    assert metrics["final_loss"] is not None
+    assert metrics["final_loss"] == pytest.approx(float(last_row.split(",")[1]), abs=1e-4)

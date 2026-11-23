@@ -6,6 +6,7 @@ repo's real reports/ or models/ directories (a real training run may be writing
 to them).
 """
 
+import json
 from pathlib import Path
 
 import pytest
@@ -369,3 +370,15 @@ def test_a_pe_copt_method_stops_at_the_template_until_it_is_implemented(tmp_path
     params.pretrain.pecopt = PECoPTConfig(method="gc_lora")
     with pytest.raises(NotImplementedError, match="template only"):
         _run(params, tmp_path)
+
+
+def test_final_loss_is_the_last_logged_contrastive_loss_not_null(tmp_path):
+    """The accumulators are reset at every log step, so the end-of-run average was always
+    empty and final_loss came out null."""
+    base = _make_base(tmp_path)
+    _run(_params(tmp_path, base, max_updates=3), tmp_path)
+    metrics = json.loads((tmp_path / "reports" / "pretrain_metrics-xlsr.json").read_text())
+    last_row = (tmp_path / "reports" / "pretrain_curves-xlsr.csv").read_text().splitlines()[-1]
+    assert metrics["completed"] is True and metrics["final_loss"] is not None
+    # per masked frame: the CSV's contrastive_loss column, not the batch-size-dependent sum
+    assert metrics["final_loss"] == pytest.approx(float(last_row.split(",")[2]), abs=1e-4)

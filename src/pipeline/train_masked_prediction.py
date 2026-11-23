@@ -388,6 +388,7 @@ def train(params: Params, config_path: str = "params.yaml"):
     accum_grad_norm = 0.0
     accum_num_losses = 0
     accum_audio_seconds = 0.0
+    last_logged_loss = None  # the accumulators reset at every log step, so keep the last value
     log_start_time = time.perf_counter()
 
     # CSV for loss curves
@@ -513,6 +514,7 @@ def train(params: Params, config_path: str = "params.yaml"):
         if is_main and global_step % cfg.eval_every_updates == 0:
             elapsed = time.perf_counter() - log_start_time
             avg_loss = accum_loss / max(accum_num_losses, 1)
+            last_logged_loss = avg_loss
             masked_accuracy = accum_correct / max(accum_valid, 1)
             unmasked_accuracy = accum_un_correct / max(accum_un_valid, 1)
             perplexity = prediction_perplexity(accum_probs, accum_valid)
@@ -609,9 +611,9 @@ def train(params: Params, config_path: str = "params.yaml"):
         # Final metrics
         final_metrics = {
             "final_step": global_step,
-            "final_loss": round(accum_loss / max(accum_num_losses, 1), 4)
-            if accum_num_losses
-            else None,
+            # the last logged value: max_updates is usually a multiple of eval_every_updates,
+            # so the accumulators are always freshly reset by the time training ends
+            "final_loss": round(last_logged_loss, 4) if last_logged_loss is not None else None,
             "completed": global_step >= cfg.max_updates,
         }
         with open(f"reports/pretrain_metrics{suffix}.json", "w") as f:
