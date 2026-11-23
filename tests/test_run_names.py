@@ -9,7 +9,7 @@ from pipeline.schema import Params, load_raw_params
 
 def test_default_run_name_is_model_prefix_plus_experiment():
     assert Params.from_yaml("params-wavlm.yaml").run == "wavlm-large-si-ta-200h"
-    assert Params.from_yaml("params.yaml").run == "mhubert147-si-ta-200h"
+    assert Params.from_yaml("params-mhubert147.yaml").run == "mhubert147-si-ta-200h"
 
 
 def test_experiment_flag_renames_every_output_path():

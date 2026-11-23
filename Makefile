@@ -17,7 +17,7 @@ export PYTHONPATH := $(CURDIR)/src$(if $(PYTHONPATH),:$(PYTHONPATH))
 # MODEL=mhubert147|hubert|wavlm|xlsr|wav2vec2, e.g. `make train MODEL=wavlm`.
 MODEL ?= mhubert147
 ifeq ($(MODEL),mhubert147)
-  CONFIG := params.yaml
+  CONFIG := params-mhubert147.yaml
   HAS_KMEANS := 1
 else ifeq ($(MODEL),hubert)
   CONFIG := params-hubert.yaml
@@ -68,16 +68,16 @@ snapshot:  ## pull catalog from Google Sheet
 	  --sheet-id $${GOOGLE_SHEET_ID} --out data/catalog
 
 index:  ## index every wav on the Drive mount (relpath + size)
-	$(PYTHON) -m pipeline.drive_index --config params.yaml
+	$(PYTHON) -m pipeline.drive_index --config params-data.yaml
 
 select:  ## select the training subset (needs `make index` first)
-	$(PYTHON) -m pipeline.select --config params.yaml
+	$(PYTHON) -m pipeline.select --config params-data.yaml
 
 pull:  ## copy the selected clips from the Drive mount to data/raw/
-	$(PYTHON) -m pipeline.materialise --config params.yaml
+	$(PYTHON) -m pipeline.materialise --config params-data.yaml
 
 shard:  ## shard WAVs into Lhotse Shar tarballs
-	$(PYTHON) -m pipeline.shard --config params.yaml
+	$(PYTHON) -m pipeline.shard --config params-data.yaml
 
 fit-kmeans:  ## fit k-means on layer features of MODEL's base model -> models/kmeans/
 ifndef HAS_KMEANS

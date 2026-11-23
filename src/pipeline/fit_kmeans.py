@@ -3,7 +3,7 @@ training set -- the cluster centroids that define WavLM's masked-prediction
 targets (see pipeline.layer_features).
 
 Usage:
-  python -m pipeline.fit_kmeans --config params.yaml
+  python -m pipeline.fit_kmeans --config params-mhubert147.yaml
 """
 
 import argparse
@@ -70,7 +70,7 @@ def fit_kmeans(features: np.ndarray, num_clusters: int, seed: int) -> MiniBatchK
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="params.yaml")
+    parser.add_argument("--config", default="params-mhubert147.yaml")
     parser.add_argument("--experiment", default=None, help="run name; overrides `experiment:`")
     parser.add_argument(
         "--report-suffix",

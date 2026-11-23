@@ -8,7 +8,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from pipeline.schema import Params
+from pipeline.schema import DataParams
 
 try:
     from lhotse import CutSet, MonoCut, Recording
@@ -180,10 +180,10 @@ def main():
         sys.exit(1)
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="params.yaml")
+    parser.add_argument("--config", default="params-data.yaml")
     args = parser.parse_args()
 
-    params = Params.from_yaml(args.config)
+    params = DataParams.from_yaml(args.config)
     cfg = params.shard
 
     cuts = load_manifest_as_cuts("data/manifests/train.jsonl", "data/raw")

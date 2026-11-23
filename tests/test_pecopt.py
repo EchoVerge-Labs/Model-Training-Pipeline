@@ -7,21 +7,24 @@ import pytest
 from pydantic import ValidationError
 
 from pipeline.pecopt import PECoPTConfig, apply_pecopt
-from pipeline.schema import Params
+from pipeline.schema import Params, load_raw_params
 
 
 def test_full_copt_is_the_default_in_every_params_file():
-    for path in ("params.yaml", "params-hubert.yaml", "params-wavlm.yaml", "params-xlsr.yaml"):
+    for path in (
+        "params-mhubert147.yaml",
+        "params-hubert.yaml",
+        "params-wavlm.yaml",
+        "params-xlsr.yaml",
+    ):
         cfg = Params.from_yaml(path).pretrain.pecopt
         assert cfg.method == "full_copt"
         assert not cfg.is_parameter_efficient
 
 
 def test_a_params_file_can_pick_a_method():
-    import yaml
 
-    with open("params-wavlm.yaml") as f:
-        raw = yaml.safe_load(f)
+    raw = load_raw_params("params-wavlm.yaml")
     raw["pretrain"]["pecopt"] = {"method": "lora", "lora_rank": 4}
     cfg = Params(**raw).pretrain.pecopt
     assert (cfg.method, cfg.lora_rank, cfg.is_parameter_efficient) == ("lora", 4, True)

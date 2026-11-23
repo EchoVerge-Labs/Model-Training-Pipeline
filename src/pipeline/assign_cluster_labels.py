@@ -2,7 +2,7 @@
 masked-prediction targets pipeline.train_masked_prediction reads via pretrain.labels_path.
 
 Usage:
-  python -m pipeline.assign_cluster_labels --config params.yaml
+  python -m pipeline.assign_cluster_labels --config params-mhubert147.yaml
 """
 
 import argparse
@@ -33,7 +33,7 @@ def assign_cut(cut, km, extract) -> list[int]:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="params.yaml")
+    parser.add_argument("--config", default="params-mhubert147.yaml")
     parser.add_argument("--experiment", default=None, help="run name; overrides `experiment:`")
     args = parser.parse_args()
 

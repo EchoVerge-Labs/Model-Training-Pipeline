@@ -51,7 +51,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawTextHelpFormatter
     )
-    parser.add_argument("--config", default="params.yaml")
+    parser.add_argument("--config", default="params-mhubert147.yaml")
     parser.add_argument("--experiment", default=None, help="run name; overrides `experiment:`")
     parser.add_argument("--upstream", default=None, help="benchmark this checkpoint instead")
     parser.add_argument(

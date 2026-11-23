@@ -22,7 +22,7 @@ def recorded(monkeypatch):
 @pytest.mark.parametrize(
     ("config", "family"),
     [
-        ("params.yaml", "masked"),
+        ("params-mhubert147.yaml", "masked"),
         ("params-hubert.yaml", "masked"),
         ("params-wavlm.yaml", "masked"),
         ("params-xlsr.yaml", "contrastive"),
@@ -41,7 +41,7 @@ def test_model_alone_selects_that_models_params_file(recorded):
 
 def test_no_arguments_trains_mhubert147(recorded):
     train.main([])
-    assert recorded == [("masked", ["--config", "params.yaml"])]
+    assert recorded == [("masked", ["--config", "params-mhubert147.yaml"])]
 
 
 def test_other_arguments_reach_the_family_trainer(recorded):

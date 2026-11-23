@@ -1,4 +1,4 @@
-"""Validate that params.yaml matches the Pydantic schema."""
+"""Validate that params-mhubert147.yaml matches the Pydantic schema."""
 
 import pytest
 
@@ -6,31 +6,31 @@ from pipeline.schema import Params
 
 
 def test_params_loads():
-    p = Params.from_yaml("params.yaml")
+    p = Params.from_yaml("params-mhubert147.yaml")
     assert p.pretrain.base_model == "utter-project/mHuBERT-147"
     assert p.pretrain.precision == "bf16"
 
 
 def test_cluster_config_loads_and_matches_labels_path():
-    p = Params.from_yaml("params.yaml")
+    p = Params.from_yaml("params-mhubert147.yaml")
     assert p.cluster.num_clusters > 0
     assert p.pretrain.labels_path == p.cluster.labels_output
 
 
 def test_language_mix_sums_to_one():
-    p = Params.from_yaml("params.yaml")
+    p = Params.from_yaml("params-mhubert147.yaml")
     total = sum(p.select.language_mix.values())
     assert 0.99 <= total <= 1.01, f"language_mix sums to {total}"
 
 
 def test_milestone_checkpoints_within_max_updates():
-    p = Params.from_yaml("params.yaml")
+    p = Params.from_yaml("params-mhubert147.yaml")
     for m in p.pretrain.milestone_checkpoints:
         assert m <= p.pretrain.max_updates, f"Milestone {m} > max_updates {p.pretrain.max_updates}"
 
 
 def test_warmup_before_max():
-    p = Params.from_yaml("params.yaml")
+    p = Params.from_yaml("params-mhubert147.yaml")
     assert p.pretrain.warmup_updates < p.pretrain.max_updates
 
 
@@ -49,7 +49,7 @@ def _shard_cfg(**overrides):
 
 
 def test_shard_cut_limits_in_params_are_consistent():
-    p = Params.from_yaml("params.yaml")
+    p = Params.from_yaml("params-mhubert147.yaml")
     assert p.shard.max_cut_seconds == 30.0
     assert p.shard.max_cut_seconds >= p.shard.target_cut_seconds + p.shard.min_cut_seconds
 
@@ -74,14 +74,14 @@ def test_gpu_memory_cap_is_bounded():
 
     from pipeline.schema import PretrainConfig
 
-    base = Params.from_yaml("params.yaml").pretrain.model_dump()
+    base = Params.from_yaml("params-mhubert147.yaml").pretrain.model_dump()
     for bad in (0.0, 1.5):
         with pytest.raises(ValidationError):
             PretrainConfig(**{**base, "max_gpu_memory_fraction": bad})
 
 
 def test_mhubert_targets_use_its_own_layer_count():
-    p = Params.from_yaml("params.yaml")
+    p = Params.from_yaml("params-mhubert147.yaml")
     assert p.cluster.layer == 9  # mHuBERT-147 has 12 layers, not HuBERT-Large's 24
     assert p.cluster.num_clusters == 500
     assert "mhubert" in p.pretrain.output_dir
@@ -89,7 +89,7 @@ def test_mhubert_targets_use_its_own_layer_count():
 
 
 ALL_PARAMS = {
-    "params.yaml": ("mhubert147", "masked_prediction"),
+    "params-mhubert147.yaml": ("mhubert147", "masked_prediction"),
     "params-hubert.yaml": ("hubert", "masked_prediction"),
     "params-wavlm.yaml": ("wavlm", "masked_prediction"),
     "params-xlsr.yaml": ("xlsr", "contrastive"),
@@ -103,11 +103,10 @@ def test_every_params_file_loads_with_its_model_family():
         assert (p.model_key, p.model_family) == (key, family), path
 
 
-def _raw(path="params.yaml"):
-    import yaml
+def _raw(path="params-mhubert147.yaml"):
+    from pipeline.schema import load_raw_params
 
-    with open(path) as f:
-        return yaml.safe_load(f)
+    return load_raw_params(path)
 
 
 def test_masked_prediction_requires_cluster_and_labels_path():
@@ -167,3 +166,19 @@ def test_inconsistent_checkpoint_schedule_is_rejected(bad, match):
 
 def test_a_consistent_schedule_is_accepted():
     _schedule(milestone_checkpoints=[1500, 3000], max_updates=3000)
+
+
+def test_data_config_is_separate_and_merged_into_every_model_file():
+    from pipeline.schema import DataParams
+
+    data = DataParams.from_yaml("params-data.yaml")
+    for path in ALL_PARAMS:
+        p = Params.from_yaml(path)
+        assert p.select == data.select and p.shard == data.shard
+
+
+def test_model_files_hold_no_data_sections():
+    for path in ALL_PARAMS:
+        with open(path) as f:
+            text = f.read()
+        assert "\nselect:" not in text and "\nshard:" not in text, path

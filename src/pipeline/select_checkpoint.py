@@ -115,7 +115,7 @@ def _evaluate(ckpt_path: Path, task: str, seed: int, data_dir: str | None, out_d
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="params.yaml")
+    parser.add_argument("--config", default="params-mhubert147.yaml")
     parser.add_argument("--experiment", default=None, help="run name; overrides `experiment:`")
     parser.add_argument(
         "--report-suffix",

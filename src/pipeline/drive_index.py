@@ -13,7 +13,7 @@ import argparse
 import os
 from pathlib import Path
 
-from pipeline.schema import Params
+from pipeline.schema import DataParams
 
 LANGUAGE_DIRS = ("Sinhala", "Tamil")
 HEADER = "relpath\tsize"
@@ -69,10 +69,10 @@ def load_index(path: Path) -> list[tuple[str, int]]:
 
 def main():
     parser = argparse.ArgumentParser(description="Index wav files on the Drive mount")
-    parser.add_argument("--config", default="params.yaml")
+    parser.add_argument("--config", default="params-data.yaml")
     args = parser.parse_args()
 
-    cfg = Params.from_yaml(args.config).select
+    cfg = DataParams.from_yaml(args.config).select
     root = Path(os.path.expanduser(cfg.drive_root))
     entries = build_index(root)
     write_index(entries, Path(cfg.drive_index_path))

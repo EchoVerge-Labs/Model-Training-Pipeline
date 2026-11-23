@@ -1,7 +1,7 @@
 """Aggregate benchmark results into a comparison table.
 
 Reads reports/bench/<upstream>/metrics.json for each upstream in
-params.yaml's benchmark.upstreams -- that file is a copy of slsb's own
+params-mhubert147.yaml's benchmark.upstreams -- that file is a copy of slsb's own
 results_<upstream>.json (see scripts/run_benchmark.sh), a list of
 per-(task,language,seed) result entries, not a flat {task: score} dict.
 This groups entries by task family (matching slsb's own data/<prefix>*
@@ -73,7 +73,9 @@ def load_upstream_metrics(name: str) -> dict | None:
     }
 
 
-def build_report(config_path: str = "params.yaml", suffix: str | None = None, experiment=None):
+def build_report(
+    config_path: str = "params-mhubert147.yaml", suffix: str | None = None, experiment=None
+):
     cfg = load_raw_params(config_path, experiment)
     if suffix is None:
         suffix = f"-{cfg['run_name']}"
@@ -148,7 +150,7 @@ def build_report(config_path: str = "params.yaml", suffix: str | None = None, ex
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="params.yaml")
+    parser.add_argument("--config", default="params-mhubert147.yaml")
     parser.add_argument("--experiment", default=None, help="run name; overrides `experiment:`")
     parser.add_argument(
         "--report-suffix",

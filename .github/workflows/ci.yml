@@ -27,7 +27,7 @@ jobs:
 
       - name: Validate config
         run: |
-          python -c "from pipeline.schema import Params; Params.from_yaml('params.yaml')"
+          python -c "from pipeline.schema import Params; Params.from_yaml('params-mhubert147.yaml')"
 
       - name: Test
         run: pytest -q tests/

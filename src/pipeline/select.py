@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from pipeline.drive_index import load_index
-from pipeline.schema import Params
+from pipeline.schema import DataParams
 
 
 @dataclass
@@ -407,10 +407,10 @@ def write_report(
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="params.yaml")
+    parser.add_argument("--config", default="params-data.yaml")
     args = parser.parse_args()
 
-    params = Params.from_yaml(args.config)
+    params = DataParams.from_yaml(args.config)
     cfg = params.select
 
     segments = load_catalog(cfg.catalog_path)

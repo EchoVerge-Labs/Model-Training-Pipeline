@@ -4,7 +4,7 @@ set -euo pipefail
 # ─── Config ───────────────────────────────────────────
 # Runs src/pipeline/train.py, which picks the trainer from the model's objective family.
 # Choose the model with `--model <key>` (mhubert147|hubert|wavlm|xlsr|wav2vec2) or
-# `--config <params file>`; with neither it trains mHuBERT-147 from params.yaml.
+# `--config <params file>`; with neither it trains mHuBERT-147 from params-mhubert147.yaml.
 # Any other argument goes to the trainer, e.g. --resume-from CKPT_DIR / --no-resume.
 SCRIPT="${SCRIPT:-src/pipeline/train.py}"
 

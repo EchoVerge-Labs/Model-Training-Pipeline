@@ -8,6 +8,7 @@ import pytest
 import yaml
 
 from pipeline import select_checkpoint
+from pipeline.schema import load_raw_params
 from pipeline.select_checkpoint import find_milestone_checkpoints
 
 
@@ -38,17 +39,16 @@ def test_a_milestone_without_weights_is_skipped(tmp_path, capsys):
         ("params-xlsr.yaml", [], "checkpoint_selection-xlsr300m-si-ta-200h-norm.json"),
         ("params-wav2vec2.yaml", [], "checkpoint_selection-wav2vec2-mono-si-ta-200h.json"),
         ("params-wavlm.yaml", [], "checkpoint_selection-wavlm-large-si-ta-200h.json"),
-        ("params.yaml", ["--report-suffix=-custom"], "checkpoint_selection-custom.json"),
+        ("params-mhubert147.yaml", ["--report-suffix=-custom"], "checkpoint_selection-custom.json"),
     ],
 )
 def test_report_suffix_defaults_to_the_run_name(
     tmp_path, monkeypatch, config, suffix_arg, expected
 ):
-    with open(config) as f:
-        raw = yaml.safe_load(f)
+    raw = load_raw_params(config)
     raw["pretrain"]["output_dir"] = str(tmp_path / "model")
     raw["checkpoint_selection"]["output_dir"] = str(tmp_path / "selected")
-    cfg = tmp_path / "params.yaml"
+    cfg = tmp_path / "params-mhubert147.yaml"
     cfg.write_text(yaml.safe_dump(raw))
     for step in raw["pretrain"]["milestone_checkpoints"]:
         _backbone(tmp_path / "model" / f"checkpoint-{step}")
@@ -158,10 +158,9 @@ def test_a_result_without_the_dev_score_is_a_failed_eval_not_a_test_fallback(fak
 def test_emotion_recognition_cannot_be_a_proxy_task(tmp_path, monkeypatch):
     import yaml
 
-    with open("params.yaml") as f:
-        raw = yaml.safe_load(f)
+    raw = load_raw_params("params-mhubert147.yaml")
     raw["checkpoint_selection"] = {"proxy_task": "er", "output_dir": str(tmp_path / "sel")}
-    cfg = tmp_path / "params.yaml"
+    cfg = tmp_path / "params-mhubert147.yaml"
     cfg.write_text(yaml.safe_dump(raw))
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(sys, "argv", ["x", "--config", str(cfg)])
@@ -172,11 +171,10 @@ def test_emotion_recognition_cannot_be_a_proxy_task(tmp_path, monkeypatch):
 def test_the_report_says_which_score_it_ranked_on(tmp_path, monkeypatch):
     import yaml
 
-    with open("params-wavlm.yaml") as f:
-        raw = yaml.safe_load(f)
+    raw = load_raw_params("params-wavlm.yaml")
     raw["pretrain"]["output_dir"] = str(tmp_path / "model")
     raw["checkpoint_selection"]["output_dir"] = str(tmp_path / "selected")
-    cfg = tmp_path / "params.yaml"
+    cfg = tmp_path / "params-mhubert147.yaml"
     cfg.write_text(yaml.safe_dump(raw))
     for step in raw["pretrain"]["milestone_checkpoints"]:
         _backbone(tmp_path / "model" / f"checkpoint-{step}")

@@ -90,7 +90,7 @@ MODEL_REGISTRY: dict[str, ModelSpec] = {
             "HubertConfig",
             "HubertModel",
             768,
-            "params.yaml",
+            "params-mhubert147.yaml",
             "mhubert147",
         ),
         _masked(

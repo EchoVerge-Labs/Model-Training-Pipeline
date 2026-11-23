@@ -20,7 +20,7 @@ import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from pipeline.schema import Params
+from pipeline.schema import DataParams
 
 MANIFESTS = ("data/manifests/train.jsonl", "data/manifests/dev.jsonl")
 
@@ -89,13 +89,13 @@ def materialise(filenames: list[str], drive_root: Path, raw_dir: Path, workers: 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="params.yaml")
+    parser.add_argument("--config", default="params-data.yaml")
     parser.add_argument("--raw-dir", default="data/raw")
     parser.add_argument("--workers", type=int, default=16)
     parser.add_argument("--report", default="reports/materialise.json")
     args = parser.parse_args()
 
-    cfg = Params.from_yaml(args.config).select
+    cfg = DataParams.from_yaml(args.config).select
     drive_root = Path(os.path.expanduser(cfg.drive_root))
     filenames = read_filenames(MANIFESTS)
     print(f"Copying {len(filenames):,} files from {drive_root} to {args.raw_dir}/ ...")

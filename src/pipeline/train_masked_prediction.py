@@ -183,7 +183,7 @@ def prediction_perplexity(prob_sum: torch.Tensor, n_frames: int) -> float:
 # ─── Training ──────────────────────────────────────────────────────────
 
 
-def train(params: Params, config_path: str = "params.yaml"):
+def train(params: Params, config_path: str = "params-mhubert147.yaml"):
     """config_path is only read back for the MLflow section; everything else is in `params`."""
     spec = get_model_spec(params.model_key)
     if spec.family != "masked_prediction":
@@ -633,7 +633,7 @@ def train(params: Params, config_path: str = "params.yaml"):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="params.yaml")
+    parser.add_argument("--config", default="params-mhubert147.yaml")
     parser.add_argument("--experiment", default=None, help="run name; overrides `experiment:`")
     args = parser.parse_args()
 

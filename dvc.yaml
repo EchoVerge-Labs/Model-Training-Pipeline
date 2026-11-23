@@ -1,3 +1,6 @@
+vars:
+  - params-mhubert147.yaml
+
 stages:
 
   snapshot_catalog:
@@ -14,27 +17,29 @@ stages:
   # via (language, genre, name, size) against this index -- see drive_index.py.
   # Re-indexes whenever a new catalog snapshot changes.
   index_drive:
-    cmd: python -m pipeline.drive_index --config params.yaml
+    cmd: python -m pipeline.drive_index --config params-data.yaml
     deps:
       - src/pipeline/drive_index.py
       - data/catalog/catalog_latest.csv
     params:
-      - select.drive_root
-      - select.drive_index_path
+      - params-data.yaml:
+          - select.drive_root
+          - select.drive_index_path
     outs:
       - data/catalog/drive_index.tsv
 
   # Manifests and selection reports are small and worth diffing, so they live
   # in git (cache: false) rather than in the DVC cache.
   select:
-    cmd: python -m pipeline.select --config params.yaml
+    cmd: python -m pipeline.select --config params-data.yaml
     deps:
       - src/pipeline/select.py
       - src/pipeline/drive_index.py
       - data/catalog/catalog_latest.csv
       - data/catalog/drive_index.tsv
     params:
-      - select
+      - params-data.yaml:
+          - select
     outs:
       - data/manifests/train.jsonl:
           cache: false
@@ -49,13 +54,14 @@ stages:
           cache: false
 
   materialise:
-    cmd: python -m pipeline.materialise --config params.yaml
+    cmd: python -m pipeline.materialise --config params-data.yaml
     deps:
       - src/pipeline/materialise.py
       - data/manifests/train.jsonl
       - data/manifests/dev.jsonl
     params:
-      - select.drive_root
+      - params-data.yaml:
+          - select.drive_root
     outs:
       - data/raw/:
           persist: true
@@ -63,27 +69,30 @@ stages:
           cache: false
 
   shard:
-    cmd: python -m pipeline.shard --config params.yaml
+    cmd: python -m pipeline.shard --config params-data.yaml
     deps:
       - src/pipeline/shard.py
       - data/raw/
       - data/manifests/train.jsonl
     params:
-      - shard
+      - params-data.yaml:
+          - shard
     outs:
       - data/shars/
 
   fit_kmeans:
-    cmd: python -m pipeline.fit_kmeans --config params.yaml
+    cmd: python -m pipeline.fit_kmeans --config params-mhubert147.yaml
     deps:
       - src/pipeline/fit_kmeans.py
       - src/pipeline/layer_features.py
       - src/pipeline/datamodule.py
       - data/shars/
     params:
-      - cluster
-      - shard
-      - pretrain.base_model
+      - params-mhubert147.yaml:
+          - cluster
+          - pretrain.base_model
+      - params-data.yaml:
+          - shard
     outs:
       - models/kmeans/mhubert147-L9-k500.joblib:
           persist: true
@@ -92,7 +101,7 @@ stages:
           cache: false
 
   assign_cluster_labels:
-    cmd: python -m pipeline.assign_cluster_labels --config params.yaml
+    cmd: python -m pipeline.assign_cluster_labels --config params-mhubert147.yaml
     deps:
       - src/pipeline/assign_cluster_labels.py
       - src/pipeline/layer_features.py
@@ -100,15 +109,17 @@ stages:
       - models/kmeans/mhubert147-L9-k500.joblib
       - data/shars/
     params:
-      - cluster
-      - shard
-      - pretrain.base_model
+      - params-mhubert147.yaml:
+          - cluster
+          - pretrain.base_model
+      - params-data.yaml:
+          - shard
     outs:
       - data/labels/mhubert147_train_labels.jsonl.gz:
           persist: true
 
   pretrain:
-    cmd: bash scripts/launch_pretrain.sh --config params.yaml
+    cmd: bash scripts/launch_pretrain.sh --config params-mhubert147.yaml
     deps:
       - src/pipeline/train.py
       - src/pipeline/train_masked_prediction.py
@@ -119,8 +130,9 @@ stages:
       - data/shars/
       - data/labels/mhubert147_train_labels.jsonl.gz
     params:
-      - pretrain
-      - cluster.num_clusters
+      - params-mhubert147.yaml:
+          - pretrain
+          - cluster.num_clusters
     outs:
       - models/mhubert147-si-ta-200h/:
           persist: true
@@ -132,12 +144,13 @@ stages:
           cache: false
 
   select_checkpoint:
-    cmd: python -m pipeline.select_checkpoint --config params.yaml
+    cmd: python -m pipeline.select_checkpoint --config params-mhubert147.yaml
     deps:
       - src/pipeline/select_checkpoint.py
       - models/mhubert147-si-ta-200h/
     params:
-      - checkpoint_selection
+      - params-mhubert147.yaml:
+          - checkpoint_selection
     outs:
       - models/selected-mhubert147-si-ta-200h/:
           persist: true
@@ -158,15 +171,16 @@ stages:
       - models/selected-mhubert147-si-ta-200h/
       - scripts/run_benchmark.sh
     params:
-      - benchmark.tasks
-      - benchmark.seeds
-      - benchmark.slsb_data_dir
+      - params-mhubert147.yaml:
+          - benchmark.tasks
+          - benchmark.seeds
+          - benchmark.slsb_data_dir
     metrics:
       - reports/bench/mhubert147-si-ta-200h/metrics.json:
           cache: false
 
   report:
-    cmd: python -m pipeline.report --config params.yaml
+    cmd: python -m pipeline.report --config params-mhubert147.yaml
     deps:
       - src/pipeline/report.py
       - reports/bench/

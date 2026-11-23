@@ -26,7 +26,7 @@ def resolve_config(model: str | None, config: str | None) -> str:
     """The params file to train from; --model alone means that model's own file."""
     if config is not None:
         return config
-    return get_model_spec(model).params_file if model else "params.yaml"
+    return get_model_spec(model).params_file if model else "params-mhubert147.yaml"
 
 
 def main(argv: list[str] | None = None):
@@ -35,7 +35,9 @@ def main(argv: list[str] | None = None):
     )
     parser.add_argument("--model", choices=sorted(MODEL_REGISTRY), default=None)
     parser.add_argument(
-        "--config", default=None, help="params file (default: --model's own, else params.yaml)"
+        "--config",
+        default=None,
+        help="params file (default: --model's own, else params-mhubert147.yaml)",
     )
     args, rest = parser.parse_known_args(argv)
 

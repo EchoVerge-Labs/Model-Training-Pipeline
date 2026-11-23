@@ -6,6 +6,7 @@ contrastive learning with a Gumbel quantiser. Fields that only one family uses a
 optional here, and `Params` requires them exactly when the family does.
 """
 
+from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -198,7 +199,10 @@ _CONTRASTIVE_FIELDS = (
 DEFAULT_EXPERIMENT = "si-ta-200h"
 
 
-def load_raw_params(path: str = "params.yaml", experiment: str | None = None) -> dict:
+DATA_CONFIG = "params-data.yaml"
+
+
+def load_raw_params(path: str = "params-mhubert147.yaml", experiment: str | None = None) -> dict:
     """The params file as a dict with the run name resolved.
 
     A run is a model plus an experiment name (si-ta-200h, si-100h, ...). Its name,
@@ -211,6 +215,16 @@ def load_raw_params(path: str = "params.yaml", experiment: str | None = None) ->
 
     with open(path) as f:
         raw = yaml.safe_load(f)
+    # select/shard are shared by every model and live in params-data.yaml (`data_config:`
+    # names another file); a model file that still has its own sections keeps them.
+    if "select" not in raw or "shard" not in raw:
+        data_file = Path(path).parent / raw.get("data_config", DATA_CONFIG)
+        if not data_file.exists():
+            data_file = Path(raw.get("data_config", DATA_CONFIG))
+        with open(data_file) as f:
+            data = yaml.safe_load(f)
+        for key in ("select", "shard"):
+            raw.setdefault(key, data[key])
     experiment = experiment or raw.get("experiment") or DEFAULT_EXPERIMENT
     run = raw.get("run_name") or f"{MODEL_REGISTRY[raw['model_key']].run_name_prefix}-{experiment}"
     if "{" in experiment or "/" in experiment:
@@ -228,6 +242,20 @@ def load_raw_params(path: str = "params.yaml", experiment: str | None = None) ->
     raw = fill(raw)
     raw["experiment"], raw["run_name"] = experiment, run
     return raw
+
+
+class DataParams(BaseModel):
+    """params-data.yaml: what the data stages (drive_index, select, materialise, shard) read."""
+
+    select: SelectConfig
+    shard: ShardConfig
+
+    @classmethod
+    def from_yaml(cls, path: str = DATA_CONFIG) -> "DataParams":
+        import yaml
+
+        with open(path) as f:
+            return cls(**yaml.safe_load(f))
 
 
 class Params(BaseModel):
@@ -267,5 +295,7 @@ class Params(BaseModel):
         return self
 
     @classmethod
-    def from_yaml(cls, path: str = "params.yaml", experiment: str | None = None) -> "Params":
+    def from_yaml(
+        cls, path: str = "params-mhubert147.yaml", experiment: str | None = None
+    ) -> "Params":
         return cls(**load_raw_params(path, experiment))
