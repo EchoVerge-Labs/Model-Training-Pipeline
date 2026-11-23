@@ -14,16 +14,16 @@ import torch
 from lhotse import CutSet, MonoCut, Recording
 from transformers import Wav2Vec2FeatureExtractor, WavLMConfig, WavLMModel
 
-from pipeline.checkpoints import STATE_FILE, latest_checkpoint
-from pipeline.schema import (
+from pipeline.common.checkpoints import STATE_FILE, latest_checkpoint
+from pipeline.common.schema import (
     ClusterConfig,
     Params,
     PretrainConfig,
     SelectConfig,
     ShardConfig,
 )
-from pipeline.shard import shard_cuts
-from pipeline.train_masked_prediction import train
+from pipeline.data.shard import shard_cuts
+from pipeline.training.masked_prediction import train
 
 K = 6
 

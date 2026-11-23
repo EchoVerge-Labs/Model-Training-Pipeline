@@ -3,14 +3,14 @@
 WavLM (like HuBERT) learns by predicting a cluster id for every masked frame. The ids are
 made once, offline, before training: run the pretrained checkpoint over the
 training audio, cluster the output of one of its transformer layers with
-k-means (pipeline.fit_kmeans), and assign every frame to its nearest centroid
-(pipeline.assign_cluster_labels). Training then continues the same model with
+k-means (pipeline.labels.fit_kmeans), and assign every frame to its nearest centroid
+(pipeline.labels.assign_cluster_labels). Training then continues the same model with
 the usual masked-prediction cross-entropy -- no second model runs during
 training.
 
 The frame rate is the model's own CNN downsampling, so labels line up 1:1 with
 the sequence length the trainer computes. Waveforms are normalised exactly as in
-training (datamodule.normalize_waveform), so the features seen here are the
+training (pipeline.common.datamodule.normalize_waveform), so the features seen here are the
 ones the checkpoint was pretrained on.
 """
 
@@ -20,7 +20,7 @@ from lhotse import CutSet
 from torch import nn
 from transformers import AutoConfig, HubertModel, Wav2Vec2FeatureExtractor, WavLMModel
 
-from pipeline.datamodule import SAMPLE_RATE, normalize_waveform
+from pipeline.common.datamodule import SAMPLE_RATE, normalize_waveform
 
 FeatureModel = HubertModel | WavLMModel
 
@@ -76,7 +76,7 @@ def layer_features(
 
 
 def load_shar_cuts(shar_dir: str, shuffle: bool = False, seed: int = 0):
-    """Lazily streams the cuts pipeline.shard wrote, audio included.
+    """Lazily streams the cuts pipeline.data.shard wrote, audio included.
 
     Reading Shar (not data/raw + the manifest) means training devices only
     need `dvc pull shard`, and the labels are keyed by exactly the cut ids the

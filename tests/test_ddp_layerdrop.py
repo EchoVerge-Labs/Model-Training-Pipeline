@@ -13,8 +13,8 @@ import pytest
 import torch.distributed as dist
 from transformers import Wav2Vec2ForPreTraining
 
-from pipeline import train_contrastive
-from pipeline.train_contrastive import skips_layers
+from pipeline.training import contrastive as train_contrastive
+from pipeline.training.contrastive import skips_layers
 from tests.test_resume import _make_base, _params, _run
 
 

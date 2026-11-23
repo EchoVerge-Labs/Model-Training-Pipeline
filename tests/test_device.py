@@ -1,9 +1,9 @@
-"""pipeline.device: GPU only, always an indexed CUDA device, never a CPU fallback."""
+"""pipeline.common.device: GPU only, always an indexed CUDA device, never a CPU fallback."""
 
 import pytest
 import torch
 
-from pipeline.device import get_device
+from pipeline.common.device import get_device
 
 
 def test_default_is_an_indexed_cuda_device():

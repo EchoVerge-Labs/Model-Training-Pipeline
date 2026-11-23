@@ -31,7 +31,7 @@ SAMPLE_RATE = 16000
 
 def load_labels(labels_path: str) -> dict[str, list[int]]:
     """Reads the {"id": ..., "labels": [...]} gzip JSONL written by
-    pipeline.assign_cluster_labels."""
+    pipeline.labels.assign_cluster_labels."""
     labels_by_id = {}
     with gzip.open(labels_path, "rt", encoding="utf-8") as f:
         for line in f:

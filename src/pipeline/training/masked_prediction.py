@@ -3,11 +3,11 @@
 One trainer for all three models. `params.model_key` (set in each params file) picks
 the encoder class, the report file suffix and the MLflow run name; everything else is
 shared. All three keep the HuBERT objective: masked prediction of k-means
-pseudo-labels (data/labels/, produced by pipeline.fit_kmeans +
-pipeline.assign_cluster_labels from layer-N features of the original
-pretrained model -- see layer_features.py), not wav2vec2's contrastive learning with a
+pseudo-labels (data/labels/, produced by pipeline.labels.fit_kmeans +
+pipeline.labels.assign_cluster_labels from layer-N features of the original
+pretrained model -- see pipeline.labels.layer_features), not wav2vec2's contrastive learning with a
 quantizer/codebook. transformers has no pretraining class for it, so this loads the
-plain encoder (pipeline.masked_prediction_model.MaskedPredictionModel) and trains a
+plain encoder (pipeline.training.masked_model.MaskedPredictionModel) and trains a
 linear head against the precomputed cluster ids. The encoder is the already-pretrained
 checkpoint; its architecture and the objective are not changed. WavLM additionally mixes
 utterances (pretrain.utterance_mix_prob > 0; the labels stay those of the clean primary).
@@ -30,12 +30,12 @@ cast (unlike Wav2Vec2ForPreTraining, which casts before use).
 
 Usage:
   # Single node (the model comes from model_key in the params file)
-  torchrun --nproc_per_node=1 -m pipeline.train_masked_prediction --config params-wavlm.yaml
+  torchrun --nproc_per_node=1 -m pipeline.training.masked_prediction --config params-wavlm.yaml
 
   # Two nodes
   torchrun --nnodes=2 --nproc_per_node=1 --node_rank=0 \
            --rdzv_backend=c10d --rdzv_endpoint=10.0.0.1:29500 \
-           -m pipeline.train_masked_prediction --config params-wavlm.yaml
+           -m pipeline.training.masked_prediction --config params-wavlm.yaml
 """
 
 import argparse
@@ -52,8 +52,8 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from transformers import Wav2Vec2FeatureExtractor
 from transformers.models.hubert.modeling_hubert import _compute_mask_indices
 
-from pipeline.callbacks import MaskedAccuracyStallDetector, MLflowLogger
-from pipeline.checkpoints import (
+from pipeline.common.callbacks import MaskedAccuracyStallDetector, MLflowLogger
+from pipeline.common.checkpoints import (
     HEAD_FILE,
     STATE_FILE,
     checkpoint_step,
@@ -63,16 +63,16 @@ from pipeline.checkpoints import (
     prune_checkpoints,
     save_checkpoint,
 )
-from pipeline.datamodule import create_dataloader
-from pipeline.device import get_device
-from pipeline.masked_prediction_model import MaskedPredictionModel
-from pipeline.model_registry import (
+from pipeline.common.datamodule import create_dataloader
+from pipeline.common.device import get_device
+from pipeline.common.schema import Params
+from pipeline.models.registry import (
     describe_feature_encoder,
     feature_encoder_status,
     get_model_spec,
 )
 from pipeline.pecopt import apply_pecopt
-from pipeline.schema import Params
+from pipeline.training.masked_model import MaskedPredictionModel
 
 # Must be set before the first CUDA allocation. Less fragmentation on the GB10's
 # unified memory (same as main's wav2vec2 run).

@@ -4,10 +4,10 @@ import pytest
 import torch
 from transformers import HubertConfig, HubertModel, Wav2Vec2FeatureExtractor
 
-from pipeline.callbacks import MaskedAccuracyStallDetector
-from pipeline.checkpoints import STATE_FILE, latest_checkpoint, list_checkpoints
-from pipeline.masked_prediction_model import MaskedPredictionModel
-from pipeline.train_masked_prediction import prediction_perplexity, save_checkpoint
+from pipeline.common.callbacks import MaskedAccuracyStallDetector
+from pipeline.common.checkpoints import STATE_FILE, latest_checkpoint, list_checkpoints
+from pipeline.training.masked_model import MaskedPredictionModel
+from pipeline.training.masked_prediction import prediction_perplexity, save_checkpoint
 
 DEVICE = torch.device("cuda")
 CONFIG = {

@@ -11,10 +11,10 @@ import torch
 from lhotse import CutSet, MonoCut, Recording
 from transformers import WavLMConfig, WavLMModel
 
-from pipeline.assign_cluster_labels import assign_cut
-from pipeline.fit_kmeans import collect_frames, fit_kmeans
-from pipeline.layer_features import layer_features, load_shar_cuts, truncate_to_layer
-from pipeline.shard import shard_cuts
+from pipeline.data.shard import shard_cuts
+from pipeline.labels.assign_cluster_labels import assign_cut
+from pipeline.labels.fit_kmeans import collect_frames, fit_kmeans
+from pipeline.labels.layer_features import layer_features, load_shar_cuts, truncate_to_layer
 
 TINY_CONFIG = WavLMConfig(
     hidden_size=16,
@@ -30,7 +30,7 @@ DEVICE = torch.device("cuda")
 
 
 def _make_shars(tmp_path, seconds_per_clip):
-    """One cut per clip of synthetic audio, sharded like pipeline.shard does."""
+    """One cut per clip of synthetic audio, sharded like pipeline.data.shard does."""
     raw = tmp_path / "raw"
     raw.mkdir()
     cuts = []

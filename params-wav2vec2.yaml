@@ -1,4 +1,4 @@
-# Which model this file configures; fixes its SSL objective family (see pipeline.schema).
+# Which model this file configures; fixes its SSL objective family (see pipeline.common.schema).
 model_key: wav2vec2
 experiment: si-ta-200h   # names this run: <model>-<experiment> -> models/, reports/, bench/, MLflow
 

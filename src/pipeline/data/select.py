@@ -10,8 +10,8 @@ from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 
-from pipeline.drive_index import load_index
-from pipeline.schema import DataParams
+from pipeline.common.schema import DataParams
+from pipeline.data.drive_index import load_index
 
 
 @dataclass
@@ -434,7 +434,7 @@ def main():
     segments, n_repeats = dedupe_segments(segments)
     index_path = Path(cfg.drive_index_path)
     if not index_path.exists():
-        print(f"ERROR: {index_path} not found -- run `python -m pipeline.drive_index` first")
+        print(f"ERROR: {index_path} not found -- run `python -m pipeline.data.drive_index` first")
         sys.exit(1)
     drive_index = load_index(index_path)
     segments, unresolved = resolve_paths(

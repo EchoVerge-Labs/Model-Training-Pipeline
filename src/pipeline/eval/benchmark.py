@@ -6,8 +6,8 @@ reports/bench/<run>/metrics.json, so benchmarking two experiments (or two models
 never overwrites each other. `--upstream` benchmarks any other checkpoint directory or
 Hugging Face id instead; its results go to reports/bench/<name>.
 
-  python -m pipeline.benchmark --config params-wavlm.yaml --experiment si-100h
-  python -m pipeline.benchmark --config params-wavlm.yaml \
+  python -m pipeline.eval.benchmark --config params-wavlm.yaml --experiment si-100h
+  python -m pipeline.eval.benchmark --config params-wavlm.yaml \
       --upstream models/wavlm-large-si-ta-200h/checkpoint-9000
 """
 
@@ -17,7 +17,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from pipeline.schema import load_raw_params
+from pipeline.common.schema import load_raw_params
 
 
 def bench_name(upstream: str) -> str:

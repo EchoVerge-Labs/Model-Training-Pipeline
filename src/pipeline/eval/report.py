@@ -15,7 +15,7 @@ import json
 import statistics
 from pathlib import Path
 
-from pipeline.schema import load_raw_params
+from pipeline.common.schema import load_raw_params
 
 # Mirrors slsb.tasks.FAMILY_DIR_PREFIXES (SLSB-benchmark's own family->dirname
 # prefix convention) so a result entry's "name" (e.g. "asr_omni_sinhala") maps

@@ -12,7 +12,7 @@ import math
 import torch
 from transformers import Wav2Vec2ForPreTraining
 
-from pipeline.train_contrastive import (
+from pipeline.training.contrastive import (
     compute_mask_and_negatives,
     get_gumbel_temperature,
 )

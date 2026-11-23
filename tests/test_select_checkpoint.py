@@ -7,9 +7,9 @@ from pathlib import Path
 import pytest
 import yaml
 
-from pipeline import select_checkpoint
-from pipeline.schema import load_raw_params
-from pipeline.select_checkpoint import find_milestone_checkpoints
+from pipeline.common.schema import load_raw_params
+from pipeline.eval import select_checkpoint
+from pipeline.eval.select_checkpoint import find_milestone_checkpoints
 
 
 def _backbone(path):

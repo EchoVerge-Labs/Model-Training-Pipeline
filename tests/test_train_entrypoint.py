@@ -4,7 +4,9 @@ import sys
 
 import pytest
 
-from pipeline import train, train_contrastive, train_masked_prediction
+from pipeline import train
+from pipeline.training import contrastive as train_contrastive
+from pipeline.training import masked_prediction as train_masked_prediction
 
 
 @pytest.fixture

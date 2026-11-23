@@ -13,7 +13,7 @@ import argparse
 import os
 from pathlib import Path
 
-from pipeline.schema import DataParams
+from pipeline.common.schema import DataParams
 
 LANGUAGE_DIRS = ("Sinhala", "Tamil")
 HEADER = "relpath\tsize"

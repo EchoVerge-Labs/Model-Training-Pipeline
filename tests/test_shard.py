@@ -9,7 +9,7 @@ pytest.importorskip("lhotse")
 import soundfile as sf
 from lhotse import CutSet
 
-from pipeline.shard import (
+from pipeline.data.shard import (
     concatenate_short_cuts,
     load_manifest_as_cuts,
     shard_cuts,

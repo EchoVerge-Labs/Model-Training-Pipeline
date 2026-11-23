@@ -2,7 +2,7 @@
 
 import pytest
 
-from pipeline.schema import Params
+from pipeline.common.schema import Params
 
 
 def test_params_loads():
@@ -35,7 +35,7 @@ def test_warmup_before_max():
 
 
 def _shard_cfg(**overrides):
-    from pipeline.schema import ShardConfig
+    from pipeline.common.schema import ShardConfig
 
     base = {
         "shard_size": 1000,
@@ -72,7 +72,7 @@ def test_gpu_memory_cap_is_bounded():
     import pytest
     from pydantic import ValidationError
 
-    from pipeline.schema import PretrainConfig
+    from pipeline.common.schema import PretrainConfig
 
     base = Params.from_yaml("params-mhubert147.yaml").pretrain.model_dump()
     for bad in (0.0, 1.5):
@@ -103,8 +103,21 @@ def test_every_params_file_loads_with_its_model_family():
         assert (p.model_key, p.model_family) == (key, family), path
 
 
+def test_every_params_file_matches_its_registry_spec():
+    """base_model, precision and (masked) label paths per model -- the unique bits the
+    now-removed per-model schema tests checked, against the registry as source of truth."""
+    from pipeline.models.registry import get_model_spec
+
+    for path, (key, _family) in ALL_PARAMS.items():
+        p = Params.from_yaml(path)
+        assert p.pretrain.base_model == get_model_spec(key).base_model, path
+        assert p.pretrain.precision == "bf16", path
+        if p.model_family == "masked_prediction":
+            assert p.cluster.num_clusters > 0 and p.pretrain.labels_path == p.cluster.labels_output
+
+
 def _raw(path="params-mhubert147.yaml"):
-    from pipeline.schema import load_raw_params
+    from pipeline.common.schema import load_raw_params
 
     return load_raw_params(path)
 
@@ -144,7 +157,7 @@ def test_unknown_model_key_is_rejected():
 
 
 def _schedule(**over):
-    from pipeline.schema import PretrainConfig
+    from pipeline.common.schema import PretrainConfig
 
     base = Params.from_yaml("params-xlsr.yaml").pretrain.model_dump()
     return PretrainConfig(**{**base, **over})
@@ -169,7 +182,7 @@ def test_a_consistent_schedule_is_accepted():
 
 
 def test_data_config_is_separate_and_merged_into_every_model_file():
-    from pipeline.schema import DataParams
+    from pipeline.common.schema import DataParams
 
     data = DataParams.from_yaml("params-data.yaml")
     for path in ALL_PARAMS:

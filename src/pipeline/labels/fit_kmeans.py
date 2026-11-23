@@ -1,9 +1,9 @@
 """Fit k-means on layer features of the pretrained model, sampled from the
 training set -- the cluster centroids that define WavLM's masked-prediction
-targets (see pipeline.layer_features).
+targets (see pipeline.labels.layer_features).
 
 Usage:
-  python -m pipeline.fit_kmeans --config params-mhubert147.yaml
+  python -m pipeline.labels.fit_kmeans --config params-mhubert147.yaml
 """
 
 import argparse
@@ -14,15 +14,15 @@ import joblib
 import numpy as np
 from sklearn.cluster import MiniBatchKMeans
 
-from pipeline.device import get_device
-from pipeline.layer_features import (
+from pipeline.common.device import get_device
+from pipeline.common.schema import Params
+from pipeline.labels.layer_features import (
     base_normalizes,
     layer_features,
     load_feature_model,
     load_shar_cuts,
     load_waveform,
 )
-from pipeline.schema import Params
 
 FRAMES_PER_SECOND = 50  # WavLMModel's CNN stride: 320 samples at 16 kHz
 

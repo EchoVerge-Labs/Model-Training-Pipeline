@@ -41,7 +41,7 @@ EXPERIMENT ?=
 EXP_ARG := $(if $(EXPERIMENT),--experiment=$(EXPERIMENT))
 # Benchmark/selection refuse an unfinished run; ALLOW_INCOMPLETE=1 overrides (e.g. a smoke test).
 INCOMPLETE_ARG := $(if $(ALLOW_INCOMPLETE),--allow-incomplete)
-RUN = $(shell $(PYTHON) -c "from pipeline.schema import load_raw_params as l; print(l('$(CONFIG)', $(if $(EXPERIMENT),'$(EXPERIMENT)',None))['run_name'])")
+RUN = $(shell $(PYTHON) -c "from pipeline.common.schema import load_raw_params as l; print(l('$(CONFIG)', $(if $(EXPERIMENT),'$(EXPERIMENT)',None))['run_name'])")
 
 help:  ## show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | \
@@ -66,45 +66,45 @@ snapshot:  ## pull catalog from Google Sheet
 		echo "ERROR: set GOOGLE_SHEET_ID before running make snapshot" >&2; \
 		exit 1; \
 	fi
-	$(PYTHON) -m pipeline.snapshot_catalog \
+	$(PYTHON) -m pipeline.data.snapshot_catalog \
 	  --sheet-id $${GOOGLE_SHEET_ID} --out data/catalog
 
 index:  ## index every wav on the Drive mount (relpath + size)
-	$(PYTHON) -m pipeline.drive_index --config params-data.yaml
+	$(PYTHON) -m pipeline.data.drive_index --config params-data.yaml
 
 select:  ## select the training subset (needs `make index` first)
-	$(PYTHON) -m pipeline.select --config params-data.yaml
+	$(PYTHON) -m pipeline.data.select --config params-data.yaml
 
 pull:  ## copy the selected clips from the Drive mount to data/raw/
-	$(PYTHON) -m pipeline.materialise --config params-data.yaml
+	$(PYTHON) -m pipeline.data.materialise --config params-data.yaml
 
 shard:  ## shard WAVs into Lhotse Shar tarballs
-	$(PYTHON) -m pipeline.shard --config params-data.yaml
+	$(PYTHON) -m pipeline.data.shard --config params-data.yaml
 
 fit-kmeans:  ## fit k-means on layer features of MODEL's base model -> models/kmeans/
 ifndef HAS_KMEANS
 	$(error MODEL=$(MODEL) uses a contrastive objective and has no k-means step)
 endif
-	$(PYTHON) -m pipeline.fit_kmeans --config $(CONFIG) $(EXP_ARG)
+	$(PYTHON) -m pipeline.labels.fit_kmeans --config $(CONFIG) $(EXP_ARG)
 
 labels:  ## assign cluster-id pseudo-labels to every training cut (needs `make fit-kmeans` first)
 ifndef HAS_KMEANS
 	$(error MODEL=$(MODEL) uses a contrastive objective and has no cluster labels)
 endif
-	$(PYTHON) -m pipeline.assign_cluster_labels --config $(CONFIG) $(EXP_ARG)
+	$(PYTHON) -m pipeline.labels.assign_cluster_labels --config $(CONFIG) $(EXP_ARG)
 
 train:  ## continued pre-training of MODEL (HuBERT-family needs `make shard` and `make labels` first)
 	@mkdir -p logs
 	bash -o pipefail -c 'bash scripts/launch_pretrain.sh --model $(MODEL) $(EXP_ARG) 2>&1 | tee -a logs/$(RUN).log'
 
 ckpt:  ## select best checkpoint via proxy eval
-	$(PYTHON) -m pipeline.select_checkpoint --config $(CONFIG) $(EXP_ARG) $(INCOMPLETE_ARG)
+	$(PYTHON) -m pipeline.eval.select_checkpoint --config $(CONFIG) $(EXP_ARG) $(INCOMPLETE_ARG)
 
 bench:  ## SLSB benchmark of the run's selected checkpoint -> reports/bench/<run>/; UPSTREAM=<dir|HF id> for another
-	$(PYTHON) -m pipeline.benchmark --config $(CONFIG) $(EXP_ARG) $(INCOMPLETE_ARG) $(if $(UPSTREAM),--upstream=$(UPSTREAM))
+	$(PYTHON) -m pipeline.eval.benchmark --config $(CONFIG) $(EXP_ARG) $(INCOMPLETE_ARG) $(if $(UPSTREAM),--upstream=$(UPSTREAM))
 
 report:  ## generate results table
-	$(PYTHON) -m pipeline.report --config $(CONFIG) $(EXP_ARG)
+	$(PYTHON) -m pipeline.eval.report --config $(CONFIG) $(EXP_ARG)
 
 # ── Full pipeline ───────────────────────────────────
 

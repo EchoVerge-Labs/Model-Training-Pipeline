@@ -6,8 +6,8 @@ import types
 import pytest
 from pydantic import ValidationError
 
+from pipeline.common.schema import Params, load_raw_params
 from pipeline.pecopt import PECoPTConfig, apply_pecopt
-from pipeline.schema import Params, load_raw_params
 
 
 def test_full_copt_is_the_default_in_every_params_file():

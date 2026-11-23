@@ -1,4 +1,4 @@
-"""Checkpoint directory conventions and helpers shared by both trainers and select_checkpoint.py.
+"""Checkpoint directory conventions and helpers shared by both trainers and pipeline.eval.select_checkpoint.
 
 A checkpoint is `<output_dir>/checkpoint-<step>/`. the trainer writes it to
 `checkpoint-<step>.tmp` first and renames it, so a crash mid-save never leaves

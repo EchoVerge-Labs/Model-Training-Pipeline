@@ -5,7 +5,7 @@ import json
 
 import pytest
 
-from pipeline import benchmark
+from pipeline.eval import benchmark
 
 
 def _metrics(tmp_path, run, completed):
@@ -65,8 +65,8 @@ def test_failed_tasks_flags_a_partial_slsb_run(tmp_path):
 def test_missing_blocklist_warns_and_is_recorded(tmp_path, monkeypatch, capsys):
     """A configured-but-missing blocklist must warn and be flagged in the report, not be
     silently treated as empty."""
-    from pipeline.schema import SelectConfig
-    from pipeline.select import write_report
+    from pipeline.common.schema import SelectConfig
+    from pipeline.data.select import write_report
 
     cfg = SelectConfig(
         seed=1,

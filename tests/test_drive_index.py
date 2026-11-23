@@ -2,7 +2,7 @@
 
 import pytest
 
-from pipeline.drive_index import build_index, load_index, write_index
+from pipeline.data.drive_index import build_index, load_index, write_index
 
 
 def _touch(path, nbytes):

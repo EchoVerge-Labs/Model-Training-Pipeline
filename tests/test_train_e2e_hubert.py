@@ -14,16 +14,16 @@ import torch
 from lhotse import CutSet, MonoCut, Recording
 from transformers import HubertConfig, HubertModel, Wav2Vec2FeatureExtractor
 
-from pipeline.checkpoints import STATE_FILE, latest_checkpoint
-from pipeline.schema import (
+from pipeline.common.checkpoints import STATE_FILE, latest_checkpoint
+from pipeline.common.schema import (
     ClusterConfig,
     Params,
     PretrainConfig,
     SelectConfig,
     ShardConfig,
 )
-from pipeline.shard import shard_cuts
-from pipeline.train_masked_prediction import train
+from pipeline.data.shard import shard_cuts
+from pipeline.training.masked_prediction import train
 
 K = 6
 
@@ -232,7 +232,7 @@ def test_resume_drops_curve_rows_logged_after_the_checkpoint(tmp_path, monkeypat
 
 def test_resume_from_and_no_resume_select_the_checkpoint(tmp_path, monkeypatch):
     """The masked trainer honours --resume-from / --no-resume like the contrastive one."""
-    from pipeline.train_masked_prediction import resume_point
+    from pipeline.training.masked_prediction import resume_point
 
     monkeypatch.chdir(tmp_path)
     base, shars, labels_path = _setup(tmp_path)

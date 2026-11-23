@@ -1,6 +1,6 @@
 # mHuBERT-147 only. One file per model (params-<model>.yaml); the data selection/sharding all
 # models share is in params-data.yaml.
-# Which model this file configures; fixes its SSL objective family (see pipeline.schema).
+# Which model this file configures; fixes its SSL objective family (see pipeline.common.schema).
 model_key: mhubert147
 experiment: si-ta-200h   # names this run: <model>-<experiment> -> models/, reports/, bench/, MLflow
 
@@ -11,7 +11,7 @@ experiment: si-ta-200h   # names this run: <model>-<experiment> -> models/, repo
 # checkpoint (pretrain.base_model), run once offline over the training audio:
 # k-means on layer-`layer` frames, then every frame -> its nearest centroid.
 # Training then continues that same model against these ids. Not distillation.
-# See pipeline.layer_features / .fit_kmeans / .assign_cluster_labels.
+# See pipeline.labels.layer_features / .fit_kmeans / .assign_cluster_labels.
 cluster:
   layer: 9                    # 3/4 of the way through mHuBERT-147's 12 layers
   num_clusters: 500           # fairseq HuBERT iteration >= 2

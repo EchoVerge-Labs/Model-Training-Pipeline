@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from pipeline.select import (
+from pipeline.data.select import (
     Segment,
     build_path_lookup,
     dedupe_segments,

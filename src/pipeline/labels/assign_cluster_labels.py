@@ -1,8 +1,8 @@
 """Assign k-means cluster ids to every training cut's layer features -- the
-masked-prediction targets pipeline.train_masked_prediction reads via pretrain.labels_path.
+masked-prediction targets pipeline.training.masked_prediction reads via pretrain.labels_path.
 
 Usage:
-  python -m pipeline.assign_cluster_labels --config params-mhubert147.yaml
+  python -m pipeline.labels.assign_cluster_labels --config params-mhubert147.yaml
 """
 
 import argparse
@@ -12,15 +12,15 @@ from pathlib import Path
 
 import joblib
 
-from pipeline.device import get_device
-from pipeline.layer_features import (
+from pipeline.common.device import get_device
+from pipeline.common.schema import Params
+from pipeline.labels.layer_features import (
     base_normalizes,
     layer_features,
     load_feature_model,
     load_shar_cuts,
     load_waveform,
 )
-from pipeline.schema import Params
 
 
 def assign_cut(cut, km, extract) -> list[int]:

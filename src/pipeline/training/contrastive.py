@@ -29,12 +29,12 @@ automatically from the newest complete checkpoint in pretrain.output_dir; pass
 
 Usage:
   # Single node
-  torchrun --nproc_per_node=1 -m pipeline.train_contrastive --config params-xlsr.yaml
+  torchrun --nproc_per_node=1 -m pipeline.training.contrastive --config params-xlsr.yaml
 
   # Two nodes
   torchrun --nnodes=2 --nproc_per_node=1 --node_rank=0 \
            --rdzv_backend=c10d --rdzv_endpoint=10.0.0.1:29500 \
-           -m pipeline.train_contrastive --config params-xlsr.yaml
+           -m pipeline.training.contrastive --config params-xlsr.yaml
 """
 
 import argparse
@@ -63,17 +63,22 @@ from transformers.models.wav2vec2.modeling_wav2vec2 import (
     _sample_negative_indices,
 )
 
-from pipeline.callbacks import CodebookCollapseDetector, MLflowLogger
-from pipeline.checkpoints import find_resume, prepare_curves, prune_checkpoints, save_checkpoint
-from pipeline.datamodule import create_dataloader
-from pipeline.device import get_device
-from pipeline.model_registry import (
+from pipeline.common.callbacks import CodebookCollapseDetector, MLflowLogger
+from pipeline.common.checkpoints import (
+    find_resume,
+    prepare_curves,
+    prune_checkpoints,
+    save_checkpoint,
+)
+from pipeline.common.datamodule import create_dataloader
+from pipeline.common.device import get_device
+from pipeline.common.schema import Params
+from pipeline.models.registry import (
     describe_feature_encoder,
     feature_encoder_status,
     get_model_spec,
 )
 from pipeline.pecopt import apply_pecopt
-from pipeline.schema import Params
 
 # ─── Tri-stage LR schedule ──────────────────────────────────────────────
 #

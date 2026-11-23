@@ -12,8 +12,14 @@ import soundfile as sf
 import torch
 from lhotse import CutSet, MonoCut, Recording
 
-from pipeline.datamodule import SAMPLE_RATE, create_dataloader, load_labels, pack_batches, pad_batch
-from pipeline.shard import shard_cuts
+from pipeline.common.datamodule import (
+    SAMPLE_RATE,
+    create_dataloader,
+    load_labels,
+    pack_batches,
+    pad_batch,
+)
+from pipeline.data.shard import shard_cuts
 
 
 def _wave(seconds):
@@ -149,7 +155,7 @@ def test_dataloader_attaches_labels_and_missing_id_raises_clearly(tmp_path):
 
 
 def test_normalize_uses_only_the_real_samples_and_leaves_padding_zero():
-    from pipeline.datamodule import normalize_waveform, pad_batch
+    from pipeline.common.datamodule import normalize_waveform, pad_batch
 
     short = torch.randn(4000) * 3 + 5
     long = torch.randn(8000)
@@ -172,7 +178,7 @@ def _rms(x):
 
 
 def test_mixing_with_prob_zero_or_a_single_utterance_is_a_no_op():
-    from pipeline.datamodule import mix_utterances
+    from pipeline.common.datamodule import mix_utterances
 
     waves = [torch.randn(4000), torch.randn(6000)]
     assert all(
@@ -182,7 +188,7 @@ def test_mixing_with_prob_zero_or_a_single_utterance_is_a_no_op():
 
 
 def test_mixing_adds_one_bounded_window_of_another_utterance_at_the_right_level():
-    from pipeline.datamodule import mix_utterances
+    from pipeline.common.datamodule import mix_utterances
 
     rng = random.Random(3)
     for _ in range(50):
@@ -205,7 +211,7 @@ def test_mixing_adds_one_bounded_window_of_another_utterance_at_the_right_level(
 
 
 def test_mixing_never_uses_an_utterance_as_its_own_secondary():
-    from pipeline.datamodule import mix_utterances
+    from pipeline.common.datamodule import mix_utterances
 
     a = torch.ones(4000)
     b = -torch.ones(4000)  # a mixed-in `a` would be positive-only, `b` negative-only
@@ -216,7 +222,7 @@ def test_mixing_never_uses_an_utterance_as_its_own_secondary():
 
 
 def test_pad_batch_mixes_after_normalising_and_keeps_padding_and_labels():
-    from pipeline.datamodule import normalize_waveform, pad_batch
+    from pipeline.common.datamodule import normalize_waveform, pad_batch
 
     short, long = torch.randn(4000) * 3 + 5, torch.randn(8000)
     labels = [[1, 2, 3], [4, 5, 6, 7]]
@@ -231,7 +237,7 @@ def test_pad_batch_mixes_after_normalising_and_keeps_padding_and_labels():
 
 def test_normalize_waveform_matches_the_wav2vec2_feature_extractor():
     transformers = pytest.importorskip("transformers")
-    from pipeline.datamodule import normalize_waveform
+    from pipeline.common.datamodule import normalize_waveform
 
     w = torch.from_numpy(np.random.default_rng(0).normal(0.01, 0.066, 16000).astype("float32"))
     fe = transformers.Wav2Vec2FeatureExtractor(do_normalize=True)

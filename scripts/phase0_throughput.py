@@ -31,7 +31,7 @@ from torch import nn
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from pipeline.model_registry import MODEL_REGISTRY, describe_feature_encoder
+from pipeline.models.registry import MODEL_REGISTRY, describe_feature_encoder
 
 
 def load_model(model_key: str, params, device, freeze_cnn: bool):
@@ -39,7 +39,7 @@ def load_model(model_key: str, params, device, freeze_cnn: bool):
     base_model = params.pretrain.base_model
     print(f"Loading {base_model} ...")
     if params.model_family == "masked_prediction":
-        from pipeline.masked_prediction_model import MaskedPredictionModel
+        from pipeline.training.masked_model import MaskedPredictionModel
 
         model = MaskedPredictionModel(
             MODEL_REGISTRY[model_key].hf_model_type,
@@ -132,7 +132,7 @@ def measure_throughput(
     freeze_cnn: bool | None = None,
 ):
     """Measure pre-training throughput with synthetic data on real model."""
-    from pipeline.schema import Params
+    from pipeline.common.schema import Params
 
     spec = MODEL_REGISTRY[model_key]
     params = Params.from_yaml(str(REPO_ROOT / spec.params_file))

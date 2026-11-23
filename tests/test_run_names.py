@@ -3,8 +3,8 @@ experiments (or two models) never share a folder, report or benchmark directory.
 
 import pytest
 
-from pipeline.benchmark import bench_name, build_command
-from pipeline.schema import Params, load_raw_params
+from pipeline.common.schema import Params, load_raw_params
+from pipeline.eval.benchmark import bench_name, build_command
 
 
 def test_default_run_name_is_model_prefix_plus_experiment():

@@ -2,7 +2,7 @@
 
 import json
 
-from pipeline import report
+from pipeline.eval import report
 
 
 def _bench(tmp_path, name, entries):

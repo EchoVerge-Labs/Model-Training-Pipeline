@@ -1,13 +1,13 @@
-"""Registry of the five models this pipeline continues pre-training.
+"""The ModelSpec type and the two builders the per-model files use.
 
-One `ModelSpec` per model key holds everything that differs between models, so the
-shared code looks facts up here instead of branching on strings: the objective family,
-the transformers classes, where the encoder lives inside the wrapper, whether cluster
-labels are needed, and the encoder width (PE-CoPT adapter dimensions depend on it).
+A `ModelSpec` holds everything that differs between models, so the shared code looks facts
+up here instead of branching on strings: the objective family, the transformers classes,
+where the encoder lives inside the wrapper, whether cluster labels are needed, and the
+encoder width (PE-CoPT adapter dimensions depend on it).
 
 This module imports nothing heavy: transformers classes are named by string and only
-imported when `config_class` / `model_class` is read, so data-prep code that just needs
-the family (via pipeline.schema) doesn't pull in torch.
+imported when `config_class` / `model_class` is read, so data-prep code that just needs the
+family (via pipeline.common.schema) doesn't pull in torch.
 """
 
 import importlib
@@ -28,7 +28,7 @@ class ModelSpec:
     backbone_attr: str  # where the encoder sits inside the training wrapper
     hidden_size: int
     params_file: str
-    trainer_module: str  # where this model's mask helpers live, until the trainers merge
+    trainer_module: str  # the family trainer this model runs through
     mask_function: str  # that module's masking function
     run_name_prefix: str  # MLflow run names are "<prefix>-si-ta-<batch seconds>s"
 
@@ -46,7 +46,7 @@ class ModelSpec:
         return getattr(importlib.import_module("transformers"), self.model_class_name)
 
 
-def _masked(key, base_model, hf_type, config_cls, model_cls, hidden_size, params, run_prefix):
+def masked_spec(key, base_model, hf_type, config_cls, model_cls, hidden_size, params, run_prefix):
     return ModelSpec(
         key=key,
         family="masked_prediction",
@@ -57,13 +57,13 @@ def _masked(key, base_model, hf_type, config_cls, model_cls, hidden_size, params
         backbone_attr="backbone",  # MaskedPredictionModel.backbone
         hidden_size=hidden_size,
         params_file=params,
-        trainer_module="pipeline.train_masked_prediction",
+        trainer_module="pipeline.training.masked_prediction",
         mask_function="compute_mask",
         run_name_prefix=run_prefix,
     )
 
 
-def _contrastive(key, base_model, params, trainer, run_prefix):
+def contrastive_spec(key, base_model, params, run_prefix):
     return ModelSpec(
         key=key,
         family="contrastive",
@@ -74,61 +74,10 @@ def _contrastive(key, base_model, params, trainer, run_prefix):
         backbone_attr="wav2vec2",  # Wav2Vec2ForPreTraining.wav2vec2
         hidden_size=1024,
         params_file=params,
-        trainer_module=trainer,
+        trainer_module="pipeline.training.contrastive",
         mask_function="compute_mask_and_negatives",
         run_name_prefix=run_prefix,
     )
-
-
-MODEL_REGISTRY: dict[str, ModelSpec] = {
-    spec.key: spec
-    for spec in (
-        _masked(
-            "mhubert147",
-            "utter-project/mHuBERT-147",
-            "hubert",
-            "HubertConfig",
-            "HubertModel",
-            768,
-            "params-mhubert147.yaml",
-            "mhubert147",
-        ),
-        _masked(
-            "hubert",
-            "facebook/hubert-large-ll60k",
-            "hubert",
-            "HubertConfig",
-            "HubertModel",
-            1024,
-            "params-hubert.yaml",
-            "hubert-large",
-        ),
-        _masked(
-            "wavlm",
-            "microsoft/wavlm-large",
-            "wavlm",
-            "WavLMConfig",
-            "WavLMModel",
-            1024,
-            "params-wavlm.yaml",
-            "wavlm-large",
-        ),
-        _contrastive(
-            "xlsr",
-            "facebook/wav2vec2-xls-r-300m",
-            "params-xlsr.yaml",
-            "pipeline.train_contrastive",
-            "xlsr300m",
-        ),
-        _contrastive(
-            "wav2vec2",
-            "facebook/wav2vec2-large-lv60",
-            "params-wav2vec2.yaml",
-            "pipeline.train_contrastive",
-            "wav2vec2-mono",
-        ),
-    )
-}
 
 
 def feature_encoder_status(model, spec: ModelSpec) -> tuple[int, int]:
@@ -147,9 +96,3 @@ def describe_feature_encoder(model, spec: ModelSpec) -> str:
     else:
         state = f"PARTLY trainable ({trainable / 1e6:.1f}M)"
     return f"CNN feature encoder ({total / 1e6:.1f}M params): {state}"
-
-
-def get_model_spec(key: str) -> ModelSpec:
-    if key not in MODEL_REGISTRY:
-        raise ValueError(f"unknown model {key!r}; expected one of {sorted(MODEL_REGISTRY)}")
-    return MODEL_REGISTRY[key]

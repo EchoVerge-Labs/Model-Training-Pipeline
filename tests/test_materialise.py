@@ -2,7 +2,7 @@
 
 import json
 
-from pipeline.materialise import materialise, read_filenames
+from pipeline.data.materialise import materialise, read_filenames
 
 
 def _drive(tmp_path):

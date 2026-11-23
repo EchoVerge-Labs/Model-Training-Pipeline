@@ -1,7 +1,7 @@
 """Select the best pre-training checkpoint using a fast proxy evaluation.
 
 Serves all five models: the params file (--config) says which model and where its
-checkpoints are, and the report suffix defaults to `-<model_key>`.
+checkpoints are; report files default to the run's suffix `-<run>` (e.g. -wavlm-large-si-ta-200h).
 """
 
 import argparse
@@ -11,9 +11,9 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from pipeline.benchmark import require_complete_pretraining
-from pipeline.checkpoints import has_backbone
-from pipeline.schema import Params, load_raw_params
+from pipeline.common.checkpoints import has_backbone
+from pipeline.common.schema import Params, load_raw_params
+from pipeline.eval.benchmark import require_complete_pretraining
 
 # Checkpoints are ranked on the DEV score slsb records in each result entry's `details` (the
 # score its probe head was selected on), never on the test metric: choosing a checkpoint by
@@ -33,7 +33,7 @@ def find_milestone_checkpoints(model_dir: str, milestones: list[int]) -> list[Pa
 
     Only milestones are proxy-evaluated: each eval is a full downstream
     fine-tune, so scoring every rolling checkpoint is too expensive. Checkpoints
-    are written atomically (see train_masked_prediction.py), so a checkpoint-<step> directory
+    are written atomically (see training/masked_prediction.py), so a checkpoint-<step> directory
     that has a backbone is a finished one, for the contrastive models too, whose
     checkpoints have no masked-prediction head.
     """

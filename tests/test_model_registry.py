@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from pipeline.masked_prediction_model import BACKBONES
-from pipeline.model_registry import MODEL_REGISTRY, get_model_spec
-from pipeline.schema import Params
+from pipeline.common.schema import Params
+from pipeline.models.registry import MODEL_REGISTRY, get_model_spec
+from pipeline.training.masked_model import BACKBONES
 
 ROOT = Path(__file__).resolve().parent.parent
 EXPECTED_KEYS = {"mhubert147", "hubert", "wavlm", "xlsr", "wav2vec2"}
@@ -67,7 +67,7 @@ def test_hidden_size_matches_the_local_base_model_config_when_present():
 def test_backbone_attr_exists_on_the_training_wrappers():
     from transformers import HubertConfig, Wav2Vec2Config, Wav2Vec2ForPreTraining
 
-    from pipeline.masked_prediction_model import MaskedPredictionModel
+    from pipeline.training.masked_model import MaskedPredictionModel
 
     tiny = {
         "hidden_size": 32,

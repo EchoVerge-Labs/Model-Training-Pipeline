@@ -1,6 +1,6 @@
 # Data selection and sharding, shared by ALL models: they all train on the same shards.
 # Read by the data stages (drive_index / select / materialise / shard) and merged into every
-# params-<model>.yaml when it is loaded (pipeline.schema.load_raw_params), so each model file
+# params-<model>.yaml when it is loaded (pipeline.common.schema.load_raw_params), so each model file
 # holds only what is specific to that model.
 
 # ── Data Selection ──────────────────────────────────

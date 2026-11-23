@@ -8,12 +8,12 @@ import pytest
 import torch
 from transformers import HubertModel, Wav2Vec2ForPreTraining
 
-from pipeline.model_registry import (
+from pipeline.models.registry import (
     MODEL_REGISTRY,
     describe_feature_encoder,
     feature_encoder_status,
 )
-from pipeline.train_masked_prediction import train as train_masked
+from pipeline.training.masked_prediction import train as train_masked
 from tests.test_resume import _make_base, _run
 from tests.test_resume import _params as contrastive_params
 from tests.test_smoke_train import _tiny_model as tiny_masked

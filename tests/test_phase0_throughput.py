@@ -8,9 +8,9 @@ import pytest
 import torch
 from transformers import HubertConfig, Wav2Vec2Config, Wav2Vec2ForPreTraining
 
-from pipeline.masked_prediction_model import MaskedPredictionModel
-from pipeline.model_registry import MODEL_REGISTRY
-from pipeline.schema import Params
+from pipeline.common.schema import Params
+from pipeline.models.registry import MODEL_REGISTRY
+from pipeline.training.masked_model import MaskedPredictionModel
 
 ROOT = Path(__file__).resolve().parent.parent
 TINY = {

@@ -13,8 +13,8 @@ import pytest
 import torch
 from transformers import Wav2Vec2FeatureExtractor, Wav2Vec2ForPreTraining
 
-from pipeline.callbacks import CodebookCollapseDetector
-from pipeline.checkpoints import (
+from pipeline.common.callbacks import CodebookCollapseDetector
+from pipeline.common.checkpoints import (
     STATE_FILE,
     checkpoint_step,
     find_resume,
@@ -24,8 +24,8 @@ from pipeline.checkpoints import (
     prune_checkpoints,
     save_checkpoint,
 )
-from pipeline.schema import MonitoringConfig, Params
-from pipeline.train_contrastive import (
+from pipeline.common.schema import MonitoringConfig, Params
+from pipeline.training.contrastive import (
     CURVES_HEADER,
     train,
 )

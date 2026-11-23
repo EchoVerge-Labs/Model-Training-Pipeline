@@ -20,7 +20,7 @@ import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from pipeline.schema import DataParams
+from pipeline.common.schema import DataParams
 
 MANIFESTS = ("data/manifests/train.jsonl", "data/manifests/dev.jsonl")
 

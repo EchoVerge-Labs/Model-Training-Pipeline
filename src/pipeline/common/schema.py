@@ -11,7 +11,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from pipeline.model_registry import MODEL_REGISTRY, ModelFamily
+from pipeline.models.registry import MODEL_REGISTRY, ModelFamily
 from pipeline.pecopt.config import PECoPTConfig
 
 

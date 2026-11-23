@@ -5,7 +5,7 @@ Wav2Vec2ForPreTraining) -- their objective is masked prediction of k-means
 cluster ids, not contrastive learning with a quantizer, so there is no
 ready-made pretraining head to load. This wraps the plain encoder with a linear
 classifier over cluster ids, the actual HuBERT setup. WavLM keeps the same
-objective; its utterance mixing is a data augmentation (see datamodule).
+objective; its utterance mixing is a data augmentation (see pipeline.common.datamodule).
 
 HuBERT, mHuBERT-147 and WavLM only differ in which transformers encoder class
 backs the wrapper, chosen by `model_type` (the checkpoint's config.model_type).
@@ -17,7 +17,7 @@ import torch
 from torch import nn
 from transformers import HubertConfig, HubertModel, WavLMConfig, WavLMModel
 
-from pipeline.checkpoints import HEAD_FILE
+from pipeline.common.checkpoints import HEAD_FILE
 
 # config.model_type -> (config class, encoder class). mHuBERT-147 is model_type "hubert".
 BACKBONES: dict[str, tuple[type, type]] = {
@@ -102,7 +102,7 @@ class MaskedPredictionModel(nn.Module):
 
     def save_pretrained(self, save_dir: str):
         """Saves the encoder as a standalone checkpoint of its own class (what
-        select_checkpoint.py / slsb load as an upstream), plus the
+        pipeline.eval.select_checkpoint / slsb load as an upstream), plus the
         masked-prediction head separately for training resumption."""
         self.backbone.save_pretrained(save_dir)
         torch.save(self.final_proj.state_dict(), Path(save_dir) / HEAD_FILE)

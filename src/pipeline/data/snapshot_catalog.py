@@ -199,7 +199,7 @@ def main():
         print("ERROR: Provide --sheet-id (with gspread installed) or --local-csv paths")
         print("Quickest path: export both tabs as CSV from Google Sheets, then:")
         print(
-            "  python -m pipeline.snapshot_catalog --local-csv sinhala.csv tamil.csv --out data/catalog"
+            "  python -m pipeline.data.snapshot_catalog --local-csv sinhala.csv tamil.csv --out data/catalog"
         )
         sys.exit(1)
 

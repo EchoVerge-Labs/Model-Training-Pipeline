@@ -1,8 +1,9 @@
 """Entry point for continued pre-training of any of the five models.
 
 The model's objective family decides which trainer runs: masked prediction on k-means
-cluster ids (train_masked_prediction) for mHuBERT-147, HuBERT Large and WavLM Large,
-wav2vec 2.0 contrastive learning (train_contrastive) for XLS-R and wav2vec2 Large. The
+cluster ids (pipeline.training.masked_prediction) for mHuBERT-147, HuBERT Large and WavLM
+Large, wav2vec 2.0 contrastive learning (pipeline.training.contrastive) for XLS-R and
+wav2vec2 Large. The
 model comes from `model_key` in the params file, or from --model, which selects that
 model's params file from the registry.
 
@@ -18,8 +19,8 @@ options (e.g. the contrastive trainer's --resume-from / --no-resume) work as bef
 import argparse
 import sys
 
-from pipeline.model_registry import MODEL_REGISTRY, get_model_spec
-from pipeline.schema import Params
+from pipeline.common.schema import Params
+from pipeline.models.registry import MODEL_REGISTRY, get_model_spec
 
 
 def resolve_config(model: str | None, config: str | None) -> str:
@@ -48,9 +49,9 @@ def main(argv: list[str] | None = None):
 
     family = get_model_spec(params.model_key).family
     if family == "masked_prediction":
-        from pipeline.train_masked_prediction import main as family_main
+        from pipeline.training.masked_prediction import main as family_main
     else:
-        from pipeline.train_contrastive import main as family_main
+        from pipeline.training.contrastive import main as family_main
 
     sys.argv = [sys.argv[0], "--config", config, *rest]
     family_main()

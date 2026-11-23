@@ -8,7 +8,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from pipeline.schema import DataParams
+from pipeline.common.schema import DataParams
 
 try:
     from lhotse import CutSet, MonoCut, Recording

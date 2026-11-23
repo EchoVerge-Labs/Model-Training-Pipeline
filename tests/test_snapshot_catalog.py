@@ -4,7 +4,11 @@ import csv
 
 import pytest
 
-from pipeline.snapshot_catalog import REQUIRED_COLUMNS, _language_from_name, snapshot_from_local_csv
+from pipeline.data.snapshot_catalog import (
+    REQUIRED_COLUMNS,
+    _language_from_name,
+    snapshot_from_local_csv,
+)
 
 SHEET = "Sinhala X Tamil Voice Dataset - Pre-Processed-{}.csv"
 
