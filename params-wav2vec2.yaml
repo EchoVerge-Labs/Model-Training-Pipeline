@@ -1,5 +1,6 @@
 # Which model this file configures; fixes its SSL objective family (see pipeline.schema).
 model_key: wav2vec2
+experiment: si-ta-200h   # names this run: <model>-<experiment> -> models/, reports/, bench/, MLflow
 
 # ── Data Selection ──────────────────────────────────
 select:
@@ -67,7 +68,7 @@ pretrain:
 
   # Waveform normalisation is not a setting: it follows base_model's do_normalize
   # (true here too), as on the other branches.
-  output_dir: models/wav2vec2-mono-si-ta-200h
+  output_dir: models/{run}
 
 # ── Monitoring ──────────────────────────────────────
 monitoring:
@@ -80,7 +81,7 @@ checkpoint_selection:
   proxy_task: asr
   proxy_data_dir: ../SLSB-benchmark/data   # relative to this repo root
   proxy_seed: 0
-  output_dir: models/selected-wav2vec2
+  output_dir: models/selected-{run}
 
 # ── Benchmark ───────────────────────────────────────
 benchmark:
@@ -101,9 +102,9 @@ benchmark:
     wav2vec2_mono_vanilla:
       path: facebook/wav2vec2-large-lv60
       name: "wav2vec2.0 Large (English, vanilla)"
-    wav2vec2_mono_adapted:
-      path: models/selected-wav2vec2
-      name: "wav2vec2.0 Large mono (Si/Ta 200h)"
+    "{run}":
+      path: models/selected-{run}
+      name: "wav2vec2.0 Large mono ({run})"
       is_local: true
 
 # ── MLflow ──────────────────────────────────────────

@@ -15,7 +15,7 @@ import json
 import statistics
 from pathlib import Path
 
-import yaml
+from pipeline.schema import load_raw_params
 
 # Mirrors slsb.tasks.FAMILY_DIR_PREFIXES (SLSB-benchmark's own family->dirname
 # prefix convention) so a result entry's "name" (e.g. "asr_omni_sinhala") maps
@@ -73,9 +73,10 @@ def load_upstream_metrics(name: str) -> dict | None:
     }
 
 
-def build_report(config_path: str = "params.yaml", suffix: str = ""):
-    with open(config_path) as f:
-        cfg = yaml.safe_load(f)
+def build_report(config_path: str = "params.yaml", suffix: str | None = None, experiment=None):
+    cfg = load_raw_params(config_path, experiment)
+    if suffix is None:
+        suffix = f"-{cfg['run_name']}"
 
     bench_cfg = cfg.get("benchmark", {})
     upstreams = bench_cfg.get("upstreams", {})
@@ -148,13 +149,14 @@ def build_report(config_path: str = "params.yaml", suffix: str = ""):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="params.yaml")
+    parser.add_argument("--experiment", default=None, help="run name; overrides `experiment:`")
     parser.add_argument(
         "--report-suffix",
-        default="",
-        help="Suffix for output files, e.g. '-hubert' -> results-hubert.md",
+        default=None,
+        help="Suffix for output files; default '-<run name>' -> results-<run>.md",
     )
     args = parser.parse_args()
-    build_report(args.config, suffix=args.report_suffix)
+    build_report(args.config, suffix=args.report_suffix, experiment=args.experiment)
 
 
 if __name__ == "__main__":

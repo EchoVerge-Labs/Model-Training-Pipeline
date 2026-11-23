@@ -35,13 +35,13 @@ def test_a_milestone_without_weights_is_skipped(tmp_path, capsys):
 @pytest.mark.parametrize(
     ("config", "suffix_arg", "expected"),
     [
-        ("params-xlsr.yaml", [], "checkpoint_selection-xlsr.json"),
-        ("params-wav2vec2.yaml", [], "checkpoint_selection-wav2vec2.json"),
-        ("params-wavlm.yaml", [], "checkpoint_selection-wavlm.json"),
+        ("params-xlsr.yaml", [], "checkpoint_selection-xlsr300m-si-ta-200h-norm.json"),
+        ("params-wav2vec2.yaml", [], "checkpoint_selection-wav2vec2-mono-si-ta-200h.json"),
+        ("params-wavlm.yaml", [], "checkpoint_selection-wavlm-large-si-ta-200h.json"),
         ("params.yaml", ["--report-suffix=-custom"], "checkpoint_selection-custom.json"),
     ],
 )
-def test_report_suffix_defaults_to_the_model_key(
+def test_report_suffix_defaults_to_the_run_name(
     tmp_path, monkeypatch, config, suffix_arg, expected
 ):
     with open(config) as f:
@@ -183,5 +183,7 @@ def test_the_report_says_which_score_it_ranked_on(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(sys, "argv", ["x", "--config", str(cfg)])
     select_checkpoint.main()
-    report = json.loads((tmp_path / "reports" / "checkpoint_selection-wavlm.json").read_text())
+    report = json.loads(
+        (tmp_path / "reports" / "checkpoint_selection-wavlm-large-si-ta-200h.json").read_text()
+    )
     assert report["ranked_on"] == "dev_cer"

@@ -167,13 +167,57 @@ _CONTRASTIVE_FIELDS = (
 )
 
 
+DEFAULT_EXPERIMENT = "si-ta-200h"
+
+
+def load_raw_params(path: str = "params.yaml", experiment: str | None = None) -> dict:
+    """The params file as a dict with the run name resolved.
+
+    A run is a model plus an experiment name (si-ta-200h, si-100h, ...). Its name,
+    `<model prefix>-<experiment>` (e.g. wavlm-large-si-100h), replaces `{run}` in every
+    key and value, so models/{run}, reports/*-{run}.json, the selected checkpoint, the
+    benchmark folder and the MLflow run all carry it and two runs never share a path.
+    `experiment` overrides the file's own `experiment:` (the --experiment flag).
+    """
+    import yaml
+
+    with open(path) as f:
+        raw = yaml.safe_load(f)
+    experiment = experiment or raw.get("experiment") or DEFAULT_EXPERIMENT
+    run = raw.get("run_name") or f"{MODEL_REGISTRY[raw['model_key']].run_name_prefix}-{experiment}"
+    if "{" in experiment or "/" in experiment:
+        raise ValueError(f"experiment name {experiment!r} must be a plain name")
+
+    def fill(x):
+        if isinstance(x, str):
+            return x.replace("{run}", run)
+        if isinstance(x, dict):
+            return {fill(k): fill(v) for k, v in x.items()}
+        if isinstance(x, list):
+            return [fill(v) for v in x]
+        return x
+
+    raw = fill(raw)
+    raw["experiment"], raw["run_name"] = experiment, run
+    return raw
+
+
 class Params(BaseModel):
     model_key: ModelKey
+    experiment: str = DEFAULT_EXPERIMENT  # names this run's outputs; see load_raw_params
+    run_name: str | None = None  # default "<model prefix>-<experiment>"
     select: SelectConfig
     shard: ShardConfig
     cluster: ClusterConfig | None = None
     pretrain: PretrainConfig
     monitoring: MonitoringConfig = Field(default_factory=MonitoringConfig)
+
+    @property
+    def run(self) -> str:
+        """Name shared by this run's checkpoints, reports, benchmark folder and MLflow run."""
+        return (
+            self.run_name or f"{MODEL_REGISTRY[self.model_key].run_name_prefix}-{self.experiment}"
+        )
 
     @property
     def model_family(self) -> ModelFamily:
@@ -195,9 +239,5 @@ class Params(BaseModel):
         return self
 
     @classmethod
-    def from_yaml(cls, path: str = "params.yaml") -> "Params":
-        import yaml
-
-        with open(path) as f:
-            raw = yaml.safe_load(f)
-        return cls(**raw)
+    def from_yaml(cls, path: str = "params.yaml", experiment: str | None = None) -> "Params":
+        return cls(**load_raw_params(path, experiment))

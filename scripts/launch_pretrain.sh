@@ -12,7 +12,14 @@ SCRIPT="${SCRIPT:-src/pipeline/train.py}"
 source configs/nccl-env.sh
 
 # DagsHub credentials (DAGSHUB_USER / DAGSHUB_TOKEN) for MLflow logging, if present
-if [ -f .env ]; then set -a; source .env; set +a; fi
+# .env supplies defaults only: anything already set in the shell (NODE_RANK=1 bash ...)
+# wins, so one .env can be shared across nodes.
+if [ -f .env ]; then
+    _shell_env=$(export -p)
+    set -a; source .env; set +a
+    eval "$_shell_env"
+    unset _shell_env
+fi
 
 # ─── Detect number of nodes ──────────────────────────
 NNODES=${NNODES:-1}

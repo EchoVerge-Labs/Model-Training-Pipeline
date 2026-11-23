@@ -34,9 +34,10 @@ def assign_cut(cut, km, extract) -> list[int]:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="params.yaml")
+    parser.add_argument("--experiment", default=None, help="run name; overrides `experiment:`")
     args = parser.parse_args()
 
-    params = Params.from_yaml(args.config)
+    params = Params.from_yaml(args.config, args.experiment)
     cfg = params.cluster
 
     km = joblib.load(cfg.kmeans_output)

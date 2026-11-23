@@ -185,7 +185,7 @@ def train(params: Params, config_path: str = "params.yaml"):
     spec = get_model_spec(params.model_key)
     if spec.family != "masked_prediction":
         raise ValueError(f"{spec.key} is a {spec.family} model; use the contrastive trainer")
-    suffix = f"-{spec.key}"  # per-model report files, as in dvc-<model>.yaml
+    suffix = f"-{params.run}"  # per-run report files: <model>-<experiment>
     cfg = params.pretrain
     num_clusters = params.cluster.num_clusters
 
@@ -333,7 +333,7 @@ def train(params: Params, config_path: str = "params.yaml"):
             mlflow_logger = MLflowLogger(
                 tracking_uri=mlflow_cfg.get("tracking_uri", ""),
                 experiment_name=mlflow_cfg.get("experiment_name", "ssl-pretraining"),
-                run_name=f"{spec.run_name_prefix}-si-ta-{cfg.target_batch_seconds}s",
+                run_name=params.run,
             )
             # Log all params
             flat_params = {
@@ -636,9 +636,10 @@ def train(params: Params, config_path: str = "params.yaml"):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="params.yaml")
+    parser.add_argument("--experiment", default=None, help="run name; overrides `experiment:`")
     args = parser.parse_args()
 
-    params = Params.from_yaml(args.config)
+    params = Params.from_yaml(args.config, args.experiment)
     train(params, args.config)
 
 

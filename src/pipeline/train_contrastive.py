@@ -395,7 +395,7 @@ def train(
     spec = get_model_spec(params.model_key)
     if spec.family != "contrastive":
         raise ValueError(f"{spec.key} is a {spec.family} model; use the masked-prediction trainer")
-    suffix = f"-{spec.key}"  # per-model report files, as in dvc-<model>.yaml
+    suffix = f"-{params.run}"  # per-run report files: <model>-<experiment>
     cfg = params.pretrain
     reports_dir = Path(reports_dir)
 
@@ -555,7 +555,7 @@ def train(
             try:
                 with open(config_path) as f:
                     mlflow_cfg = yaml.safe_load(f).get("mlflow", {})
-                run_name = f"{spec.run_name_prefix}-si-ta-{cfg.target_batch_seconds}s"
+                run_name = params.run
                 if resume:
                     run_name += f"-resume{resume_step}"
                 mlflow_logger = MLflowLogger(
@@ -866,6 +866,7 @@ def train(
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="params-xlsr.yaml")
+    parser.add_argument("--experiment", default=None, help="run name; overrides `experiment:`")
     resume = parser.add_mutually_exclusive_group()
     resume.add_argument(
         "--resume-from",
@@ -881,7 +882,7 @@ def main():
     )
     args = parser.parse_args()
 
-    params = Params.from_yaml(args.config)
+    params = Params.from_yaml(args.config, args.experiment)
     train(
         params,
         config_path=args.config,

@@ -144,7 +144,11 @@ def test_train_runs_checkpoints_atomically_and_resumes(tmp_path, monkeypatch, ca
     assert lrs == [1.0, 10.0]  # head trains at head_lr_mult x the encoder LR
     assert WavLMModel.from_pretrained(out).config.layerdrop == 0.0  # pretrain.layerdrop applied
 
-    curves = (tmp_path / "reports" / "pretrain_curves-wavlm.csv").read_text().splitlines()
+    curves = (
+        (tmp_path / "reports" / "pretrain_curves-wavlm-large-si-ta-200h.csv")
+        .read_text()
+        .splitlines()
+    )
     assert curves[0].startswith("step,loss,masked_accuracy,unmasked_accuracy,pred_perplexity")
     assert [int(r.split(",")[0]) for r in curves[1:]] == [2, 4]
 
@@ -153,6 +157,10 @@ def test_train_runs_checkpoints_atomically_and_resumes(tmp_path, monkeypatch, ca
     printed = capsys.readouterr().out
     assert "Resuming from" in printed and "step 4" in printed
     assert latest_checkpoint(out)[0] == 6
-    curves = (tmp_path / "reports" / "pretrain_curves-wavlm.csv").read_text().splitlines()
+    curves = (
+        (tmp_path / "reports" / "pretrain_curves-wavlm-large-si-ta-200h.csv")
+        .read_text()
+        .splitlines()
+    )
     assert [int(r.split(",")[0]) for r in curves[1:]] == [2, 4, 6]  # appended, not restarted
     assert "Waveform normalisation (do_normalize): True" in printed

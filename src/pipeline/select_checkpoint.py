@@ -11,7 +11,7 @@ import subprocess
 from pathlib import Path
 
 from pipeline.checkpoints import has_backbone
-from pipeline.schema import Params
+from pipeline.schema import Params, load_raw_params
 
 # Checkpoints are ranked on the DEV score slsb records in each result entry's `details` (the
 # score its probe head was selected on), never on the test metric: choosing a checkpoint by
@@ -54,7 +54,7 @@ def evaluate_checkpoint(
     used by the dvc.yaml `benchmark` stage.
     """
     upstream = str(ckpt_path)
-    out_dir = Path(f"/tmp/ckpt_eval/{ckpt_path.name}")
+    out_dir = Path(f"/tmp/ckpt_eval/{ckpt_path.parent.name}/{ckpt_path.name}")  # per run
     cmd = [
         "slsb",
         "run",
@@ -109,20 +109,18 @@ def evaluate_checkpoint(
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="params.yaml")
+    parser.add_argument("--experiment", default=None, help="run name; overrides `experiment:`")
     parser.add_argument(
         "--report-suffix",
         default=None,
-        help="Suffix for the report file; default '-<model_key>' from the params file, "
-        "e.g. '-hubert' -> checkpoint_selection-hubert.json",
+        help="Suffix for the report file; default '-<run name>' e.g. "
+        "checkpoint_selection-wavlm-large-si-ta-200h.json",
     )
     args = parser.parse_args()
 
-    params = Params.from_yaml(args.config)
+    params = Params.from_yaml(args.config, args.experiment)
     cfg = params.pretrain
-    import yaml
-
-    with open(args.config) as f:
-        raw = yaml.safe_load(f)
+    raw = load_raw_params(args.config, args.experiment)
     sel_cfg = raw.get("checkpoint_selection", {})
 
     proxy_task = sel_cfg.get("proxy_task", "asr")
@@ -181,7 +179,7 @@ def main():
         "best_score": results[best_name],
         "all_scores": results,
     }
-    suffix = args.report_suffix if args.report_suffix is not None else f"-{params.model_key}"
+    suffix = args.report_suffix if args.report_suffix is not None else f"-{params.run}"
     report_path = Path(f"reports/checkpoint_selection{suffix}.json")
     report_path.parent.mkdir(parents=True, exist_ok=True)
     with open(report_path, "w") as f:

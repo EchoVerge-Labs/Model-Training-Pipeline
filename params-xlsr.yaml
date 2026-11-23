@@ -1,5 +1,6 @@
 # Which model this file configures; fixes its SSL objective family (see pipeline.schema).
 model_key: xlsr
+experiment: si-ta-200h-norm   # outputs: models/xlsr300m-si-ta-200h-norm (existing checkpoints)
 
 # ── Data Selection ──────────────────────────────────
 select:
@@ -68,7 +69,7 @@ pretrain:
   # Waveform normalisation is not a setting: it follows base_model's do_normalize
   # (true for XLS-R), as on the HuBERT-Large / WavLM-Large branches. The first run,
   # models/xlsr300m-si-ta-200h, predates that and trained on raw audio.
-  output_dir: models/xlsr300m-si-ta-200h-norm
+  output_dir: models/{run}
 
 # ── Monitoring ──────────────────────────────────────
 monitoring:
@@ -81,7 +82,7 @@ checkpoint_selection:
   proxy_task: asr
   proxy_data_dir: ../SLSB-benchmark/data   # relative to this repo root
   proxy_seed: 0
-  output_dir: models/selected-xlsr
+  output_dir: models/selected-{run}
 
 # ── Benchmark ───────────────────────────────────────
 benchmark:
@@ -90,7 +91,7 @@ benchmark:
   slsb_data_dir: ../SLSB-benchmark/data    # relative to this repo root
   mlflow_uri: https://dagshub.com/EchoVerge-LABS/Model-Training-Pipeline.mlflow
   # MLflow runs are named <prefix>_<task>_<language>_s<seed>; eval_normalize and
-  # checkpoint tags are added from models/selected-xlsr and checkpoint_selection-xlsr.json.
+  # checkpoint tags are added from models/selected-{run} and checkpoint_selection-{run}.json.
   mlflow_run_prefix: xlsr_200h_CoPT_norm
   mlflow_run_tags: "model=xlsr300m,base_model=facebook/wav2vec2-xls-r-300m,stage=continued-pretraining,copt_data=si-ta-200h,copt_run=xlsr300m-si-ta-200h-norm,train_normalize=true,variant=norm"
   upstreams:
@@ -114,9 +115,9 @@ benchmark:
       path: models/selected_raw
       name: "XLS-R 300M (Si/Ta 200h, raw-trained, raw eval)"
       is_local: true
-    xlsr300m_adapted_norm:
-      path: models/selected-xlsr
-      name: "XLS-R 300M (Si/Ta 200h)"
+    "{run}":
+      path: models/selected-{run}
+      name: "XLS-R 300M ({run})"
       is_local: true
 
 # ── MLflow ──────────────────────────────────────────

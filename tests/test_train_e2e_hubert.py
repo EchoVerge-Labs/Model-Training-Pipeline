@@ -143,7 +143,11 @@ def test_train_runs_checkpoints_atomically_and_resumes(tmp_path, monkeypatch, ca
     assert lrs == [1.0, 10.0]  # head trains at head_lr_mult x the encoder LR
     assert HubertModel.from_pretrained(out).config.layerdrop == 0.0  # pretrain.layerdrop applied
 
-    curves = (tmp_path / "reports" / "pretrain_curves-hubert.csv").read_text().splitlines()
+    curves = (
+        (tmp_path / "reports" / "pretrain_curves-hubert-large-si-ta-200h.csv")
+        .read_text()
+        .splitlines()
+    )
     assert curves[0].startswith("step,loss,masked_accuracy,unmasked_accuracy,pred_perplexity")
     assert [int(r.split(",")[0]) for r in curves[1:]] == [2, 4]
 
@@ -152,7 +156,11 @@ def test_train_runs_checkpoints_atomically_and_resumes(tmp_path, monkeypatch, ca
     printed = capsys.readouterr().out
     assert "Resuming from" in printed and "step 4" in printed
     assert latest_checkpoint(out)[0] == 6
-    curves = (tmp_path / "reports" / "pretrain_curves-hubert.csv").read_text().splitlines()
+    curves = (
+        (tmp_path / "reports" / "pretrain_curves-hubert-large-si-ta-200h.csv")
+        .read_text()
+        .splitlines()
+    )
     assert [int(r.split(",")[0]) for r in curves[1:]] == [2, 4, 6]  # appended, not restarted
     assert "Waveform normalisation (do_normalize): True" in printed
 
@@ -162,9 +170,9 @@ def test_each_model_key_writes_its_own_report_files(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     base, shars, labels_path = _setup(tmp_path)
     train(_params(tmp_path, base, shars, labels_path, max_updates=2, model_key="mhubert147"))
-    assert (tmp_path / "reports" / "pretrain_curves-mhubert147.csv").exists()
-    assert (tmp_path / "reports" / "pretrain_metrics-mhubert147.json").exists()
-    assert not (tmp_path / "reports" / "pretrain_curves-hubert.csv").exists()
+    assert (tmp_path / "reports" / "pretrain_curves-mhubert147-si-ta-200h.csv").exists()
+    assert (tmp_path / "reports" / "pretrain_metrics-mhubert147-si-ta-200h.json").exists()
+    assert not (tmp_path / "reports" / "pretrain_curves-hubert-large-si-ta-200h.csv").exists()
 
 
 def test_a_contrastive_model_key_is_rejected(tmp_path):
@@ -195,8 +203,14 @@ def test_final_loss_is_the_last_logged_loss_not_null(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     base, shars, labels_path = _setup(tmp_path)
     train(_params(tmp_path, base, shars, labels_path, max_updates=4))
-    metrics = json.loads((tmp_path / "reports" / "pretrain_metrics-hubert.json").read_text())
-    last_row = (tmp_path / "reports" / "pretrain_curves-hubert.csv").read_text().splitlines()[-1]
+    metrics = json.loads(
+        (tmp_path / "reports" / "pretrain_metrics-hubert-large-si-ta-200h.json").read_text()
+    )
+    last_row = (
+        (tmp_path / "reports" / "pretrain_curves-hubert-large-si-ta-200h.csv")
+        .read_text()
+        .splitlines()[-1]
+    )
     assert metrics["final_step"] == 4 and metrics["completed"] is True
     assert metrics["final_loss"] is not None
     assert metrics["final_loss"] == pytest.approx(float(last_row.split(",")[1]), abs=1e-4)
