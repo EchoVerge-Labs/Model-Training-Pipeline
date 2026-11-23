@@ -115,7 +115,7 @@ stages:
 
   benchmark:
     cmd: >
-      bash scripts/run_benchmark-xlsr.sh
+      bash scripts/run_benchmark.sh
       models/selected-wav2vec2
       ${benchmark.tasks}
       ${benchmark.seeds}
@@ -124,7 +124,7 @@ stages:
       ${benchmark.slsb_data_dir}
     deps:
       - models/selected-wav2vec2/
-      - scripts/run_benchmark-xlsr.sh
+      - scripts/run_benchmark.sh
     params:
       - params-wav2vec2.yaml:
           - benchmark.tasks

@@ -115,7 +115,7 @@ stages:
 
   benchmark:
     cmd: >
-      bash scripts/run_benchmark-xlsr.sh
+      bash scripts/run_benchmark.sh
       models/selected-xlsr
       ${benchmark.tasks}
       ${benchmark.seeds}
@@ -126,7 +126,7 @@ stages:
       ${benchmark.mlflow_run_tags}
     deps:
       - models/selected-xlsr/
-      - scripts/run_benchmark-xlsr.sh
+      - scripts/run_benchmark.sh
       - scripts/label_benchmark_runs.py
     params:
       - params-xlsr.yaml:
