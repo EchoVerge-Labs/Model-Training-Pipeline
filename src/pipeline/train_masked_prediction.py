@@ -54,7 +54,10 @@ from transformers.models.hubert.modeling_hubert import _compute_mask_indices
 
 from pipeline.callbacks import MaskedAccuracyStallDetector, MLflowLogger
 from pipeline.checkpoints import (
+    HEAD_FILE,
     STATE_FILE,
+    checkpoint_step,
+    is_complete_checkpoint,
     latest_checkpoint,
     prepare_curves,
     prune_checkpoints,
@@ -174,7 +177,31 @@ def prediction_perplexity(prob_sum: torch.Tensor, n_frames: int) -> float:
 # ─── Training ──────────────────────────────────────────────────────────
 
 
-def train(params: Params, config_path: str = "params-mhubert147.yaml"):
+def resume_point(
+    resume_from: str | Path | None, output_dir: Path, auto_resume: bool
+) -> tuple[int, Path] | None:
+    """(step, checkpoint dir) to resume from, or None to start fresh. An explicit
+    --resume-from must be a complete checkpoint; otherwise the newest complete one in
+    output_dir is used (--no-resume disables that). Mirrors the contrastive trainer."""
+    if resume_from is not None:
+        path = Path(resume_from)
+        if not is_complete_checkpoint(path):
+            raise FileNotFoundError(
+                f"--resume-from {path}: not a complete checkpoint "
+                f"(needs config.json, model weights, {HEAD_FILE} and {STATE_FILE})"
+            )
+        return checkpoint_step(path), path
+    if not auto_resume:
+        return None
+    return latest_checkpoint(output_dir)
+
+
+def train(
+    params: Params,
+    config_path: str = "params-mhubert147.yaml",
+    resume_from: str | Path | None = None,
+    auto_resume: bool = True,
+):
     """config_path is only read back for the MLflow section; everything else is in `params`."""
     spec = get_model_spec(params.model_key)
     if spec.family != "masked_prediction":
@@ -211,7 +238,7 @@ def train(params: Params, config_path: str = "params-mhubert147.yaml"):
     if is_main:
         for stale in output_dir.glob("checkpoint-*.tmp"):  # a save that never finished
             shutil.rmtree(stale, ignore_errors=True)
-    resume = latest_checkpoint(output_dir)
+    resume = resume_point(resume_from, output_dir, auto_resume)
     resume_step = resume[0] if resume else 0
     if world_size > 1:
         # Every rank reads its own output_dir; ranks on different nodes must
@@ -293,7 +320,10 @@ def train(params: Params, config_path: str = "params-mhubert147.yaml"):
         shar_dir=params.shard.output_dir,
         per_device_max_seconds=cfg.per_device_max_seconds,
         num_workers=cfg.num_workers,
-        seed=0,
+        # Seed with the resume step so a resumed run doesn't replay the exact shard order
+        # it already trained on (a fresh run is step 0, i.e. seed 0 as before). Matches
+        # the contrastive trainer.
+        seed=resume_step,
         labels_path=cfg.labels_path,
         normalize=normalize,
         utterance_mix_prob=cfg.utterance_mix_prob,
@@ -614,10 +644,28 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="params-mhubert147.yaml")
     parser.add_argument("--experiment", default=None, help="run name; overrides `experiment:`")
+    resume = parser.add_mutually_exclusive_group()
+    resume.add_argument(
+        "--resume-from",
+        metavar="CKPT_DIR",
+        default=None,
+        help="resume from this checkpoint directory (e.g. models/.../checkpoint-9000)",
+    )
+    resume.add_argument(
+        "--no-resume",
+        action="store_true",
+        help="ignore checkpoints in pretrain.output_dir and start from the base model "
+        "(by default the newest complete checkpoint there is resumed automatically)",
+    )
     args = parser.parse_args()
 
     params = Params.from_yaml(args.config, args.experiment)
-    train(params, args.config)
+    train(
+        params,
+        config_path=args.config,
+        resume_from=args.resume_from,
+        auto_resume=not args.no_resume,
+    )
 
 
 if __name__ == "__main__":

@@ -228,3 +228,23 @@ def test_resume_drops_curve_rows_logged_after_the_checkpoint(tmp_path, monkeypat
     train(_params(tmp_path, base, shars, labels_path, max_updates=4))
     curves = (tmp_path / "reports" / "pretrain_curves-hubert-large-si-ta-200h.csv").read_text()
     assert [int(r.split(",")[0]) for r in curves.splitlines()[1:]] == [2, 4]
+
+
+def test_resume_from_and_no_resume_select_the_checkpoint(tmp_path, monkeypatch):
+    """The masked trainer honours --resume-from / --no-resume like the contrastive one."""
+    from pipeline.train_masked_prediction import resume_point
+
+    monkeypatch.chdir(tmp_path)
+    base, shars, labels_path = _setup(tmp_path)
+    train(_params(tmp_path, base, shars, labels_path, max_updates=4))
+    out = tmp_path / "out"
+
+    # auto-resume picks the newest complete checkpoint
+    assert resume_point(None, out, auto_resume=True)[0] == 4
+    # --no-resume ignores it
+    assert resume_point(None, out, auto_resume=False) is None
+    # --resume-from names one explicitly
+    assert resume_point(out / "checkpoint-4", out, auto_resume=True)[0] == 4
+    # a bad --resume-from is rejected, not silently ignored
+    with pytest.raises(FileNotFoundError, match="not a complete checkpoint"):
+        resume_point(tmp_path / "nope", out, auto_resume=True)

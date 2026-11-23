@@ -1,139 +1,242 @@
-# Model Training Pipeline — Continued Pre-training of mHuBERT-147 on Sinhala/Tamil
+# Model Training Pipeline — Continued Pre-training on Sinhala/Tamil
 
-DVC-orchestrated pipeline for continued self-supervised HuBERT pre-training, automatic
-checkpoint selection, and benchmarking. Produces a Sinhala/Tamil-specialised speech
-encoder from `utter-project/mHuBERT-147` (already multilingual across 147 languages).
+Continued self-supervised pre-training (CoPT) of five speech encoders on Sinhala/Tamil,
+each **keeping its own native SSL objective**, followed by automatic checkpoint selection
+and SLSB benchmarking. One codebase, one entry point, one config per model — pick the model
+with `MODEL=<key>`.
 
-## Pipeline DAG
+| `MODEL` key  | Base checkpoint                     | Objective family              | Run prefix       |
+|--------------|-------------------------------------|-------------------------------|------------------|
+| `mhubert147` | `utter-project/mHuBERT-147`         | masked prediction (k-means)   | `mhubert147`     |
+| `hubert`     | `facebook/hubert-large-ll60k`       | masked prediction (k-means)   | `hubert-large`   |
+| `wavlm`      | `microsoft/wavlm-large`             | masked prediction + utterance mixing | `wavlm-large` |
+| `xlsr`       | `facebook/wav2vec2-xls-r-300m`      | wav2vec 2.0 contrastive       | `xlsr300m`       |
+| `wav2vec2`   | `facebook/wav2vec2-large-lv60`      | wav2vec 2.0 contrastive       | `wav2vec2-mono`  |
 
-```
-snapshot_catalog → index_drive → select → materialise → shard → fit_kmeans → assign_cluster_labels → pretrain → select_checkpoint → benchmark → report
-```
+`mhubert147` is the default when `MODEL` is omitted.
 
-`pretrain` continues pre-training the already-pretrained `mHuBERT-147`
-with HuBERT's real objective: masked prediction of k-means cluster ids, not
-wav2vec2-style contrastive learning. The model architecture and objective are
-unchanged; this is not distillation. The cluster ids are made once, offline:
-`fit_kmeans` runs the *original* checkpoint over ~40 h of the training set and
-clusters the output of transformer layer 9 (mHuBERT-147 has 12 layers, vs.
-HuBERT-Large's 24) into 500 clusters;
-`assign_cluster_labels` assigns every training cut's frames to the nearest
-centroid (`data/labels/`). Waveforms are normalised (`do_normalize`, read from
-the base model) identically for labelling and training. `transformers` has no
-`HubertForPreTraining`, and the checkpoint carries no prediction head, so
-`pipeline.masked_prediction_model` adds a fresh linear head over the cluster ids.
+## Two objective families
 
-Branches: `main` continues multilingual wav2vec2 XLS-R 300M, `Wav2Vec2-Mono`
-continues its monolingual (English) counterpart, `HuBERT-Large` continues
-HuBERT Large, `WavLM-Large` continues WavLM Large, and `mHuBERT-147` (this
-branch) continues mHuBERT-147 -- the only base model already pretrained on
-Sinhala/Tamil (among its 147 languages), rather than adapted from an
-unrelated-language checkpoint.
+The model's objective decides which trainer runs ([`pipeline.train`](src/pipeline/train.py)
+dispatches on it):
 
-**Fair comparison across branches.** Every training setting in `pretrain`
-(updates, batch seconds, LR schedule, optimizer, masking `0.65` / length 10,
-layerdrop, CNN freeze, precision, checkpoint schedule) and the data/shard
-settings are identical to `main`'s wav2vec2 run; `tests/test_schema.py`
-(`test_training_settings_match_the_wav2vec2_run_on_main`) pins them. Only what
-the method itself requires differs: the k-means `cluster` section, the new
-masked-prediction head, and (WavLM branch) utterance mixing.
+- **Masked prediction** (`mhubert147`, `hubert`, `wavlm`) — predict a k-means cluster id for
+  every masked frame (cross-entropy, `ignore_index=-100`). The cluster ids are made **once,
+  offline** before training: `fit_kmeans` runs the *original* checkpoint over a sample of the
+  training audio and clusters one transformer layer's features; `assign_cluster_labels` labels
+  every frame with its nearest centroid. Training then continues that same model against those
+  ids — not distillation, no second model at train time. WavLM additionally mixes a second
+  utterance into each one (`pretrain.utterance_mix_prob`); the labels stay those of the clean
+  primary.
+- **Contrastive** (`xlsr`, `wav2vec2`) — the wav2vec 2.0 objective (`Wav2Vec2ForPreTraining`):
+  contrastive loss over jointly-learned quantised targets, with the diversity loss and Gumbel
+  temperature schedule. A codebook-collapse detector stops a dead run.
 
-Each stage is a `dvc.yaml` target; `dvc repro` runs whatever is stale given
-`params.yaml` and each stage's declared deps. The `benchmark` stage depends
-on `pretrain`'s and `select_checkpoint`'s outputs, so `dvc repro` chains
-training straight into evaluation automatically.
+Both families: reset optimizer/schedule, a low peak LR (CoPT, not from scratch), a trainable
+quantizer/head, tri-stage LR (warmup → hold → exp decay), gradient accumulation to a target
+seconds-of-audio batch, atomic checkpoints with auto-resume, and MLflow logging.
 
-## Prerequisites
-
-- NVIDIA DGX Spark (GB10, ARM64) with the NGC PyTorch container (`nvcr.io/nvidia/pytorch:25.11-py3`)
-- Google Drive with the pre-processed audio, mounted locally with `rclone mount` (default `~/google-drive`; set `select.drive_root` in `params.yaml` to the `Pre Processed Data` folder). Clips are laid out `<Lang>/<genre>/<source-dir>/<hash>_NNN.wav`
-- A DagsHub account (DVC remote + MLflow tracking) — see `.env.example`
-- A Google OAuth client-secret JSON (Desktop-app type) for an account that can read the "Sinhala X Tamil Voice Dataset" sheet. The first `make snapshot` opens a browser sign-in and caches the token at `~/.config/gspread/authorized_user.json`
-- [SLSB-benchmark](https://github.com/EchoVerge-Labs/SLSB-benchmark) v0.1.0 installed (`pip install -e ".[benchmark]"`, or already in the Docker image)
-
-## Quick start
+## Setup
 
 ```bash
-# 1. Install (inside the NGC container, or a matching ARM64 CUDA environment)
-pip install -e ".[data,benchmark,dev]"
-cp .env.example .env   # fill in DAGSHUB_TOKEN, GOOGLE_SHEET_ID, GOOGLE_CLIENT_SECRET_JSON, HF_TOKEN
-
-# 2. Measure real throughput BEFORE scoping max_updates / timelines.
-#    This loads the real 300M model and does real GPU compute -- treat it
-#    like any other GPU job (see "Running training" below).
-make phase0
-
-# 3. Run the pipeline stage by stage (or `make all` / `dvc repro` for the whole DAG)
-make snapshot   # freeze the Google Sheet catalog to data/catalog/catalog_latest.csv
-                # (or: python -m pipeline.snapshot_catalog --local-csv <sinhala.csv> <tamil.csv>)
-make index      # list every wav on the Drive mount (path + size) -> data/catalog/drive_index.tsv
-make select     # dedupe, pin each clip to its Drive file, select train/holdout -> data/manifests/
-make pull       # copy the selected clips from the mount -> data/raw/ (same <Lang>/<genre>/... layout)
-make shard      # pack into Lhotse Shar tarballs -> data/shars/
-make fit-kmeans # fit k-means on layer-18 features of the base model -> models/kmeans/
-make labels     # assign cluster-id pseudo-labels to every training cut -> data/labels/
-make train      # continued pre-training -> models/mhubert147-si-ta-200h/
-make ckpt       # proxy-eval milestone checkpoints, copy the best -> models/selected/
-make bench      # slsb run on the selected checkpoint -> reports/bench/mhubert147_adapted/
-make report     # aggregate into reports/results.md + results_table.csv
+cd ~/EchoVerge-LABS/Model-Training-Pipeline
+python -m venv .venv && source .venv/bin/activate
+make setup                      # pip install -e ".[data,dev]"
+pip install -e ../SLSB-benchmark  # the `slsb` CLI, for make ckpt / bench (see note)
+cp .env.example .env            # then fill in the DagsHub / Google / HF values
 ```
 
-### Why `make index` exists
+> **slsb:** install it from the sibling **`../SLSB-benchmark`** checkout (v0.5), which is what
+> `make ckpt`/`make bench` use for both the CLI and its benchmark data (`benchmark.slsb_data_dir`).
+> Do **not** use the `[benchmark]` extra in `pyproject.toml` — it still pins slsb v0.1.0, which
+> predates the `details` dev-score fields `select_checkpoint` ranks on.
 
-The sheet's `name_in_drive` (`<hash>_NNN.wav`) is **not unique** on the Drive: the same
-name recurs across different source videos with different audio. `select` therefore pins
-each catalog row to a real file by `(language, genre, name, size)` against the index,
-records that path (not the bare name) in the manifests, and gives every clip a unique id.
-Rows repeated in the sheet are collapsed, and rows that don't resolve to exactly one file
-are set aside in `reports/unresolved_clips.csv` rather than guessed.
+Every `make` target activates nothing for you — **`source .venv/bin/activate` first**, and
+`source .env` (or let the Makefile read it) for DagsHub/MLflow and multi-node settings.
 
-### Running training
-
-`make train` / `make phase0` launch real, hours-to-days-long GPU jobs on
-shared hardware. Run them in `tmux` (not `nohup`), and don't launch either
-without checking first if you're running this pipeline as part of a larger
-session. For two-node training, run `scripts/nccl_bandwidth_test.sh` on both
-nodes first to confirm the ConnectX-7 link is actually being used (see
-`configs/nccl-env.sh` — `NCCL_SOCKET_IFNAME` in particular needs to match
-your actual interface name).
-
-### Baseline comparisons
-
-`dvc.yaml`'s `benchmark` stage only benchmarks the adapted checkpoint
-(`models/selected`) — `params.yaml`'s `benchmark.upstreams` lists three
-baselines too (`xlsr300m_vanilla`, `mhubert147`, `wavlm_large`) for
-`report.py`'s comparison table, but they aren't wired into the DVC DAG since
-they don't depend on this repo's training output. Run each once manually
-before `make report`:
-
-```bash
-bash scripts/run_benchmark.sh facebook/wav2vec2-xls-r-300m asr,sid,er,asv 0,1,2 reports/bench/xlsr300m_vanilla
-bash scripts/run_benchmark.sh utter-project/mHuBERT-147   asr,sid,er,asv 0,1,2 reports/bench/mhubert147
-bash scripts/run_benchmark.sh microsoft/wavlm-large        asr,sid,er,asv 0,1,2 reports/bench/wavlm_large
-```
-
-`report.py` renders `—` for any upstream it can't find a `metrics.json` for,
-rather than fabricating a score.
+**Prerequisites for the data stages** (not needed to train from existing shards): the
+pre-processed audio must be reachable as a local Google Drive mount (e.g. `rclone mount` at
+`~/google-drive/Pre Processed Data`), and `select.drive_root` / `drive_index_path` /
+`catalog_path` in `params-data.yaml` must point at it. `make snapshot` needs `GOOGLE_SHEET_ID`.
 
 ## Configuration
 
-`params.yaml` is the single source of truth; every stage reads its own
-section from it, and `src/pipeline/schema.py` validates the `select`,
-`shard`, `cluster`, and `pretrain` sections with Pydantic before any stage
-runs (`make
-test` / CI run this validation too, so a bad config is caught before it
-wastes GPU hours).
+Config is split so the five models share one data definition:
 
-## Known gaps
+- **`params-data.yaml`** — data selection + sharding, **shared by all models** (they train on
+  the same shards). Read by the data stages (`index`, `select`, `materialise`, `shard`).
+- **`params-<model>.yaml`** — one per model (`params-mhubert147.yaml`, `params-hubert.yaml`,
+  `params-wavlm.yaml`, `params-xlsr.yaml`, `params-wav2vec2.yaml`): the base checkpoint,
+  objective settings, cluster/label config, checkpoint selection and benchmark upstreams.
+  `Params.from_yaml` merges the shared `select`/`shard` sections in automatically.
 
-- **Single label round.** Cluster ids come from layer 18 of the original
-  checkpoint. Re-clustering on an adapted checkpoint's hidden states (a second
-  HuBERT iteration) isn't implemented.
-- **Resume is per node.** Re-running `make train` resumes from the newest
-  complete `checkpoint-<step>/` (backbone, head, optimizer, step; saved
-  atomically). The data loader restarts its shard order rather than resuming
-  mid-epoch. For 2-node runs every node must have that checkpoint locally
-  (training aborts with a clear message if the nodes disagree).
-- **`scripts/run_benchmark.sh`** exists to bridge slsb's real output filename
-  (`results_<upstream-with-/-as-__>.json`) to the fixed `metrics.json` path
-  `dvc.yaml` and `report.py` expect — see that script's header comment.
+### Runs and experiment names
+
+A **run** is `<model>-<experiment>`, e.g. `wavlm-large-si-ta-200h`. The experiment name comes
+from `experiment:` in the model's params file, overridable per invocation with
+`EXPERIMENT=<name>` (make) or `--experiment <name>` (CLI). The run name is substituted for
+`{run}` throughout the params file and names **every output**, so two experiments on one model —
+or the same experiment on two models — never share a path:
+
+> **`EXPERIMENT` only labels the outputs — it does not change what is trained.** The data,
+> language mix and number of updates come from `params-data.yaml` (`select.target_hours`,
+> `select.language_mix`) and the model's `pretrain.max_updates`/`milestone_checkpoints`. For a
+> genuinely different run (e.g. 100 h single-language), edit those values and give it a matching
+> `EXPERIMENT` name so the folders say what they contain.
+
+| Output              | Path                                          |
+|---------------------|-----------------------------------------------|
+| Checkpoints         | `models/<run>/`                               |
+| Selected checkpoint | `models/selected-<run>/`                      |
+| Loss curves/metrics | `reports/pretrain_curves-<run>.csv`, `pretrain_metrics-<run>.json` |
+| k-means stats       | `reports/kmeans_stats-<run>.json`             |
+| Selection report    | `reports/checkpoint_selection-<run>.json`     |
+| Benchmark           | `reports/bench/<run>/metrics.json`            |
+| Results table       | `reports/results-<run>.md`                    |
+| Training log        | `logs/<run>.log`                              |
+| MLflow run          | named `<run>`                                 |
+
+```bash
+make train MODEL=wavlm EXPERIMENT=si-100h     # -> models/wavlm-large-si-100h, etc.
+make train MODEL=wavlm                         # -> models/wavlm-large-si-ta-200h (the default)
+```
+
+## End-to-end workflow
+
+The data stages (`index` → `select` → `materialise` → `shard`) are **shared** and run once;
+they read `params-data.yaml`. Everything after is per-model and takes `MODEL=` (and optionally
+`EXPERIMENT=`). The HuBERT family also needs `fit-kmeans` + `labels` before training.
+
+```bash
+# 0. every new terminal
+cd ~/EchoVerge-LABS/Model-Training-Pipeline
+source .venv/bin/activate
+set -a; source .env; set +a          # DagsHub login + NNODES/NODE_RANK/MASTER_* (defaults NNODES=1)
+
+# --- data (shared across all models; run once) ---
+make snapshot                        # pull the clip catalog from the Google Sheet
+make index                           # index every wav on the Drive mount (relpath + size)
+make select                          # choose the Sinhala/Tamil training subset
+make pull                            # copy the selected clips off the Drive mount -> data/raw/
+make shard                           # pack into Lhotse Shar tarballs -> data/shars/
+
+# --- per model (example: WavLM) ---
+make phase0 MODEL=wavlm              # optional: measure GPU throughput / memory first
+make fit-kmeans MODEL=wavlm          # HuBERT family only: k-means on the base model's features
+make labels   MODEL=wavlm            # HuBERT family only: cluster id per frame -> data/labels/
+
+tmux new -s wavlm                    # so the run survives a disconnect
+make train MODEL=wavlm               # continued pre-training (run INSIDE tmux)
+#   13,500 updates; checkpoints every 1,500; milestones 4500/9000/13500
+#   output: models/wavlm-large-si-ta-200h/ ; log: logs/wavlm-large-si-ta-200h.log
+#   live progress: tail -f reports/pretrain_curves-wavlm-large-si-ta-200h.csv
+#   crash/disconnect? just `make train MODEL=wavlm` again -> auto-resumes from the newest
+#   complete checkpoint in the output dir.
+
+make ckpt   MODEL=wavlm              # pick the best milestone, ranked on the dev score
+#   -> models/selected-wavlm-large-si-ta-200h/ + reports/checkpoint_selection-<run>.json
+make bench  MODEL=wavlm              # SLSB benchmark of the selected checkpoint
+#   -> reports/bench/wavlm-large-si-ta-200h/metrics.json (+ MLflow runs, if configured)
+make report MODEL=wavlm              # aggregate -> reports/results-<run>.md
+```
+
+`make all MODEL=wavlm` runs `shard → [fit-kmeans → labels →] train → ckpt → bench → report`
+in order (it assumes `data/raw` is already selected and materialised).
+
+The contrastive models (`xlsr`, `wav2vec2`) are identical minus `fit-kmeans`/`labels`:
+
+```bash
+make phase0 MODEL=xlsr
+make train  MODEL=xlsr               # tmux recommended
+make ckpt   MODEL=xlsr && make bench MODEL=xlsr && make report MODEL=xlsr
+```
+
+### Training knobs
+
+- **Memory / OOM** — run `make phase0 MODEL=<key>` first. If training OOMs, lower
+  `pretrain.per_device_max_seconds` in the model's params file (gradient accumulation keeps the
+  effective batch the same). `make phase0 MODEL=<key> PHASE0_ARGS=--no-freeze-cnn` measures the
+  trainable-CNN case.
+- **CNN feature encoder** — frozen by default (`pretrain.freeze_feature_encoder: true`,
+  transformer-only CoPT). Set it `false` for full CoPT where the CNN trains too (more memory;
+  check `make phase0` first). Configurable for all five models.
+- **Resume** — automatic: re-running `make train` resumes from the newest complete checkpoint.
+  To control it directly:
+  ```bash
+  bash scripts/launch_pretrain.sh --model wavlm \
+      --resume-from models/wavlm-large-si-ta-200h/checkpoint-9000   # a specific checkpoint
+  bash scripts/launch_pretrain.sh --model wavlm --no-resume          # force a clean restart
+  ```
+- **Progress** — trust `reports/pretrain_curves-<run>.csv` (updated live) and the MLflow run;
+  `reports/pretrain_metrics-<run>.json` is only final once the run completes.
+
+### Benchmarking another checkpoint
+
+`make bench` benchmarks the run's selected checkpoint by default. To benchmark any other
+checkpoint or a Hugging Face id (e.g. the un-adapted baseline), into its own folder:
+
+```bash
+make bench MODEL=wavlm UPSTREAM=models/wavlm-large-si-ta-200h/checkpoint-9000
+make bench MODEL=wavlm UPSTREAM=microsoft/wavlm-large
+```
+
+## Checkpoint selection
+
+`make ckpt` evaluates the milestone checkpoints with a fast SLSB proxy task
+(`checkpoint_selection.proxy_task`) and keeps the best, **ranked on the dev score** slsb records
+in each result's `details` (dev CER for ASR, dev accuracy for SID, …) — never the test metric,
+so the test set never influences selection. The winner is copied to `models/selected-<run>/`.
+
+## Multi-node (DDP)
+
+Training uses `torchrun` via [`scripts/launch_pretrain.sh`](scripts/launch_pretrain.sh).
+Gradients are normalised once per update by the masked-position count across all
+micro-batches and ranks; ranks verify they agree on the resume step before starting. One shared
+`.env` supplies defaults; shell-provided values win, so per node:
+
+```bash
+# node 0 (rendezvous host)
+NNODES=2 NODE_RANK=0 MASTER_ADDR=10.8.100.40 make train MODEL=wavlm
+# node 1
+NNODES=2 NODE_RANK=1 MASTER_ADDR=10.8.100.40 make train MODEL=wavlm
+```
+
+Copy the checkpoint directory to every node before resuming a multi-node run (each rank reads
+its own `output_dir`).
+
+## DVC
+
+`dvc.yaml` describes the data stages and the default **mHuBERT-147** run end to end (its
+`vars` come from `params-mhubert147.yaml`); `dvc repro` runs whatever is stale. The other four
+models are driven by `make`, not DVC — there is no `dvc-<model>.yaml`. The `dvc.lock` may be
+stale after config renames; **don't `dvc repro` blindly**, as it can retrain for hours.
+
+## Testing
+
+```bash
+make test     # pytest (GPU-only: builds models on CUDA, no CPU fallbacks)
+make lint     # ruff check + format --check
+```
+
+## Layout
+
+```
+params-data.yaml            shared data selection + sharding
+params-<model>.yaml         one per model: base, objective, selection, benchmark
+src/pipeline/
+  train.py                  entry point; dispatches on objective family
+  train_masked_prediction.py   HuBERT / mHuBERT-147 / WavLM trainer
+  train_contrastive.py         XLS-R / wav2vec2 trainer
+  masked_prediction_model.py   backbone + linear cluster-id head
+  datamodule.py             Shar streaming, seconds-budgeted batches, labels, mixing
+  fit_kmeans.py / assign_cluster_labels.py / layer_features.py   offline k-means targets
+  select.py / materialise.py / shard.py / drive_index.py / snapshot_catalog.py   data prep
+  select_checkpoint.py      proxy eval, dev-score ranking
+  benchmark.py / report.py  SLSB benchmark driver + results table
+  checkpoints.py            atomic save/resume helpers (shared by both trainers)
+  model_registry.py / schema.py / device.py / callbacks.py
+scripts/
+  launch_pretrain.sh        torchrun wrapper (single- and multi-node)
+  phase0_throughput.py      throughput / memory probe
+  run_benchmark.sh          slsb wrapper used by make bench
+```

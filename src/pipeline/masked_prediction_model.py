@@ -40,6 +40,11 @@ class MaskedPredictionModel(nn.Module):
         self.model_type = model_type
         self.backbone = _backbone_class(model_type).from_pretrained(base_model, layerdrop=layerdrop)
         self._check_maskable()
+        # A plain linear classifier over the k-means cluster ids. The HuBERT/WavLM papers
+        # use a cosine-similarity head with learnable codeword embeddings scaled by tau=0.1,
+        # but that head existed for from-scratch pretraining; in CoPT the head is new and
+        # trained from scratch against fresh offline cluster targets either way, and a linear
+        # classifier predicts those ids just as well.
         self.final_proj = nn.Linear(self.backbone.config.hidden_size, num_clusters)
 
     @classmethod
