@@ -108,8 +108,9 @@ stages:
           persist: true
 
   pretrain:
-    cmd: bash scripts/launch_pretrain.sh
+    cmd: bash scripts/launch_pretrain.sh --config params.yaml
     deps:
+      - src/pipeline/train.py
       - src/pipeline/train_masked_prediction.py
       - src/pipeline/datamodule.py
       - src/pipeline/callbacks.py

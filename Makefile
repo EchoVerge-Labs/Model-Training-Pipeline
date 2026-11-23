@@ -13,26 +13,21 @@ export PYTHONPATH := $(CURDIR)/src$(if $(PYTHONPATH),:$(PYTHONPATH))
 # MODEL=mhubert147|hubert|wavlm|xlsr|wav2vec2, e.g. `make train MODEL=wavlm`.
 MODEL ?= mhubert147
 ifeq ($(MODEL),mhubert147)
-  TRAIN_SCRIPT := src/pipeline/train_masked_prediction.py
   CONFIG := params.yaml
   DVC_FILE := dvc.yaml
   HAS_KMEANS := 1
 else ifeq ($(MODEL),hubert)
-  TRAIN_SCRIPT := src/pipeline/train_masked_prediction.py
   CONFIG := params-hubert.yaml
   DVC_FILE := dvc-hubert.yaml
   HAS_KMEANS := 1
 else ifeq ($(MODEL),wavlm)
-  TRAIN_SCRIPT := src/pipeline/train_masked_prediction.py
   CONFIG := params-wavlm.yaml
   DVC_FILE := dvc-wavlm.yaml
   HAS_KMEANS := 1
 else ifeq ($(MODEL),xlsr)
-  TRAIN_SCRIPT := src/pipeline/train_contrastive.py
   CONFIG := params-xlsr.yaml
   DVC_FILE := dvc-xlsr.yaml
 else ifeq ($(MODEL),wav2vec2)
-  TRAIN_SCRIPT := src/pipeline/train_contrastive.py
   CONFIG := params-wav2vec2.yaml
   DVC_FILE := dvc-wav2vec2.yaml
 else
@@ -91,7 +86,7 @@ endif
 	$(PYTHON) -m pipeline.assign_cluster_labels --config $(CONFIG)
 
 train:  ## continued pre-training of MODEL (HuBERT-family needs `make shard` and `make labels` first)
-	SCRIPT=$(TRAIN_SCRIPT) CONFIG=$(CONFIG) bash scripts/launch_pretrain.sh
+	bash scripts/launch_pretrain.sh --model $(MODEL)
 
 ckpt:  ## select best checkpoint via proxy eval
 	$(PYTHON) -m pipeline.select_checkpoint --config $(CONFIG) --report-suffix=$(SUFFIX)

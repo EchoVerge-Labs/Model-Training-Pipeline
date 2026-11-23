@@ -2,10 +2,11 @@
 set -euo pipefail
 
 # ─── Config ───────────────────────────────────────────
-# Defaults are mHuBERT-147 (the Makefile and dvc.yaml default). For another model,
-# set SCRIPT and CONFIG, e.g. SCRIPT=src/pipeline/train_contrastive.py CONFIG=params-xlsr.yaml (the HuBERT family shares train_masked_prediction.py; the model comes from CONFIG)
-SCRIPT="${SCRIPT:-src/pipeline/train_masked_prediction.py}"
-CONFIG="${CONFIG:-params.yaml}"
+# Runs src/pipeline/train.py, which picks the trainer from the model's objective family.
+# Choose the model with `--model <key>` (mhubert147|hubert|wavlm|xlsr|wav2vec2) or
+# `--config <params file>`; with neither it trains mHuBERT-147 from params.yaml.
+# Any other argument goes to the trainer, e.g. --resume-from CKPT_DIR / --no-resume.
+SCRIPT="${SCRIPT:-src/pipeline/train.py}"
 
 # Source NCCL env for GB10
 source configs/nccl-env.sh
@@ -30,7 +31,6 @@ torchrun \
     --rdzv_backend=c10d \
     --rdzv_endpoint=$MASTER_ADDR:$MASTER_PORT \
     $SCRIPT \
-    --config $CONFIG \
     "$@"
 
 echo "Pre-training complete."

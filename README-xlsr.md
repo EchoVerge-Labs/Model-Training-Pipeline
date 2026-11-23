@@ -76,9 +76,9 @@ complete checkpoint in `pretrain.output_dir` (falling back to the previous one i
 newest is unreadable), and the loss-curve CSV keeps its history. To choose explicitly:
 
 ```bash
-export SCRIPT=src/pipeline/train_contrastive.py CONFIG=params-xlsr.yaml
-bash scripts/launch_pretrain.sh --resume-from models/xlsr300m-si-ta-200h-norm/checkpoint-3000
-bash scripts/launch_pretrain.sh --no-resume     # ignore existing checkpoints, start over
+export CONFIG=params-xlsr.yaml
+bash scripts/launch_pretrain.sh --config $CONFIG --resume-from models/xlsr300m-si-ta-200h-norm/checkpoint-3000
+bash scripts/launch_pretrain.sh --config $CONFIG --no-resume     # ignore existing checkpoints, start over
 ```
 
 Relaunching a run that already reached `max_updates` does nothing.
