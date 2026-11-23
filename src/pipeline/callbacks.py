@@ -1,4 +1,7 @@
-"""Training callbacks: MLflow logging, masked-prediction stall detection."""
+"""Training callbacks: MLflow logging and the per-family training-health detectors.
+
+MaskedAccuracyStallDetector is for the HuBERT family (masked prediction);
+CodebookCollapseDetector is for XLS-R / wav2vec2 (contrastive)."""
 
 import os
 import warnings
@@ -19,12 +22,13 @@ class MLflowLogger:
             warnings.warn("mlflow not installed, logging disabled")
             return
 
-        mlflow.set_tracking_uri(tracking_uri)
-        mlflow.set_experiment(experiment_name)
-
-        # DagsHub auth via env vars
+        # DagsHub auth via env vars -- set before the first MLflow call: set_experiment
+        # creates the experiment if needed, and without credentials DagsHub answers 403.
         os.environ.setdefault("MLFLOW_TRACKING_USERNAME", os.environ.get("DAGSHUB_USER", ""))
         os.environ.setdefault("MLFLOW_TRACKING_PASSWORD", os.environ.get("DAGSHUB_TOKEN", ""))
+
+        mlflow.set_tracking_uri(tracking_uri)
+        mlflow.set_experiment(experiment_name)
 
         self.run = mlflow.start_run(run_name=run_name)
 
@@ -89,4 +93,54 @@ class MaskedAccuracyStallDetector:
             f"Step {step}: masked accuracy {accuracy:.4f} / perplexity {perplexity} "
             f"stalled for {self.consecutive_low} checks"
         )
+        return True
+
+
+class CodebookCollapseDetector:
+    """Monitor codebook perplexity and warn on collapse.
+
+    Codebook collapse is the classic failure of wav2vec2 pre-training:
+    perplexity falls, contrastive loss looks fine, representations are garbage.
+    """
+
+    def __init__(
+        self,
+        num_codebooks: int = 2,
+        alert_threshold: float = 10.0,
+        consecutive_alerts: int = 5,
+    ):
+        """alert_threshold: a perplexity below this is a "low" reading.
+        consecutive_alerts: this many low READINGS in a row stops training.
+
+        check() is called once per logging interval (pretrain.eval_every_updates
+        updates), not once per update, so 5 readings at an interval of 500 is
+        2,500 updates of collapsed training.
+        """
+        self.num_codebooks = num_codebooks
+        self.alert_threshold = alert_threshold
+        self.consecutive_alerts = consecutive_alerts
+        self.consecutive_low = 0
+
+    def check(self, perplexity: float, step: int) -> bool:
+        """Returns True if training should continue, False if collapse detected."""
+        if perplexity < self.alert_threshold:
+            self.consecutive_low += 1
+            if self.consecutive_low >= self.consecutive_alerts:
+                print(f"\n{'=' * 60}")
+                print(f"CODEBOOK COLLAPSE DETECTED at step {step}")
+                print(
+                    f"Perplexity {perplexity:.2f} has been below {self.alert_threshold} "
+                    f"for {self.consecutive_low} consecutive readings."
+                )
+                print("The codebook is not being used effectively.")
+                print("Recommended: lower the learning rate or check masking config.")
+                print(f"{'=' * 60}\n")
+                return False
+            warnings.warn(
+                f"Step {step}: codebook perplexity {perplexity:.2f} is below the floor "
+                f"({self.alert_threshold}) -- low reading {self.consecutive_low}/{self.consecutive_alerts}"
+            )
+        else:
+            self.consecutive_low = 0
+
         return True

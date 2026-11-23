@@ -4,7 +4,7 @@ answers 403 and nothing is logged)."""
 
 from unittest import mock
 
-from pipeline import callbacks_xlsr as callbacks
+from pipeline import callbacks
 
 
 def test_credentials_are_set_before_the_first_mlflow_call(monkeypatch):

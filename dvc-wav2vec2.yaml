@@ -82,7 +82,7 @@ stages:
     deps:
       - src/pipeline/train_wav2vec2.py
       - src/pipeline/datamodule.py
-      - src/pipeline/callbacks_xlsr.py
+      - src/pipeline/callbacks.py
       - data/shars/
     params:
       - params-wav2vec2.yaml:

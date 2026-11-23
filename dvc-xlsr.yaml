@@ -82,7 +82,7 @@ stages:
     deps:
       - src/pipeline/train_xlsr.py
       - src/pipeline/datamodule.py
-      - src/pipeline/callbacks_xlsr.py
+      - src/pipeline/callbacks.py
       - data/shars/
     params:
       - params-xlsr.yaml:
