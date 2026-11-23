@@ -12,6 +12,7 @@ Hugging Face id instead; its results go to reports/bench/<name>.
 """
 
 import argparse
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -23,6 +24,39 @@ def bench_name(upstream: str) -> str:
     """Folder name under reports/bench/ for an arbitrary upstream (path or HF id)."""
     parts = [p for p in Path(upstream).parts if p not in ("models", ".", "..", "/")]
     return "-".join(parts) if parts else upstream.replace("/", "__")
+
+
+def require_complete_pretraining(run: str, allow_incomplete: bool = False) -> None:
+    """Refuse to benchmark a run whose pre-training has not finished, so a half-trained
+    checkpoint is never scored and logged as a result. reports/pretrain_metrics-<run>.json is
+    written with completed=true only when training reaches max_updates. --allow-incomplete (or
+    an explicit --upstream, handled by the caller) overrides this."""
+    if allow_incomplete:
+        return
+    path = Path(f"reports/pretrain_metrics-{run}.json")
+    if not path.is_file():
+        raise SystemExit(
+            f"refusing to benchmark {run}: {path} not found -- pre-training has not finished "
+            f"(run `make train` to completion first, or pass --allow-incomplete)."
+        )
+    metrics = json.loads(path.read_text())
+    if not metrics.get("completed"):
+        raise SystemExit(
+            f"refusing to benchmark {run}: pre-training is incomplete "
+            f"({path}: final_step={metrics.get('final_step')}, completed=false) -- finish "
+            f"`make train` first, or pass --allow-incomplete."
+        )
+
+
+def failed_tasks(metrics_path: Path) -> list[str]:
+    """(task/language/seed) entries slsb did not finish. slsb exits 0 even when individual
+    tasks error, so without this a partial result would be copied and logged as if complete."""
+    summary = json.loads(metrics_path.read_text())
+    return [
+        f"{e.get('task')}/{e.get('language')}/seed{e.get('seed')}"
+        for e in summary.get("results", [])
+        if e.get("status") != "ok"
+    ]
 
 
 def build_command(raw: dict, upstream: str | None = None, name: str | None = None) -> list[str]:
@@ -57,11 +91,38 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--name", default=None, help="reports/bench/<name> (default: from run/upstream)"
     )
+    parser.add_argument(
+        "--allow-incomplete",
+        action="store_true",
+        help="benchmark the run's own checkpoint even if its pre-training did not finish",
+    )
     args = parser.parse_args(argv)
     raw = load_raw_params(args.config, args.experiment)
+
+    # Only the run's OWN selected checkpoint is gated on finished pre-training; an explicit
+    # --upstream (a baseline HF id, or some other checkpoint) is the user's deliberate choice.
+    if args.upstream is None:
+        require_complete_pretraining(raw["run_name"], args.allow_incomplete)
+
     cmd = build_command(raw, args.upstream, args.name)
+    name = args.name or (raw["run_name"] if args.upstream is None else bench_name(args.upstream))
     print("+", " ".join(cmd), flush=True)
-    return subprocess.call(cmd)
+    rc = subprocess.call(cmd)
+    if rc != 0:
+        return rc
+
+    # slsb exits 0 even when some tasks error -- don't let a partial benchmark pass as complete.
+    metrics_path = Path(f"reports/bench/{name}/metrics.json")
+    if metrics_path.is_file():
+        failed = failed_tasks(metrics_path)
+        if failed:
+            print(
+                f"ERROR: SLSB left {len(failed)} task(s) unfinished for {name}: "
+                f"{', '.join(failed)} (see {metrics_path}) -- the benchmark is partial.",
+                file=sys.stderr,
+            )
+            return 1
+    return 0
 
 
 if __name__ == "__main__":

@@ -27,22 +27,34 @@ class MLflowLogger:
         os.environ.setdefault("MLFLOW_TRACKING_USERNAME", os.environ.get("DAGSHUB_USER", ""))
         os.environ.setdefault("MLFLOW_TRACKING_PASSWORD", os.environ.get("DAGSHUB_TOKEN", ""))
 
-        mlflow.set_tracking_uri(tracking_uri)
-        mlflow.set_experiment(experiment_name)
-
-        self.run = mlflow.start_run(run_name=run_name)
+        # A tracking outage must never kill a multi-hour training run: if the experiment
+        # can't be reached, disable logging for the rest of the run instead of raising.
+        self.enabled = False
+        try:
+            mlflow.set_tracking_uri(tracking_uri)
+            mlflow.set_experiment(experiment_name)
+            self.run = mlflow.start_run(run_name=run_name)
+            self.enabled = True
+        except Exception as e:  # noqa: BLE001 -- any MLflow/network error, logging is optional
+            warnings.warn(f"MLflow logging disabled: could not start a run ({e})")
 
     def log_params(self, params: dict):
-        if HAS_MLFLOW:
-            mlflow.log_params(params)
+        self._safe(mlflow.log_params, params)
 
     def log_metrics(self, metrics: dict, step: int):
-        if HAS_MLFLOW:
-            mlflow.log_metrics(metrics, step=step)
+        self._safe(mlflow.log_metrics, metrics, step=step)
 
     def end(self):
-        if HAS_MLFLOW:
-            mlflow.end_run()
+        self._safe(mlflow.end_run)
+
+    def _safe(self, fn, *args, **kwargs):
+        """Run an MLflow call, but a tracking error only warns -- it never stops training."""
+        if not (HAS_MLFLOW and self.enabled):
+            return
+        try:
+            fn(*args, **kwargs)
+        except Exception as e:  # noqa: BLE001 -- tracking is best-effort, training is not
+            warnings.warn(f"MLflow call {fn.__name__} failed (continuing): {e}")
 
 
 class MaskedAccuracyStallDetector:

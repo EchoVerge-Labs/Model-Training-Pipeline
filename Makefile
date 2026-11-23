@@ -39,6 +39,8 @@ endif
 # e.g. `make train MODEL=wavlm EXPERIMENT=si-100h`, then `make ckpt|bench|report` the same.
 EXPERIMENT ?=
 EXP_ARG := $(if $(EXPERIMENT),--experiment=$(EXPERIMENT))
+# Benchmark/selection refuse an unfinished run; ALLOW_INCOMPLETE=1 overrides (e.g. a smoke test).
+INCOMPLETE_ARG := $(if $(ALLOW_INCOMPLETE),--allow-incomplete)
 RUN = $(shell $(PYTHON) -c "from pipeline.schema import load_raw_params as l; print(l('$(CONFIG)', $(if $(EXPERIMENT),'$(EXPERIMENT)',None))['run_name'])")
 
 help:  ## show this help
@@ -96,10 +98,10 @@ train:  ## continued pre-training of MODEL (HuBERT-family needs `make shard` and
 	bash -o pipefail -c 'bash scripts/launch_pretrain.sh --model $(MODEL) $(EXP_ARG) 2>&1 | tee -a logs/$(RUN).log'
 
 ckpt:  ## select best checkpoint via proxy eval
-	$(PYTHON) -m pipeline.select_checkpoint --config $(CONFIG) $(EXP_ARG)
+	$(PYTHON) -m pipeline.select_checkpoint --config $(CONFIG) $(EXP_ARG) $(INCOMPLETE_ARG)
 
 bench:  ## SLSB benchmark of the run's selected checkpoint -> reports/bench/<run>/; UPSTREAM=<dir|HF id> for another
-	$(PYTHON) -m pipeline.benchmark --config $(CONFIG) $(EXP_ARG) $(if $(UPSTREAM),--upstream=$(UPSTREAM))
+	$(PYTHON) -m pipeline.benchmark --config $(CONFIG) $(EXP_ARG) $(INCOMPLETE_ARG) $(if $(UPSTREAM),--upstream=$(UPSTREAM))
 
 report:  ## generate results table
 	$(PYTHON) -m pipeline.report --config $(CONFIG) $(EXP_ARG)

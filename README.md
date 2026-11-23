@@ -187,6 +187,13 @@ make bench MODEL=wavlm UPSTREAM=microsoft/wavlm-large
 in each result's `details` (dev CER for ASR, dev accuracy for SID, …) — never the test metric,
 so the test set never influences selection. The winner is copied to `models/selected-<run>/`.
 
+**Completion gate.** `make ckpt` and `make bench` refuse to run until the run's pre-training has
+**finished** (`reports/pretrain_metrics-<run>.json` with `completed: true`), so a half-trained
+checkpoint is never selected or scored. Override with `ALLOW_INCOMPLETE=1` (e.g. a smoke test);
+benchmarking an explicit `UPSTREAM=` baseline skips the gate, since that's a deliberate choice.
+`make bench` also fails if `slsb` left any task unfinished (it exits 0 even on a partial run), so
+a partial benchmark is never recorded as complete.
+
 ## Multi-node (DDP)
 
 Training uses `torchrun` via [`scripts/launch_pretrain.sh`](scripts/launch_pretrain.sh).

@@ -375,7 +375,16 @@ def write_report(
                 f"{sum(u.values())} (ambiguous {u['ambiguous']}, no_match {u['no_match']}, "
                 f"duplicate_path {u['duplicate_path']})\n"
             )
-            f.write(f"- candidates for selection: {len(all_segments):,}\n\n")
+            f.write(f"- candidates for selection: {len(all_segments):,}\n")
+            bl = cleaning.get("blocklist")
+            if bl:
+                status = (
+                    f"{bl['channels']} channels excluded"
+                    if bl["found"]
+                    else ("not configured" if not bl["path"] else f"MISSING ({bl['path']})")
+                )
+                f.write(f"- contamination blocklist: {status}\n")
+            f.write("\n")
         f.write("## By Language\n\n")
         f.writelines(f"- {lang}: {hours:.1f}h\n" for lang, hours in sorted(train_by_lang.items()))
         f.write("\n## By Genre (top 10)\n\n")
@@ -448,11 +457,22 @@ def main():
         print("ERROR: no clip could be resolved to a file on the Drive")
         sys.exit(1)
 
-    # Load blocklist if it exists
+    # Contamination blocklist: a configured file that is missing is reported, never treated
+    # as an empty list -- otherwise eval-contaminating channels would be selected unnoticed.
+    # Opt out explicitly with exclude_channels_file: "".
     blocklist = set()
-    bl_path = Path(cfg.exclude_channels_file)
-    if bl_path.exists():
-        blocklist = {line.strip() for line in bl_path.read_text().splitlines() if line.strip()}
+    bl_path = Path(cfg.exclude_channels_file) if cfg.exclude_channels_file else None
+    bl_info = {"path": str(bl_path) if bl_path else "", "found": False, "channels": 0}
+    if bl_path is not None:
+        if bl_path.exists():
+            blocklist = {ln.strip() for ln in bl_path.read_text().splitlines() if ln.strip()}
+            bl_info = {"path": str(bl_path), "found": True, "channels": len(blocklist)}
+        else:
+            print(
+                f"WARNING: blocklist {bl_path} not found -- NO channel is excluded from training "
+                f'(select.exclude_channels_file). Set it to "" to opt out on purpose.'
+            )
+    cleaning["blocklist"] = bl_info
 
     train, holdout = select(segments, cfg, blocklist)
 

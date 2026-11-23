@@ -11,6 +11,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from pipeline.benchmark import require_complete_pretraining
 from pipeline.checkpoints import has_backbone
 from pipeline.schema import Params, load_raw_params
 
@@ -123,10 +124,18 @@ def main():
         help="Suffix for the report file; default '-<run name>' e.g. "
         "checkpoint_selection-wavlm-large-si-ta-200h.json",
     )
+    parser.add_argument(
+        "--allow-incomplete",
+        action="store_true",
+        help="select from this run even if its pre-training did not finish",
+    )
     args = parser.parse_args()
 
     params = Params.from_yaml(args.config, args.experiment)
     cfg = params.pretrain
+    # Don't pick a "best" checkpoint from a run that hasn't finished -- the later milestones
+    # it would choose among may not exist yet.
+    require_complete_pretraining(params.run, args.allow_incomplete)
     raw = load_raw_params(args.config, args.experiment)
     sel_cfg = raw.get("checkpoint_selection", {})
 

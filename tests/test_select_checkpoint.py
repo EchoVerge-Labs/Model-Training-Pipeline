@@ -56,7 +56,7 @@ def test_report_suffix_defaults_to_the_run_name(
     scores = iter([3.0, 1.0, 2.0])
     monkeypatch.setattr(select_checkpoint, "evaluate_checkpoint", lambda *a, **k: next(scores))
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(sys, "argv", ["x", "--config", str(cfg), *suffix_arg])
+    monkeypatch.setattr(sys, "argv", ["x", "--config", str(cfg), "--allow-incomplete", *suffix_arg])
     select_checkpoint.main()
 
     report = json.loads((tmp_path / "reports" / expected).read_text())
@@ -163,7 +163,7 @@ def test_emotion_recognition_cannot_be_a_proxy_task(tmp_path, monkeypatch):
     cfg = tmp_path / "params-mhubert147.yaml"
     cfg.write_text(yaml.safe_dump(raw))
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(sys, "argv", ["x", "--config", str(cfg)])
+    monkeypatch.setattr(sys, "argv", ["x", "--config", str(cfg), "--allow-incomplete"])
     with pytest.raises(SystemExit, match="no dev score to rank on"):
         select_checkpoint.main()
 
@@ -180,7 +180,7 @@ def test_the_report_says_which_score_it_ranked_on(tmp_path, monkeypatch):
         _backbone(tmp_path / "model" / f"checkpoint-{step}")
     monkeypatch.setattr(select_checkpoint, "evaluate_checkpoint", lambda *a, **k: 1.0)
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(sys, "argv", ["x", "--config", str(cfg)])
+    monkeypatch.setattr(sys, "argv", ["x", "--config", str(cfg), "--allow-incomplete"])
     select_checkpoint.main()
     report = json.loads(
         (tmp_path / "reports" / "checkpoint_selection-wavlm-large-si-ta-200h.json").read_text()
