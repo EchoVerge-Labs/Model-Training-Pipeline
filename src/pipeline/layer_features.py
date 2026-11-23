@@ -22,7 +22,6 @@ from transformers import AutoConfig, HubertModel, Wav2Vec2FeatureExtractor, WavL
 
 from pipeline.datamodule import SAMPLE_RATE, normalize_waveform
 
-
 FeatureModel = HubertModel | WavLMModel
 
 # config.model_type -> the class whose architecture matches the checkpoint. Loading

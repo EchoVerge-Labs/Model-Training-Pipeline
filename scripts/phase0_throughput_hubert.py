@@ -34,15 +34,18 @@ def measure_throughput(steps: int = 100, batch_seconds: float = 200.0, precision
         print(f"Memory: {mem_gb:.1f} GB")
 
     # Load the actual model — not a toy config
-    from pipeline.hubert_model import HubertForMaskedPrediction
+    from pipeline.masked_prediction_model import MaskedPredictionModel
 
     print("Loading facebook/hubert-large-ll60k ...")
     from pipeline.schema import Params
 
     params = Params.from_yaml(str(Path(__file__).resolve().parent.parent / "params-hubert.yaml"))
     num_clusters = params.cluster.num_clusters
-    model = HubertForMaskedPrediction(
-        params.pretrain.base_model, num_clusters=num_clusters, layerdrop=params.pretrain.layerdrop
+    model = MaskedPredictionModel(
+        "hubert",
+        params.pretrain.base_model,
+        num_clusters=num_clusters,
+        layerdrop=params.pretrain.layerdrop,
     )
     model.freeze_feature_encoder()
     model.to(device)

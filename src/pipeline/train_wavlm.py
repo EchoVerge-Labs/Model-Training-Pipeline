@@ -5,7 +5,7 @@ pseudo-labels (data/labels/, produced by pipeline.fit_kmeans +
 pipeline.assign_cluster_labels from layer-N features of the original
 pretrained model -- see layer_features.py), not wav2vec2's contrastive learning with a quantizer/codebook. transformers
 has no WavLMForPreTraining class for the latter to even target, so this
-loads a plain WavLMModel encoder (pipeline.wavlm_model.WavLMForMaskedPrediction)
+loads a plain WavLMModel encoder (pipeline.masked_prediction_model.MaskedPredictionModel)
 and trains a linear head against the precomputed cluster ids. The encoder is
 the already-pretrained checkpoint; its architecture and the objective are not
 changed. Re-running the launch script resumes from the newest complete
@@ -53,8 +53,8 @@ from transformers.models.wavlm.modeling_wavlm import _compute_mask_indices
 from pipeline.callbacks import MaskedAccuracyStallDetector, MLflowLogger
 from pipeline.checkpoints import STATE_FILE, latest_checkpoint, list_checkpoints
 from pipeline.datamodule import create_dataloader
+from pipeline.masked_prediction_model import MaskedPredictionModel
 from pipeline.schema import Params
-from pipeline.wavlm_model import WavLMForMaskedPrediction
 
 # Must be set before the first CUDA allocation. Less fragmentation on the GB10's
 # unified memory (same as main's wav2vec2 run).
@@ -220,8 +220,8 @@ def train(params: Params):
             )
 
     # ── Load model ──
-    model = WavLMForMaskedPrediction(
-        cfg.base_model, num_clusters=num_clusters, layerdrop=cfg.layerdrop
+    model = MaskedPredictionModel(
+        "wavlm", cfg.base_model, num_clusters=num_clusters, layerdrop=cfg.layerdrop
     )
     if resume:
         model.load_checkpoint(resume[1])
@@ -264,7 +264,7 @@ def train(params: Params):
     optimizer = torch.optim.AdamW(
         [
             {
-                "params": [p for p in raw_model.wavlm.parameters() if p.requires_grad],
+                "params": [p for p in raw_model.backbone.parameters() if p.requires_grad],
                 "lr_mult": 1.0,
             },
             {"params": list(raw_model.final_proj.parameters()), "lr_mult": cfg.head_lr_mult},

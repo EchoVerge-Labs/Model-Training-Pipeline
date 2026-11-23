@@ -4,13 +4,13 @@ import torch
 from torch import nn
 from transformers import WavLMConfig
 
+from pipeline.masked_prediction_model import MaskedPredictionModel
 from pipeline.train_wavlm import compute_mask, get_tri_stage_lr
-from pipeline.wavlm_model import WavLMForMaskedPrediction
 
 NUM_CLUSTERS = 8
 
 
-def _tiny_model() -> WavLMForMaskedPrediction:
+def _tiny_model() -> MaskedPredictionModel:
     config = WavLMConfig(
         hidden_size=32,
         num_hidden_layers=2,
@@ -20,7 +20,7 @@ def _tiny_model() -> WavLMForMaskedPrediction:
         conv_kernel=(10, 3),
         conv_stride=(5, 2),
     )
-    return WavLMForMaskedPrediction.from_config(config, num_clusters=NUM_CLUSTERS)
+    return MaskedPredictionModel.from_config(config, num_clusters=NUM_CLUSTERS)
 
 
 def test_tri_stage_lr():

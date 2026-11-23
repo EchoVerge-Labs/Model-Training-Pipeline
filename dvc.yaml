@@ -113,7 +113,7 @@ stages:
       - src/pipeline/train.py
       - src/pipeline/datamodule.py
       - src/pipeline/callbacks.py
-      - src/pipeline/hubert_model.py
+      - src/pipeline/masked_prediction_model.py
       - src/pipeline/checkpoints.py
       - data/shars/
       - data/labels/mhubert147_train_labels.jsonl.gz

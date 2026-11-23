@@ -6,7 +6,7 @@ from transformers import HubertConfig, HubertModel, Wav2Vec2FeatureExtractor
 
 from pipeline.callbacks import MaskedAccuracyStallDetector
 from pipeline.checkpoints import STATE_FILE, latest_checkpoint, list_checkpoints
-from pipeline.hubert_model import HubertForMaskedPrediction
+from pipeline.masked_prediction_model import MaskedPredictionModel
 from pipeline.train import prediction_perplexity, save_checkpoint
 
 CONFIG = {
@@ -21,7 +21,7 @@ CONFIG = {
 
 
 def _model(clusters=8):
-    return HubertForMaskedPrediction.from_config(HubertConfig(**CONFIG), num_clusters=clusters)
+    return MaskedPredictionModel.from_config(HubertConfig(**CONFIG), num_clusters=clusters)
 
 
 def test_a_saved_checkpoint_resumes_backbone_head_optimizer_and_step(tmp_path):
@@ -68,7 +68,7 @@ def test_incomplete_and_tmp_checkpoints_are_never_resumed(tmp_path):
     (tmp_path / "checkpoint-9.tmp").mkdir()  # crashed mid-save
     half = tmp_path / "checkpoint-8"  # backbone but no head / optimizer state
     half.mkdir()
-    model.hubert.save_pretrained(half)
+    model.backbone.save_pretrained(half)
 
     assert [step for step, _ in list_checkpoints(tmp_path)] == [5]
     assert latest_checkpoint(tmp_path)[0] == 5
@@ -81,13 +81,13 @@ def test_layerdrop_is_overridden_to_zero(tmp_path):
     unused in a step and breaks DDP(find_unused_parameters=False)."""
     HubertModel(HubertConfig(layerdrop=0.1, **CONFIG)).save_pretrained(tmp_path)
     assert HubertModel.from_pretrained(tmp_path).config.layerdrop == 0.1
-    model = HubertForMaskedPrediction(str(tmp_path), num_clusters=4, layerdrop=0.0)
+    model = MaskedPredictionModel("hubert", str(tmp_path), num_clusters=4, layerdrop=0.0)
     assert model.config.layerdrop == 0.0
 
 
 def test_a_model_that_cannot_apply_masks_is_rejected():
     with pytest.raises(ValueError, match="masked_spec_embed"):
-        HubertForMaskedPrediction.from_config(
+        MaskedPredictionModel.from_config(
             HubertConfig(apply_spec_augment=False, **CONFIG), num_clusters=4
         )
 

@@ -20,7 +20,7 @@ clusters the output of transformer layer 18 into 500 clusters;
 centroid (`data/labels/`). Waveforms are normalised (`do_normalize`, read from
 the base model) identically for labelling and training. `transformers` has no
 `WavLMForPreTraining`, and the checkpoint carries no prediction head, so
-`pipeline.wavlm_model` adds a fresh linear head over the cluster ids.
+`pipeline.masked_prediction_model` adds a fresh linear head over the cluster ids.
 
 Branches: `main` continues wav2vec2 XLS-R, `HuBERT-Large` continues HuBERT
 Large, and `WavLM-Large` (this branch) continues WavLM Large.

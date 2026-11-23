@@ -21,7 +21,7 @@ HuBERT-Large's 24) into 500 clusters;
 centroid (`data/labels/`). Waveforms are normalised (`do_normalize`, read from
 the base model) identically for labelling and training. `transformers` has no
 `HubertForPreTraining`, and the checkpoint carries no prediction head, so
-`pipeline.hubert_model` adds a fresh linear head over the cluster ids.
+`pipeline.masked_prediction_model` adds a fresh linear head over the cluster ids.
 
 Branches: `main` continues multilingual wav2vec2 XLS-R 300M, `Wav2Vec2-Mono`
 continues its monolingual (English) counterpart, `HuBERT-Large` continues

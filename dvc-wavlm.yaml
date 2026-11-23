@@ -119,7 +119,7 @@ stages:
       - src/pipeline/train_wavlm.py
       - src/pipeline/datamodule.py
       - src/pipeline/callbacks.py
-      - src/pipeline/wavlm_model.py
+      - src/pipeline/masked_prediction_model.py
       - src/pipeline/checkpoints.py
       - data/shars/
       - data/labels/wavlm_train_labels.jsonl.gz
