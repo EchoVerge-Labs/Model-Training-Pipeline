@@ -99,9 +99,9 @@ stages:
           cache: false
 
   select_checkpoint:
-    cmd: python -m pipeline.select_checkpoint_xlsr --config params-xlsr.yaml --report-suffix -xlsr
+    cmd: python -m pipeline.select_checkpoint --config params-xlsr.yaml --report-suffix=-xlsr
     deps:
-      - src/pipeline/select_checkpoint_xlsr.py
+      - src/pipeline/select_checkpoint.py
       - models/xlsr300m-si-ta-200h-norm/
     params:
       - params-xlsr.yaml:
@@ -138,7 +138,7 @@ stages:
           cache: false
 
   report:
-    cmd: python -m pipeline.report --config params-xlsr.yaml --report-suffix -xlsr
+    cmd: python -m pipeline.report --config params-xlsr.yaml --report-suffix=-xlsr
     deps:
       - src/pipeline/report.py
       - reports/bench/

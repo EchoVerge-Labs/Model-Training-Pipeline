@@ -16,30 +16,25 @@ ifeq ($(MODEL),mhubert147)
   TRAIN_SCRIPT := src/pipeline/train.py
   CONFIG := params.yaml
   DVC_FILE := dvc.yaml
-  SELECT_MODULE := pipeline.select_checkpoint
   HAS_KMEANS := 1
 else ifeq ($(MODEL),hubert)
   TRAIN_SCRIPT := src/pipeline/train_hubert.py
   CONFIG := params-hubert.yaml
   DVC_FILE := dvc-hubert.yaml
-  SELECT_MODULE := pipeline.select_checkpoint
   HAS_KMEANS := 1
 else ifeq ($(MODEL),wavlm)
   TRAIN_SCRIPT := src/pipeline/train_wavlm.py
   CONFIG := params-wavlm.yaml
   DVC_FILE := dvc-wavlm.yaml
-  SELECT_MODULE := pipeline.select_checkpoint_wavlm
   HAS_KMEANS := 1
 else ifeq ($(MODEL),xlsr)
   TRAIN_SCRIPT := src/pipeline/train_xlsr.py
   CONFIG := params-xlsr.yaml
   DVC_FILE := dvc-xlsr.yaml
-  SELECT_MODULE := pipeline.select_checkpoint_xlsr
 else ifeq ($(MODEL),wav2vec2)
   TRAIN_SCRIPT := src/pipeline/train_wav2vec2.py
   CONFIG := params-wav2vec2.yaml
   DVC_FILE := dvc-wav2vec2.yaml
-  SELECT_MODULE := pipeline.select_checkpoint_xlsr
 else
   $(error Unknown MODEL '$(MODEL)'; use mhubert147, hubert, wavlm, xlsr or wav2vec2)
 endif
@@ -87,7 +82,7 @@ fit-kmeans:  ## fit k-means on layer features of MODEL's base model -> models/km
 ifndef HAS_KMEANS
 	$(error MODEL=$(MODEL) uses a contrastive objective and has no k-means step)
 endif
-	$(PYTHON) -m pipeline.fit_kmeans --config $(CONFIG) --report-suffix $(SUFFIX)
+	$(PYTHON) -m pipeline.fit_kmeans --config $(CONFIG) --report-suffix=$(SUFFIX)
 
 labels:  ## assign cluster-id pseudo-labels to every training cut (needs `make fit-kmeans` first)
 ifndef HAS_KMEANS
@@ -99,13 +94,13 @@ train:  ## continued pre-training of MODEL (HuBERT-family needs `make shard` and
 	SCRIPT=$(TRAIN_SCRIPT) CONFIG=$(CONFIG) bash scripts/launch_pretrain.sh
 
 ckpt:  ## select best checkpoint via proxy eval
-	$(PYTHON) -m $(SELECT_MODULE) --config $(CONFIG) --report-suffix $(SUFFIX)
+	$(PYTHON) -m pipeline.select_checkpoint --config $(CONFIG) --report-suffix=$(SUFFIX)
 
 bench:  ## run SLSB benchmark on selected checkpoint
 	dvc repro $(DVC_FILE):benchmark
 
 report:  ## generate results table
-	$(PYTHON) -m pipeline.report --config $(CONFIG) --report-suffix $(SUFFIX)
+	$(PYTHON) -m pipeline.report --config $(CONFIG) --report-suffix=$(SUFFIX)
 
 # ── Full pipeline ───────────────────────────────────
 

@@ -74,7 +74,7 @@ stages:
       - data/shars/
 
   fit_kmeans:
-    cmd: python -m pipeline.fit_kmeans --config params.yaml --report-suffix -mhubert147
+    cmd: python -m pipeline.fit_kmeans --config params.yaml --report-suffix=-mhubert147
     deps:
       - src/pipeline/fit_kmeans.py
       - src/pipeline/layer_features.py
@@ -131,7 +131,7 @@ stages:
           cache: false
 
   select_checkpoint:
-    cmd: python -m pipeline.select_checkpoint --config params.yaml --report-suffix -mhubert147
+    cmd: python -m pipeline.select_checkpoint --config params.yaml --report-suffix=-mhubert147
     deps:
       - src/pipeline/select_checkpoint.py
       - models/mhubert147-si-ta-200h/
@@ -165,7 +165,7 @@ stages:
           cache: false
 
   report:
-    cmd: python -m pipeline.report --config params.yaml --report-suffix -mhubert147
+    cmd: python -m pipeline.report --config params.yaml --report-suffix=-mhubert147
     deps:
       - src/pipeline/report.py
       - reports/bench/

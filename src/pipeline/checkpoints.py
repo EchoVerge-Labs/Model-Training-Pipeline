@@ -14,16 +14,16 @@ HEAD_FILE = "masked_prediction_head.pt"
 STATE_FILE = "training_state.pt"
 
 
+def has_backbone(path: Path) -> bool:
+    """A loadable encoder (what `slsb --upstream` needs): config plus weights. True for
+    every model family, unlike is_complete_checkpoint, which also needs the head."""
+    has_weights = (path / "model.safetensors").exists() or (path / "pytorch_model.bin").exists()
+    return path.is_dir() and (path / "config.json").exists() and has_weights
+
+
 def is_complete_checkpoint(path: Path) -> bool:
     """Backbone (loadable by `slsb --upstream`), head and optimizer state all present."""
-    has_weights = (path / "model.safetensors").exists() or (path / "pytorch_model.bin").exists()
-    return (
-        path.is_dir()
-        and (path / "config.json").exists()
-        and has_weights
-        and (path / HEAD_FILE).exists()
-        and (path / STATE_FILE).exists()
-    )
+    return has_backbone(path) and (path / HEAD_FILE).exists() and (path / STATE_FILE).exists()
 
 
 def list_checkpoints(output_dir: str | Path) -> list[tuple[int, Path]]:

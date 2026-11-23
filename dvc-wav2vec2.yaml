@@ -99,9 +99,9 @@ stages:
           cache: false
 
   select_checkpoint:
-    cmd: python -m pipeline.select_checkpoint_xlsr --config params-wav2vec2.yaml --report-suffix -wav2vec2
+    cmd: python -m pipeline.select_checkpoint --config params-wav2vec2.yaml --report-suffix=-wav2vec2
     deps:
-      - src/pipeline/select_checkpoint_xlsr.py
+      - src/pipeline/select_checkpoint.py
       - models/wav2vec2-mono-si-ta-200h/
     params:
       - params-wav2vec2.yaml:
@@ -135,7 +135,7 @@ stages:
           cache: false
 
   report:
-    cmd: python -m pipeline.report --config params-wav2vec2.yaml --report-suffix -wav2vec2
+    cmd: python -m pipeline.report --config params-wav2vec2.yaml --report-suffix=-wav2vec2
     deps:
       - src/pipeline/report.py
       - reports/bench/

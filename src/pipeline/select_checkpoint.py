@@ -1,4 +1,8 @@
-"""Select the best pre-training checkpoint using a fast proxy evaluation."""
+"""Select the best pre-training checkpoint using a fast proxy evaluation.
+
+Serves all five models: the params file (--config) says which model and where its
+checkpoints are, and the report suffix defaults to `-<model_key>`.
+"""
 
 import argparse
 import json
@@ -6,7 +10,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from pipeline.checkpoints import list_checkpoints
+from pipeline.checkpoints import has_backbone
 from pipeline.schema import Params
 
 # Mirrors slsb's own per-family primary metric (see SLSB-benchmark's
@@ -16,17 +20,20 @@ PRIMARY_METRIC = {"asr": "wer", "sid": "accuracy", "er": "accuracy", "asv": "eer
 
 
 def find_milestone_checkpoints(model_dir: str, milestones: list[int]) -> list[Path]:
-    """Complete milestone checkpoint directories in the model output, oldest first.
+    """Milestone checkpoint directories with a loadable backbone, oldest first.
 
     Only milestones are proxy-evaluated: each eval is a full downstream
-    fine-tune, so scoring every rolling checkpoint is too expensive.
+    fine-tune, so scoring every rolling checkpoint is too expensive. Checkpoints
+    are written atomically (see train.py), so a checkpoint-<step> directory
+    that has a backbone is a finished one, for the contrastive models too, whose
+    checkpoints have no masked-prediction head.
     """
-    complete = dict(list_checkpoints(model_dir))
     wanted = sorted(milestones)
-    missing = [f"checkpoint-{step}" for step in wanted if step not in complete]
+    found = {step: Path(model_dir) / f"checkpoint-{step}" for step in wanted}
+    missing = [f"checkpoint-{step}" for step, path in found.items() if not has_backbone(path)]
     if missing:
         print(f"WARNING: milestone checkpoints missing or incomplete, skipping: {missing}")
-    return [complete[step] for step in wanted if step in complete]
+    return [path for path in found.values() if has_backbone(path)]
 
 
 def evaluate_checkpoint(
@@ -101,8 +108,9 @@ def main():
     parser.add_argument("--config", default="params.yaml")
     parser.add_argument(
         "--report-suffix",
-        default="",
-        help="Suffix for the report file, e.g. '-hubert' -> checkpoint_selection-hubert.json",
+        default=None,
+        help="Suffix for the report file; default '-<model_key>' from the params file, "
+        "e.g. '-hubert' -> checkpoint_selection-hubert.json",
     )
     args = parser.parse_args()
 
@@ -163,7 +171,8 @@ def main():
         "best_score": results[best_name],
         "all_scores": results,
     }
-    report_path = Path(f"reports/checkpoint_selection{args.report_suffix}.json")
+    suffix = args.report_suffix if args.report_suffix is not None else f"-{params.model_key}"
+    report_path = Path(f"reports/checkpoint_selection{suffix}.json")
     report_path.parent.mkdir(parents=True, exist_ok=True)
     with open(report_path, "w") as f:
         json.dump(report, f, indent=2)
