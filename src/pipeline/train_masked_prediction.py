@@ -52,6 +52,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from transformers import Wav2Vec2FeatureExtractor
 from transformers.models.hubert.modeling_hubert import _compute_mask_indices
 
+from pipeline.adapters import inject_adapters
 from pipeline.callbacks import MaskedAccuracyStallDetector, MLflowLogger
 from pipeline.checkpoints import STATE_FILE, latest_checkpoint, list_checkpoints
 from pipeline.datamodule import create_dataloader
@@ -236,6 +237,10 @@ def train(params: Params, config_path: str = "params.yaml"):
         if is_main:
             print(f"Resuming from {resume[1]} (step {resume_step})")
 
+    # Training method: full_copt (the default) changes nothing; the PE-CoPT methods are
+    # templates and stop here with NotImplementedError until they are implemented.
+    inject_adapters(model, cfg.pecopt)
+
     # Freeze CNN feature encoder — standard for continued pre-training
     if cfg.freeze_feature_encoder:
         model.freeze_feature_encoder()
@@ -344,6 +349,7 @@ def train(params: Params, config_path: str = "params.yaml"):
                 "mask_time_length": cfg.mask_time_length,
                 "num_clusters": num_clusters,
                 "freeze_feature_encoder": cfg.freeze_feature_encoder,
+                "pecopt_method": cfg.pecopt.method,
                 "layerdrop": cfg.layerdrop,
                 "head_lr_mult": cfg.head_lr_mult,
                 "utterance_mix_prob": cfg.utterance_mix_prob,

@@ -64,6 +64,7 @@ from transformers.models.wav2vec2.modeling_wav2vec2 import (
     _sample_negative_indices,
 )
 
+from pipeline.adapters import inject_adapters
 from pipeline.callbacks import CodebookCollapseDetector, MLflowLogger
 from pipeline.datamodule import create_dataloader
 from pipeline.model_registry import get_model_spec
@@ -457,6 +458,10 @@ def train(
             f"Loaded from: {model_source}"
         )
 
+    # Training method: full_copt (the default) changes nothing; the PE-CoPT methods are
+    # templates and stop here with NotImplementedError until they are implemented.
+    inject_adapters(model, cfg.pecopt)
+
     # Freeze CNN feature encoder — standard for continued pre-training
     if cfg.freeze_feature_encoder:
         model.freeze_feature_encoder()
@@ -565,6 +570,7 @@ def train(
                     "min_gumbel_temperature": cfg.min_gumbel_temperature,
                     "gumbel_temperature_decay": cfg.gumbel_temperature_decay,
                     "freeze_feature_encoder": cfg.freeze_feature_encoder,
+                    "pecopt_method": cfg.pecopt.method,
                     "normalize": normalize,
                     "resumed_from_step": resume_step,
                 }
