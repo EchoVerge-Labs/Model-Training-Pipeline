@@ -9,6 +9,7 @@ from pipeline.checkpoints import STATE_FILE, latest_checkpoint, list_checkpoints
 from pipeline.masked_prediction_model import MaskedPredictionModel
 from pipeline.train_masked_prediction import prediction_perplexity, save_checkpoint
 
+DEVICE = torch.device("cuda")
 CONFIG = {
     "hidden_size": 32,
     "num_hidden_layers": 2,
@@ -21,14 +22,16 @@ CONFIG = {
 
 
 def _model(clusters=8):
-    return MaskedPredictionModel.from_config(HubertConfig(**CONFIG), num_clusters=clusters)
+    return MaskedPredictionModel.from_config(HubertConfig(**CONFIG), num_clusters=clusters).to(
+        DEVICE
+    )
 
 
 def test_a_saved_checkpoint_resumes_backbone_head_optimizer_and_step(tmp_path):
     torch.manual_seed(0)
     model = _model()
     optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3)
-    x = torch.randn(2, 8000)
+    x = torch.randn(2, 8000, device=DEVICE)
     model(x).sum().backward()
     optimizer.step()  # gives Adam real state to round-trip
 

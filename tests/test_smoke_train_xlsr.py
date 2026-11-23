@@ -1,4 +1,4 @@
-"""Smoke test: 3 training steps with a tiny random model on CPU."""
+"""Smoke test: 3 training steps with a tiny random model on the GPU."""
 
 import torch
 from transformers import Wav2Vec2Config, Wav2Vec2ForPreTraining
@@ -9,6 +9,8 @@ from pipeline.train_contrastive import (
     get_tri_stage_lr,
     multiply_grads,
 )
+
+DEVICE = torch.device("cuda")
 
 
 def _tiny_model() -> Wav2Vec2ForPreTraining:
@@ -25,7 +27,7 @@ def _tiny_model() -> Wav2Vec2ForPreTraining:
         codevector_dim=32,
         proj_codevector_dim=32,
     )
-    return Wav2Vec2ForPreTraining(config)
+    return Wav2Vec2ForPreTraining(config).to(DEVICE)
 
 
 def test_tri_stage_lr():
@@ -57,8 +59,8 @@ def test_mask_and_negatives_shape():
     length -- exercise it against the tiny model, not a bare shape tuple."""
     model = _tiny_model()
     batch_size = 4
-    input_values = torch.randn(batch_size, 16000)
-    attention_mask = torch.ones(batch_size, 16000, dtype=torch.long)
+    input_values = torch.randn(batch_size, 16000, device=DEVICE)
+    attention_mask = torch.ones(batch_size, 16000, dtype=torch.long, device=DEVICE)
 
     mask_time_indices, sampled_negative_indices, sub_attention_mask = compute_mask_and_negatives(
         model,
@@ -66,7 +68,7 @@ def test_mask_and_negatives_shape():
         attention_mask,
         mask_prob=0.65,
         mask_length=10,
-        device=torch.device("cpu"),
+        device=DEVICE,
     )
 
     seq_length = int(model._get_feat_extract_output_lengths(input_values.shape[-1]))
@@ -106,8 +108,8 @@ def test_smoke_forward():
 
     for step in range(3):
         # ~1 second of 16kHz audio
-        x = torch.randn(2, 16000)
-        mask = torch.ones(2, 16000, dtype=torch.long)
+        x = torch.randn(2, 16000, device=DEVICE)
+        mask = torch.ones(2, 16000, dtype=torch.long, device=DEVICE)
 
         model.set_gumbel_temperature(get_gumbel_temperature(step, 1.0, 0.5, 0.999))
         mask_time_indices, sampled_negative_indices, _ = compute_mask_and_negatives(
@@ -116,7 +118,7 @@ def test_smoke_forward():
             mask,
             mask_prob=0.65,
             mask_length=10,
-            device=torch.device("cpu"),
+            device=DEVICE,
         )
 
         out = model(

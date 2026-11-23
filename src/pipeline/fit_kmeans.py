@@ -12,9 +12,9 @@ from pathlib import Path
 
 import joblib
 import numpy as np
-import torch
 from sklearn.cluster import MiniBatchKMeans
 
+from pipeline.device import get_device
 from pipeline.layer_features import (
     base_normalizes,
     layer_features,
@@ -80,7 +80,7 @@ def main():
 
     params = Params.from_yaml(args.config)
     cfg = params.cluster
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = get_device()
 
     cuts = load_shar_cuts(params.shard.output_dir, shuffle=True, seed=cfg.seed)
     model = load_feature_model(params.pretrain.base_model, cfg.layer, device)

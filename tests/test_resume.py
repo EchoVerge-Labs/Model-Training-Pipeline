@@ -1,6 +1,6 @@
 """Checkpoint resume, auto-resume, and the collapse detector's wiring into train().
 
-Everything here uses a tiny random wav2vec2 on CPU, synthetic batches injected in
+Everything here uses a tiny random wav2vec2 on the GPU, synthetic batches injected in
 place of the shard loader, and pytest's tmp_path for every output -- never the
 repo's real reports/ or models/ directories (a real training run may be writing
 to them).
@@ -29,7 +29,7 @@ from pipeline.train_contrastive import (
 from tests.test_smoke_train_xlsr import _tiny_model
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-CPU = torch.device("cpu")
+DEVICE = torch.device("cuda")
 
 
 @pytest.fixture(autouse=True)
@@ -102,7 +102,7 @@ def _run(params: Params, tmp_path: Path, **kwargs) -> int:
         params,
         dataloader=_batches(),
         reports_dir=tmp_path / "reports",
-        device="cpu",
+        device="cuda",
         **kwargs,
     )
 
@@ -193,9 +193,9 @@ def test_model_and_optimizer_state_round_trip_through_a_checkpoint(tmp_path):
         optimizer.step()
     ckpt = save_checkpoint(model, _feature_extractor(), optimizer, 3, 0.9, tmp_path)
 
-    restored = Wav2Vec2ForPreTraining.from_pretrained(ckpt)
+    restored = Wav2Vec2ForPreTraining.from_pretrained(ckpt).to(DEVICE)
     optimizer2 = torch.optim.AdamW(list(restored.parameters()), lr=1e-3)
-    state = load_training_state(ckpt, CPU)
+    state = load_training_state(ckpt, DEVICE)
     optimizer2.load_state_dict(state["optimizer"])
 
     assert state["global_step"] == 3 and state["gumbel_temperature"] == pytest.approx(0.9)
@@ -223,7 +223,7 @@ def test_auto_resume_picks_the_newest_complete_checkpoint_and_ignores_debris(tmp
     (out / "checkpoint-final").mkdir()  # not a numbered checkpoint
 
     assert [checkpoint_step(p) for p in list_checkpoints(out)] == [6, 3]
-    path, state = find_resume(None, out, CPU)
+    path, state = find_resume(None, out, DEVICE)
     assert path.name == "checkpoint-6" and state["global_step"] == 6
 
 
@@ -233,15 +233,15 @@ def test_auto_resume_falls_back_when_the_newest_checkpoint_is_unreadable(tmp_pat
     truncated = _write_checkpoint(out, 6)
     (truncated / TRAINING_STATE_FILE).write_bytes(b"cut off mid-write")
 
-    path, state = find_resume(None, out, CPU)
+    path, state = find_resume(None, out, DEVICE)
     assert path.name == "checkpoint-3" and state["global_step"] == 3
     assert "skipping unreadable checkpoint" in capsys.readouterr().out
 
 
 def test_no_checkpoints_means_a_fresh_start(tmp_path):
-    assert find_resume(None, tmp_path / "empty", CPU) is None
+    assert find_resume(None, tmp_path / "empty", DEVICE) is None
     _write_checkpoint(tmp_path / "out", 3)
-    assert find_resume(None, tmp_path / "out", CPU, auto_resume=False) is None
+    assert find_resume(None, tmp_path / "out", DEVICE, auto_resume=False) is None
 
 
 def test_a_crash_while_saving_leaves_no_checkpoint_that_looks_valid(tmp_path, monkeypatch):

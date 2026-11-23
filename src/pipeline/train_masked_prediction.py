@@ -56,6 +56,7 @@ from pipeline.adapters import inject_adapters
 from pipeline.callbacks import MaskedAccuracyStallDetector, MLflowLogger
 from pipeline.checkpoints import STATE_FILE, latest_checkpoint, list_checkpoints
 from pipeline.datamodule import create_dataloader
+from pipeline.device import get_device
 from pipeline.masked_prediction_model import MaskedPredictionModel
 from pipeline.model_registry import get_model_spec
 from pipeline.schema import Params
@@ -194,9 +195,8 @@ def train(params: Params, config_path: str = "params.yaml"):
         dist.init_process_group("nccl")
         torch.cuda.set_device(local_rank)
 
-    device = torch.device(f"cuda:{local_rank}" if torch.cuda.is_available() else "cpu")
-    if device.type == "cuda":
-        torch.cuda.set_per_process_memory_fraction(cfg.max_gpu_memory_fraction, device)
+    device = get_device(local_rank)
+    torch.cuda.set_per_process_memory_fraction(cfg.max_gpu_memory_fraction, device)
 
     if is_main:
         print(f"World size: {world_size}, device: {device}")

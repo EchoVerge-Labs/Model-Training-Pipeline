@@ -1,4 +1,4 @@
-"""Smoke test: 3 masked-prediction training steps with a tiny random WavLM on CPU."""
+"""Smoke test: 3 masked-prediction training steps with a tiny random WavLM on the GPU."""
 
 import torch
 from torch import nn
@@ -8,6 +8,7 @@ from pipeline.masked_prediction_model import MaskedPredictionModel
 from pipeline.train_masked_prediction import compute_mask, get_tri_stage_lr
 
 NUM_CLUSTERS = 8
+DEVICE = torch.device("cuda")
 
 
 def _tiny_model() -> MaskedPredictionModel:
@@ -20,7 +21,7 @@ def _tiny_model() -> MaskedPredictionModel:
         conv_kernel=(10, 3),
         conv_stride=(5, 2),
     )
-    return MaskedPredictionModel.from_config(config, num_clusters=NUM_CLUSTERS)
+    return MaskedPredictionModel.from_config(config, num_clusters=NUM_CLUSTERS).to(DEVICE)
 
 
 def test_tri_stage_lr():
@@ -53,8 +54,8 @@ def test_compute_mask_shape():
     indexes hidden_states[mask_time_indices] directly with no dtype cast."""
     model = _tiny_model()
     batch_size = 4
-    input_values = torch.randn(batch_size, 16000)
-    attention_mask = torch.ones(batch_size, 16000, dtype=torch.long)
+    input_values = torch.randn(batch_size, 16000, device=DEVICE)
+    attention_mask = torch.ones(batch_size, 16000, dtype=torch.long, device=DEVICE)
 
     mask_time_indices, sub_attention_mask = compute_mask(
         model,
@@ -62,7 +63,7 @@ def test_compute_mask_shape():
         attention_mask,
         mask_prob=0.65,
         mask_length=10,
-        device=torch.device("cpu"),
+        device=DEVICE,
     )
 
     seq_length = int(model._get_feat_extract_output_lengths(input_values.shape[-1]))
@@ -88,8 +89,8 @@ def test_smoke_forward():
 
     for _step in range(3):
         # ~1 second of 16kHz audio
-        x = torch.randn(2, 16000)
-        mask = torch.ones(2, 16000, dtype=torch.long)
+        x = torch.randn(2, 16000, device=DEVICE)
+        mask = torch.ones(2, 16000, dtype=torch.long, device=DEVICE)
 
         mask_time_indices, _ = compute_mask(
             model,
@@ -97,13 +98,13 @@ def test_smoke_forward():
             mask,
             mask_prob=0.65,
             mask_length=10,
-            device=torch.device("cpu"),
+            device=DEVICE,
         )
 
         logits = model(x, attention_mask=mask, mask_time_indices=mask_time_indices)
         assert logits.shape == (*mask_time_indices.shape, NUM_CLUSTERS)
 
-        target = torch.randint(0, NUM_CLUSTERS, mask_time_indices.shape)
+        target = torch.randint(0, NUM_CLUSTERS, mask_time_indices.shape, device=DEVICE)
         target[~mask_time_indices] = -100
 
         loss = loss_fn(logits.transpose(1, 2), target)

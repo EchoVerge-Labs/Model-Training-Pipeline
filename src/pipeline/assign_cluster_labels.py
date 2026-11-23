@@ -11,8 +11,8 @@ import json
 from pathlib import Path
 
 import joblib
-import torch
 
+from pipeline.device import get_device
 from pipeline.layer_features import (
     base_normalizes,
     layer_features,
@@ -40,7 +40,7 @@ def main():
     cfg = params.cluster
 
     km = joblib.load(cfg.kmeans_output)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = get_device()
     model = load_feature_model(params.pretrain.base_model, cfg.layer, device)
     normalize = base_normalizes(params.pretrain.base_model)
 

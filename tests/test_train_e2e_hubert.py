@@ -1,4 +1,4 @@
-"""End-to-end train(): tiny local HuBERT, real Shar shards + label file, CPU.
+"""End-to-end train(): tiny local HuBERT, real Shar shards + label file, on the GPU.
 Covers the actual loop (normalisation, head LR groups, metrics, atomic
 checkpoints) and that relaunching resumes instead of restarting."""
 
@@ -128,7 +128,6 @@ def _params(tmp_path, base, shars, labels_path, max_updates, model_key="hubert")
 
 
 def test_train_runs_checkpoints_atomically_and_resumes(tmp_path, monkeypatch, capsys):
-    monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
     monkeypatch.chdir(tmp_path)
     base, shars, labels_path = _setup(tmp_path)
 

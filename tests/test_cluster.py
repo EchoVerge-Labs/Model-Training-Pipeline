@@ -26,7 +26,7 @@ TINY_CONFIG = HubertConfig(
     conv_stride=(5, 2),
     do_stable_layer_norm=True,
 )
-CPU = torch.device("cpu")
+DEVICE = torch.device("cuda")
 
 
 def _make_shars(tmp_path, seconds_per_clip):
@@ -47,7 +47,7 @@ def _make_shars(tmp_path, seconds_per_clip):
 def _feature_model():
     torch.manual_seed(0)
     model = HubertModel(TINY_CONFIG)
-    return truncate_to_layer(model, 2).eval()
+    return truncate_to_layer(model, 2).eval().to(DEVICE)
 
 
 def test_truncate_to_layer_gives_the_raw_output_of_that_layer():
@@ -55,8 +55,8 @@ def test_truncate_to_layer_gives_the_raw_output_of_that_layer():
     raw output of layer N; the truncated model must return exactly that, not
     the LayerNorm'd one."""
     torch.manual_seed(0)
-    full = HubertModel(TINY_CONFIG).eval()
-    x = torch.randn(1, 8000)
+    full = HubertModel(TINY_CONFIG).eval().to(DEVICE)
+    x = torch.randn(1, 8000, device=DEVICE)
     with torch.no_grad():
         expected = full(x, output_hidden_states=True).hidden_states[2]
         truncated = truncate_to_layer(full, 2)
@@ -68,7 +68,7 @@ def test_truncate_to_layer_gives_the_raw_output_of_that_layer():
 def test_layer_features_frame_count_matches_the_training_side_arithmetic():
     model = _feature_model()
     for n_samples in (8000, 16001, 24123):
-        feats = layer_features(model, torch.randn(n_samples), True, CPU)
+        feats = layer_features(model, torch.randn(n_samples), True, DEVICE)
         assert feats.shape == (int(model._get_feat_extract_output_lengths(n_samples)), 16)
 
 
@@ -87,7 +87,7 @@ def test_fit_and_assign_labels_round_trip(tmp_path):
     model = _feature_model()
 
     def extract(waveform):
-        return layer_features(model, waveform, True, CPU)
+        return layer_features(model, waveform, True, DEVICE)
 
     features, n_cuts, hours = collect_frames(
         load_shar_cuts(shars, shuffle=True, seed=1),
@@ -117,7 +117,7 @@ def test_collect_frames_stops_at_the_hour_budget_and_caps_the_frames(tmp_path):
     model = _feature_model()
     feats, n_cuts, hours = collect_frames(
         load_shar_cuts(shars),
-        lambda w: layer_features(model, w, True, CPU),
+        lambda w: layer_features(model, w, True, DEVICE),
         sample_hours=5.0 / 3600,  # 5 s: the first 3 two-second cuts cross it
         max_frames=100,
         seed=0,

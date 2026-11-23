@@ -67,6 +67,7 @@ from transformers.models.wav2vec2.modeling_wav2vec2 import (
 from pipeline.adapters import inject_adapters
 from pipeline.callbacks import CodebookCollapseDetector, MLflowLogger
 from pipeline.datamodule import create_dataloader
+from pipeline.device import get_device
 from pipeline.model_registry import get_model_spec
 from pipeline.schema import Params
 
@@ -183,11 +184,13 @@ def get_gumbel_temperature(
 # diversity_loss (scaled by mask_time_indices.sum()) are UNNORMALIZED sums
 # over masked positions -- dividing only by grad_accum_steps would let
 # gradient magnitude swing with batch size / mask density between steps.
-# The HF reference rescales each micro-batch's just-computed gradient by
-# 1/num_losses (that micro-batch's masked-position count) right after its
-# backward() call. Under DDP, gradients are already averaged across ranks by
-# DDP's backward-time all-reduce, so the multiplier becomes
-# world_size/total_num_losses instead of 1/num_losses to compensate.
+# The training loop therefore sums the gradients of every micro-batch of an
+# update and rescales them ONCE by 1/(masked positions in the whole update), like
+# fairseq. (The HF example rescales after every backward(), which is only correct
+# without gradient accumulation: with accumulation it shrinks the gradients already
+# accumulated, so only the last micro-batch would count.) Under DDP, gradients are
+# already averaged across ranks by DDP's backward-time all-reduce, so the
+# multiplier is world_size/total_num_losses.
 
 
 def multiply_grads(params, c):
@@ -394,9 +397,8 @@ def train(
         dist.init_process_group("nccl")
         torch.cuda.set_device(local_rank)
 
-    device = torch.device(device or (f"cuda:{local_rank}" if torch.cuda.is_available() else "cpu"))
-    if device.type == "cuda":
-        torch.cuda.set_per_process_memory_fraction(cfg.max_gpu_memory_fraction, device)
+    device = get_device(local_rank, device)
+    torch.cuda.set_per_process_memory_fraction(cfg.max_gpu_memory_fraction, device)
 
     # ── Output dir + resume ──
     output_dir = Path(cfg.output_dir)
@@ -620,6 +622,7 @@ def train(
 
     while global_step < cfg.max_updates:
         optimizer.zero_grad()
+        update_num_losses = torch.zeros((), device=device)  # masked positions in this update
 
         for accum_step in range(grad_accum_steps):
             # Get batch (restart iterator if exhausted = new epoch)
@@ -665,26 +668,14 @@ def train(
             # Loss = contrastive + diversity_weight * diversity (computed internally
             # by Wav2Vec2ForPreTraining -- do not add diversity loss a second time).
             # Both components use reduction="sum" over masked positions, so the raw
-            # loss/gradient scales with mask count -- normalized below via
-            # multiply_grads(), not by dividing the loss itself (matches the HF
-            # reference's post-backward gradient rescale).
+            # loss/gradient scales with mask count. Backward the UNNORMALISED sum: the
+            # gradients of all micro-batches add up in .grad and are divided once,
+            # after this loop, by the masked-position count of the whole update.
             loss = outputs.loss
             num_losses = mask_time_indices.sum().float()
 
-            scaled_loss = loss / grad_accum_steps
-            scaled_loss.backward()
-
-            trainable_params = [p for p in model.parameters() if p.requires_grad]
-            if world_size > 1:
-                # DDP already averaged this micro-batch's gradient across ranks
-                # during backward(); rescale by world_size/total_num_losses to
-                # turn that average into sum(grad_i)/sum(num_losses_i).
-                num_losses_total = num_losses.clone().to(device)
-                dist.all_reduce(num_losses_total, op=dist.ReduceOp.SUM)
-                gradient_multiplier = world_size / num_losses_total.clamp(min=1)
-            else:
-                gradient_multiplier = 1.0 / num_losses.clamp(min=1)
-            multiply_grads(trainable_params, gradient_multiplier)
+            loss.backward()
+            update_num_losses += num_losses.detach().to(device)
 
             # Track losses for logging
             with torch.no_grad():
@@ -703,9 +694,18 @@ def train(
                 accum_num_losses += 1
                 accum_audio_seconds += attention_mask.sum().item() / 16000.0  # 16kHz
 
+        # Normalise the accumulated gradient ONCE per update by the masked-position count
+        # of the whole update (all micro-batches, all ranks). Rescaling after every
+        # micro-batch instead shrinks the gradients already accumulated, so only the
+        # last micro-batch would count. DDP averages each backward across ranks, hence
+        # world_size / total_num_losses.
+        trainable_params = [p for p in model.parameters() if p.requires_grad]
+        if world_size > 1:
+            dist.all_reduce(update_num_losses, op=dist.ReduceOp.SUM)
+        multiply_grads(trainable_params, world_size / update_num_losses.clamp(min=1))
+
         # Gradient clipping (grads are already rescaled by mask count above, so
-        # this clips the properly-normalized gradient, matching get_grad_norm's
-        # role as a monitoring-only stat in the HF reference)
+        # this clips the properly-normalised gradient)
         if cfg.max_grad_norm > 0:
             grad_norm = torch.nn.utils.clip_grad_norm_(
                 [p for p in model.parameters() if p.requires_grad],
