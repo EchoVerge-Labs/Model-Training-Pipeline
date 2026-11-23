@@ -193,6 +193,14 @@ def get_gumbel_temperature(
 # multiplier is world_size/total_num_losses.
 
 
+def skips_layers(model) -> bool:
+    """True if LayerDrop can skip transformer layers. A skipped layer's parameters get no
+    gradient that step, which DDP only tolerates with find_unused_parameters=True (without it
+    the next step fails with "Expected to have finished reduction in the prior iteration").
+    Left off when LayerDrop is 0, since the unused-parameter search costs an extra graph walk."""
+    return model.config.layerdrop > 0
+
+
 def multiply_grads(params, c):
     """Multiplies grads by a constant *c*."""
     for p in params:
@@ -478,7 +486,7 @@ def train(
     model.to(device)
 
     if world_size > 1:
-        model = DDP(model, device_ids=[local_rank], find_unused_parameters=False)
+        model = DDP(model, device_ids=[local_rank], find_unused_parameters=skips_layers(model))
 
     # Unwrap for accessing config/methods not proxied by DDP (mask/negative
     # sampling helpers, save_pretrained, set_gumbel_temperature)
