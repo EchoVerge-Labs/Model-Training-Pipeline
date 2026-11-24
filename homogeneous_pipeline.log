@@ -1,0 +1,289 @@
+/home/anas22/EchoVerge-LABS/Model-Training-Pipeline/.venv/bin/python -m pipeline.fit_kmeans --config params.yaml
+Loading weights:   0%|          | 0/488 [00:00<?, ?it/s]Loading weights: 100%|██████████| 488/488 [00:00<00:00, 32930.90it/s]
+Read 7571 cuts (40.0h) -> 1998874 frames of layer 18, dim=1024
+Saved k-means model to models/kmeans/wavlm-large-L18-k500.joblib
+Wrote reports/kmeans_stats.json: {'layer': 18, 'num_clusters': 500, 'frames_used': 1998874, 'sampled_cuts': 7571, 'sampled_hours': 40.0, 'inertia': 65107337216.0, 'cluster_usage_min': 1, 'cluster_usage_max': 13614, 'clusters_used': 500}
+/home/anas22/EchoVerge-LABS/Model-Training-Pipeline/.venv/bin/python -m pipeline.assign_cluster_labels --config params.yaml
+Loading weights:   0%|          | 0/488 [00:00<?, ?it/s]Loading weights: 100%|██████████| 488/488 [00:00<00:00, 45194.65it/s]
+Assigning cluster labels to every cut in data/shars
+  1000 cuts labelled
+  2000 cuts labelled
+  3000 cuts labelled
+  4000 cuts labelled
+  5000 cuts labelled
+  6000 cuts labelled
+  7000 cuts labelled
+  8000 cuts labelled
+  9000 cuts labelled
+  10000 cuts labelled
+  11000 cuts labelled
+  12000 cuts labelled
+  13000 cuts labelled
+  14000 cuts labelled
+  15000 cuts labelled
+  16000 cuts labelled
+  17000 cuts labelled
+  18000 cuts labelled
+  19000 cuts labelled
+  20000 cuts labelled
+  21000 cuts labelled
+  22000 cuts labelled
+  23000 cuts labelled
+  24000 cuts labelled
+  25000 cuts labelled
+  26000 cuts labelled
+  27000 cuts labelled
+  28000 cuts labelled
+  29000 cuts labelled
+  30000 cuts labelled
+  31000 cuts labelled
+  32000 cuts labelled
+  33000 cuts labelled
+  34000 cuts labelled
+Wrote labels for 34947 cuts to data/labels/wavlm_train_labels.jsonl.gz
+/home/anas22/EchoVerge-LABS/Model-Training-Pipeline/.venv/bin/python -m pipeline.language_batching --overlay configs/language_homogeneous.yaml
+{
+  "manifest": "data/manifests/train.jsonl",
+  "reference": "git:origin/WavLM-Large:data/manifests/train.jsonl",
+  "languages": {
+    "sinhala": {
+      "original_clip_count": 17143,
+      "new_clip_count": 17143,
+      "matching_ids": 17143,
+      "missing_from_new": 0,
+      "extra_in_new": 0,
+      "original_hours": 94.4922,
+      "new_hours": 94.4922,
+      "mismatch_count": 0,
+      "shar_cuts": 18917,
+      "shar_hours": 94.3671,
+      "shar_hours_ok": true
+    },
+    "tamil": {
+      "original_clip_count": 12819,
+      "new_clip_count": 12819,
+      "matching_ids": 12819,
+      "missing_from_new": 0,
+      "extra_in_new": 0,
+      "original_hours": 90.3937,
+      "new_hours": 90.3937,
+      "mismatch_count": 0,
+      "shar_cuts": 16030,
+      "shar_hours": 90.1565,
+      "shar_hours_ok": true
+    }
+  },
+  "total_mismatches": 0,
+  "ok": true
+}
+OK: same clips as git:origin/WavLM-Large:data/manifests/train.jsonl. Report: reports/language_batching_dataset_check.json
+/home/anas22/EchoVerge-LABS/Model-Training-Pipeline/.venv/bin/python -m pipeline.language_batching --overlay configs/language_homogeneous.yaml
+{
+  "manifest": "data/manifests/train.jsonl",
+  "reference": "git:origin/WavLM-Large:data/manifests/train.jsonl",
+  "languages": {
+    "sinhala": {
+      "original_clip_count": 17143,
+      "new_clip_count": 17143,
+      "matching_ids": 17143,
+      "missing_from_new": 0,
+      "extra_in_new": 0,
+      "original_hours": 94.4922,
+      "new_hours": 94.4922,
+      "mismatch_count": 0,
+      "shar_cuts": 18917,
+      "shar_hours": 94.3671,
+      "shar_hours_ok": true
+    },
+    "tamil": {
+      "original_clip_count": 12819,
+      "new_clip_count": 12819,
+      "matching_ids": 12819,
+      "missing_from_new": 0,
+      "extra_in_new": 0,
+      "original_hours": 90.3937,
+      "new_hours": 90.3937,
+      "mismatch_count": 0,
+      "shar_cuts": 16030,
+      "shar_hours": 90.1565,
+      "shar_hours_ok": true
+    }
+  },
+  "total_mismatches": 0,
+  "ok": true
+}
+OK: same clips as git:origin/WavLM-Large:data/manifests/train.jsonl. Report: reports/language_batching_dataset_check.json
+bash scripts/launch_pretrain.sh --overlay configs/language_homogeneous.yaml
+NCCL environment loaded for GB10 2-node setup
+  Interface: enp1s0f0np0
+  HCA: mlx5_0
+  Algorithm: Ring
+Launching pre-training: nnodes=1, node_rank=0
+Master: 127.0.0.1:29500
+World size: 1, device: cuda:0
+Base model: microsoft/wavlm-large
+Precision: bf16
+Max updates: 13500
+Peak LR: 5e-05
+Num clusters: 500
+Target batch seconds: 1600.0
+Language-homogeneous updates: balanced_random, languages=['sinhala', 'tamil'], p={'sinhala': 0.5, 'tamil': 0.5}, window=20, seed=1337
+Loading weights:   0%|          | 0/488 [00:00<?, ?it/s]Loading weights: 100%|██████████| 488/488 [00:00<00:00, 42109.58it/s]
+Parameters: 316.0M total, 311.8M trainable (CNN frozen)
+Waveform normalisation (do_normalize): True
+Gradient accumulation steps: 8
+Effective batch: ~1600s audio per update
+
+============================================================
+Starting continued pre-training
+============================================================
+
+/home/anas22/EchoVerge-LABS/Model-Training-Pipeline/.venv/lib/python3.12/site-packages/torch/nn/functional.py:6829: UserWarning: Support for mismatched key_padding_mask and attn_mask is deprecated. Use same type for both instead.
+  key_padding_mask = _canonical_mask(
+Step 500/13500 | loss=6.0432 | acc=0.0176 | acc_unmasked=0.0315 | ppl=497.5 | gnorm=0.210 | lr=2.49e-05 | 51 aud-s/wall-s
+  languages | sinhala: 250 upd (50.0%) 99.91h, tamil: 250 upd (50.0%) 100.28h | last update: sinhala | mixed-batch violations=0 mixed-accum windows=0
+Step 1000/13500 | loss=5.1416 | acc=0.0794 | acc_unmasked=0.1925 | ppl=482.8 | gnorm=0.304 | lr=5.00e-05 | 51 aud-s/wall-s
+  languages | sinhala: 500 upd (50.0%) 200.00h, tamil: 500 upd (50.0%) 200.71h | last update: sinhala | mixed-batch violations=0 mixed-accum windows=0
+Step 1500/13500 | loss=4.2856 | acc=0.1455 | acc_unmasked=0.3778 | ppl=468.0 | gnorm=0.430 | lr=5.00e-05 | 51 aud-s/wall-s
+  languages | sinhala: 750 upd (50.0%) 300.06h, tamil: 750 upd (50.0%) 301.08h | last update: sinhala | mixed-batch violations=0 mixed-accum windows=0
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:09<00:00,  9.84s/it]Writing model shards: 100%|██████████| 1/1 [00:09<00:00,  9.84s/it]
+  Saved checkpoint: models/wavlm-large-si-ta-200h-homogeneous/checkpoint-1500
+Step 2000/13500 | loss=3.9412 | acc=0.1765 | acc_unmasked=0.4632 | ppl=465.3 | gnorm=0.460 | lr=5.00e-05 | 51 aud-s/wall-s
+  languages | sinhala: 1000 upd (50.0%) 400.12h, tamil: 1000 upd (50.0%) 401.13h | last update: sinhala | mixed-batch violations=0 mixed-accum windows=0
+Step 2500/13500 | loss=3.7997 | acc=0.1896 | acc_unmasked=0.4933 | ppl=465.3 | gnorm=0.458 | lr=5.00e-05 | 51 aud-s/wall-s
+  languages | sinhala: 1250 upd (50.0%) 500.33h, tamil: 1250 upd (50.0%) 501.24h | last update: tamil | mixed-batch violations=0 mixed-accum windows=0
+Step 3000/13500 | loss=3.7077 | acc=0.1984 | acc_unmasked=0.5099 | ppl=465.1 | gnorm=0.458 | lr=5.00e-05 | 51 aud-s/wall-s
+  languages | sinhala: 1500 upd (50.0%) 600.11h, tamil: 1500 upd (50.0%) 601.29h | last update: sinhala | mixed-batch violations=0 mixed-accum windows=0
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:08<00:00,  8.52s/it]Writing model shards: 100%|██████████| 1/1 [00:08<00:00,  8.52s/it]
+  Saved checkpoint: models/wavlm-large-si-ta-200h-homogeneous/checkpoint-3000
+Step 3500/13500 | loss=3.6523 | acc=0.2040 | acc_unmasked=0.5197 | ppl=464.9 | gnorm=0.452 | lr=5.00e-05 | 51 aud-s/wall-s
+  languages | sinhala: 1750 upd (50.0%) 700.00h, tamil: 1750 upd (50.0%) 701.41h | last update: tamil | mixed-batch violations=0 mixed-accum windows=0
+Step 4000/13500 | loss=3.6144 | acc=0.2081 | acc_unmasked=0.5259 | ppl=465.0 | gnorm=0.450 | lr=5.00e-05 | 51 aud-s/wall-s
+  languages | sinhala: 2000 upd (50.0%) 799.81h, tamil: 2000 upd (50.0%) 801.45h | last update: tamil | mixed-batch violations=0 mixed-accum windows=0
+Step 4500/13500 | loss=3.5738 | acc=0.2125 | acc_unmasked=0.5312 | ppl=465.0 | gnorm=0.455 | lr=5.00e-05 | 51 aud-s/wall-s
+  languages | sinhala: 2250 upd (50.0%) 899.81h, tamil: 2250 upd (50.0%) 901.34h | last update: sinhala | mixed-batch violations=0 mixed-accum windows=0
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:10<00:00, 10.03s/it]Writing model shards: 100%|██████████| 1/1 [00:10<00:00, 10.03s/it]
+  Saved checkpoint: models/wavlm-large-si-ta-200h-homogeneous/checkpoint-4500
+Step 5000/13500 | loss=3.5455 | acc=0.2158 | acc_unmasked=0.5356 | ppl=464.9 | gnorm=0.455 | lr=5.00e-05 | 51 aud-s/wall-s
+  languages | sinhala: 2500 upd (50.0%) 999.83h, tamil: 2500 upd (50.0%) 1001.46h | last update: tamil | mixed-batch violations=0 mixed-accum windows=0
+Step 5500/13500 | loss=3.5193 | acc=0.2190 | acc_unmasked=0.5387 | ppl=465.0 | gnorm=0.444 | lr=5.00e-05 | 51 aud-s/wall-s
+  languages | sinhala: 2750 upd (50.0%) 1099.89h, tamil: 2750 upd (50.0%) 1101.71h | last update: tamil | mixed-batch violations=0 mixed-accum windows=0
+Step 6000/13500 | loss=3.4912 | acc=0.2221 | acc_unmasked=0.5423 | ppl=464.8 | gnorm=0.450 | lr=5.00e-05 | 51 aud-s/wall-s
+  languages | sinhala: 3000 upd (50.0%) 1199.84h, tamil: 3000 upd (50.0%) 1201.60h | last update: sinhala | mixed-batch violations=0 mixed-accum windows=0
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:09<00:00,  9.65s/it]Writing model shards: 100%|██████████| 1/1 [00:09<00:00,  9.65s/it]
+  Saved checkpoint: models/wavlm-large-si-ta-200h-homogeneous/checkpoint-6000
+Step 6500/13500 | loss=3.4724 | acc=0.2243 | acc_unmasked=0.5436 | ppl=464.8 | gnorm=0.448 | lr=3.68e-05 | 51 aud-s/wall-s
+  languages | sinhala: 3250 upd (50.0%) 1299.62h, tamil: 3250 upd (50.0%) 1301.76h | last update: tamil | mixed-batch violations=0 mixed-accum windows=0
+Step 7000/13500 | loss=3.4556 | acc=0.2264 | acc_unmasked=0.5467 | ppl=465.0 | gnorm=0.433 | lr=2.71e-05 | 51 aud-s/wall-s
+  languages | sinhala: 3500 upd (50.0%) 1399.48h, tamil: 3500 upd (50.0%) 1401.97h | last update: tamil | mixed-batch violations=0 mixed-accum windows=0
+Step 7500/13500 | loss=3.4451 | acc=0.2276 | acc_unmasked=0.5470 | ppl=464.9 | gnorm=0.434 | lr=1.99e-05 | 51 aud-s/wall-s
+  languages | sinhala: 3750 upd (50.0%) 1499.45h, tamil: 3750 upd (50.0%) 1502.09h | last update: sinhala | mixed-batch violations=0 mixed-accum windows=0
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:09<00:00,  9.69s/it]Writing model shards: 100%|██████████| 1/1 [00:09<00:00,  9.69s/it]
+  Saved checkpoint: models/wavlm-large-si-ta-200h-homogeneous/checkpoint-7500
+Step 8000/13500 | loss=3.4317 | acc=0.2291 | acc_unmasked=0.5490 | ppl=465.0 | gnorm=0.435 | lr=1.47e-05 | 51 aud-s/wall-s
+  languages | sinhala: 4000 upd (50.0%) 1599.35h, tamil: 4000 upd (50.0%) 1602.23h | last update: tamil | mixed-batch violations=0 mixed-accum windows=0
+Step 8500/13500 | loss=3.4281 | acc=0.2299 | acc_unmasked=0.5495 | ppl=464.9 | gnorm=0.435 | lr=1.08e-05 | 51 aud-s/wall-s
+  languages | sinhala: 4250 upd (50.0%) 1699.07h, tamil: 4250 upd (50.0%) 1702.59h | last update: tamil | mixed-batch violations=0 mixed-accum windows=0
+Step 9000/13500 | loss=3.4216 | acc=0.2304 | acc_unmasked=0.5501 | ppl=464.9 | gnorm=0.446 | lr=7.93e-06 | 51 aud-s/wall-s
+  languages | sinhala: 4500 upd (50.0%) 1799.27h, tamil: 4500 upd (50.0%) 1802.55h | last update: tamil | mixed-batch violations=0 mixed-accum windows=0
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:09<00:00,  9.91s/it]Writing model shards: 100%|██████████| 1/1 [00:09<00:00,  9.91s/it]
+  Saved checkpoint: models/wavlm-large-si-ta-200h-homogeneous/checkpoint-9000
+Step 9500/13500 | loss=3.4170 | acc=0.2308 | acc_unmasked=0.5502 | ppl=464.8 | gnorm=0.439 | lr=5.83e-06 | 50 aud-s/wall-s
+  languages | sinhala: 4750 upd (50.0%) 1899.27h, tamil: 4750 upd (50.0%) 1902.55h | last update: tamil | mixed-batch violations=0 mixed-accum windows=0
+/home/anas22/EchoVerge-LABS/Model-Training-Pipeline/.venv/bin/python -m pipeline.language_batching --overlay configs/language_homogeneous.yaml
+{
+  "manifest": "data/manifests/train.jsonl",
+  "reference": "git:origin/WavLM-Large:data/manifests/train.jsonl",
+  "languages": {
+    "sinhala": {
+      "original_clip_count": 17143,
+      "new_clip_count": 17143,
+      "matching_ids": 17143,
+      "missing_from_new": 0,
+      "extra_in_new": 0,
+      "original_hours": 94.4922,
+      "new_hours": 94.4922,
+      "mismatch_count": 0,
+      "shar_cuts": 18917,
+      "shar_hours": 94.3671,
+      "shar_hours_ok": true
+    },
+    "tamil": {
+      "original_clip_count": 12819,
+      "new_clip_count": 12819,
+      "matching_ids": 12819,
+      "missing_from_new": 0,
+      "extra_in_new": 0,
+      "original_hours": 90.3937,
+      "new_hours": 90.3937,
+      "mismatch_count": 0,
+      "shar_cuts": 16030,
+      "shar_hours": 90.1565,
+      "shar_hours_ok": true
+    }
+  },
+  "total_mismatches": 0,
+  "ok": true
+}
+OK: same clips as git:origin/WavLM-Large:data/manifests/train.jsonl. Report: reports/language_batching_dataset_check.json
+bash scripts/launch_pretrain.sh --overlay configs/language_homogeneous.yaml
+NCCL environment loaded for GB10 2-node setup
+  Interface: enp1s0f0np0
+  HCA: mlx5_0
+  Algorithm: Ring
+Launching pre-training: nnodes=1, node_rank=0
+Master: 127.0.0.1:29500
+World size: 1, device: cuda:0
+Base model: microsoft/wavlm-large
+Precision: bf16
+Max updates: 13500
+Peak LR: 5e-05
+Num clusters: 500
+Target batch seconds: 1600.0
+Language-homogeneous updates: balanced_random, languages=['sinhala', 'tamil'], p={'sinhala': 0.5, 'tamil': 0.5}, window=20, seed=1337
+Loading weights:   0%|          | 0/488 [00:00<?, ?it/s]Loading weights: 100%|██████████| 488/488 [00:00<00:00, 42290.55it/s]
+Loading weights:   0%|          | 0/488 [00:00<?, ?it/s]Loading weights: 100%|██████████| 488/488 [00:00<00:00, 5127.19it/s]
+Resuming from models/wavlm-large-si-ta-200h-homogeneous/checkpoint-9000 (step 9000)
+Parameters: 316.0M total, 311.8M trainable (CNN frozen)
+Waveform normalisation (do_normalize): True
+Gradient accumulation steps: 8
+Effective batch: ~1600s audio per update
+
+============================================================
+Starting continued pre-training
+============================================================
+
+/home/anas22/EchoVerge-LABS/Model-Training-Pipeline/.venv/lib/python3.12/site-packages/torch/nn/functional.py:6829: UserWarning: Support for mismatched key_padding_mask and attn_mask is deprecated. Use same type for both instead.
+  key_padding_mask = _canonical_mask(
+Step 9500/13500 | loss=3.4192 | acc=0.2304 | acc_unmasked=0.5497 | ppl=464.8 | gnorm=0.438 | lr=5.83e-06 | 51 aud-s/wall-s
+  languages | sinhala: 4750 upd (50.0%) 1899.18h, tamil: 4750 upd (50.0%) 1902.84h | last update: tamil | mixed-batch violations=0 mixed-accum windows=0
+Step 10000/13500 | loss=3.4163 | acc=0.2314 | acc_unmasked=0.5507 | ppl=464.8 | gnorm=0.431 | lr=4.29e-06 | 51 aud-s/wall-s
+  languages | sinhala: 5000 upd (50.0%) 1999.27h, tamil: 5000 upd (50.0%) 2003.26h | last update: sinhala | mixed-batch violations=0 mixed-accum windows=0
+Step 10500/13500 | loss=3.4123 | acc=0.2316 | acc_unmasked=0.5508 | ppl=464.9 | gnorm=0.437 | lr=3.16e-06 | 51 aud-s/wall-s
+  languages | sinhala: 5250 upd (50.0%) 2099.33h, tamil: 5250 upd (50.0%) 2103.63h | last update: tamil | mixed-batch violations=0 mixed-accum windows=0
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:09<00:00,  9.88s/it]Writing model shards: 100%|██████████| 1/1 [00:09<00:00,  9.88s/it]
+  Saved checkpoint: models/wavlm-large-si-ta-200h-homogeneous/checkpoint-10500
+Step 11000/13500 | loss=3.4160 | acc=0.2312 | acc_unmasked=0.5507 | ppl=464.9 | gnorm=0.438 | lr=2.32e-06 | 51 aud-s/wall-s
+  languages | sinhala: 5500 upd (50.0%) 2199.39h, tamil: 5500 upd (50.0%) 2203.68h | last update: sinhala | mixed-batch violations=0 mixed-accum windows=0
+Step 11500/13500 | loss=3.4135 | acc=0.2315 | acc_unmasked=0.5506 | ppl=464.9 | gnorm=0.440 | lr=1.71e-06 | 51 aud-s/wall-s
+  languages | sinhala: 5750 upd (50.0%) 2299.60h, tamil: 5750 upd (50.0%) 2303.79h | last update: sinhala | mixed-batch violations=0 mixed-accum windows=0
+Step 12000/13500 | loss=3.4062 | acc=0.2323 | acc_unmasked=0.5515 | ppl=464.9 | gnorm=0.437 | lr=1.26e-06 | 51 aud-s/wall-s
+  languages | sinhala: 6000 upd (50.0%) 2399.38h, tamil: 6000 upd (50.0%) 2403.84h | last update: sinhala | mixed-batch violations=0 mixed-accum windows=0
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:08<00:00,  8.15s/it]Writing model shards: 100%|██████████| 1/1 [00:08<00:00,  8.15s/it]
+  Saved checkpoint: models/wavlm-large-si-ta-200h-homogeneous/checkpoint-12000
+  Removing old checkpoint: checkpoint-1500
+Step 12500/13500 | loss=3.4082 | acc=0.2319 | acc_unmasked=0.5513 | ppl=464.9 | gnorm=0.439 | lr=9.24e-07 | 51 aud-s/wall-s
+  languages | sinhala: 6250 upd (50.0%) 2499.27h, tamil: 6250 upd (50.0%) 2503.97h | last update: sinhala | mixed-batch violations=0 mixed-accum windows=0
+Step 13000/13500 | loss=3.4114 | acc=0.2316 | acc_unmasked=0.5513 | ppl=464.8 | gnorm=0.438 | lr=6.80e-07 | 51 aud-s/wall-s
+  languages | sinhala: 6500 upd (50.0%) 2599.09h, tamil: 6500 upd (50.0%) 2604.00h | last update: tamil | mixed-batch violations=0 mixed-accum windows=0
+Step 13500/13500 | loss=3.4069 | acc=0.2319 | acc_unmasked=0.5511 | ppl=464.8 | gnorm=0.438 | lr=5.00e-07 | 51 aud-s/wall-s
+  languages | sinhala: 6750 upd (50.0%) 2699.08h, tamil: 6750 upd (50.0%) 2703.89h | last update: sinhala | mixed-batch violations=0 mixed-accum windows=0
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:08<00:00,  8.61s/it]Writing model shards: 100%|██████████| 1/1 [00:08<00:00,  8.61s/it]
+  Saved checkpoint: models/wavlm-large-si-ta-200h-homogeneous/checkpoint-13500
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]Writing model shards: 100%|██████████| 1/1 [00:08<00:00,  8.41s/it]Writing model shards: 100%|██████████| 1/1 [00:08<00:00,  8.41s/it]
+🏃 View run wavlm-large-copt-si-ta-200h-homogeneous-batches at: https://dagshub.com/EchoVerge-LABS/Model-Training-Pipeline.mlflow/#/experiments/1/runs/2100591961b146f697962ecc8585cc46
+🧪 View experiment at: https://dagshub.com/EchoVerge-LABS/Model-Training-Pipeline.mlflow/#/experiments/1
+
+Pre-training complete. 13500 updates.
+Model saved to models/wavlm-large-si-ta-200h-homogeneous
+Pre-training complete.

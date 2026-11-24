@@ -1,4 +1,7 @@
 # Data (DVC-tracked)
+/data/labels/
+/data/shars_single/
+/data/shars_xlsr/
 /data/raw/
 /data/shars/
 /data/catalog/*.csv
