@@ -132,6 +132,11 @@ collapsed; rows that don't resolve to exactly one file are set aside in
 Run them in **`tmux`** (not `nohup`), and before launching either, check you're not already
 running this pipeline as part of a larger session on the same GPU.
 
+**Always pass `MODEL=`.** Every per-model target defaults to `MODEL=mhubert147`, so a `make
+train` that loses its `MODEL=` trains mHuBERT-147 — silently, and for days. `make run-name
+MODEL=<key> EXPERIMENT=<name>` prints the run name; if it isn't the model you meant, nothing
+below will be either.
+
 ```bash
 cd ~/EchoVerge-LABS/Model-Training-Pipeline
 git branch --show-current        # confirm you are on the branch you mean to run
@@ -153,7 +158,10 @@ make shard                           # pack into Lhotse Shar tarballs -> data/sh
 # --- per model: example WavLM (a HuBERT-family, masked-prediction model) ---
 # Pick the model with MODEL=, and name this run with EXPERIMENT= (omit it for the
 # params file's default). Every command below takes the SAME MODEL/EXPERIMENT pair.
-M="MODEL=wavlm EXPERIMENT=si-ta-200h"
+# `export`, not a plain assignment: tmux starts a fresh shell, and an unexported $M
+# would expand to nothing there -- `make train` alone falls back to MODEL=mhubert147
+# and trains the wrong model for days without complaining.
+export M="MODEL=wavlm EXPERIMENT=si-ta-200h"
 
 make phase0 MODEL=wavlm              # throughput + peak memory + wall-clock estimate (per model)
 make fit-kmeans $M                   # HuBERT family only: k-means on the base model's features
@@ -161,12 +169,14 @@ make labels     $M                   # HuBERT family only: cluster id per frame 
 
 # name the tmux session after the run, so several runs are never confused
 RUN=$(make run-name $M)              # -> wavlm-large-si-ta-200h
-tmux new -s "$RUN"
-make train $M                        # <- run this INSIDE tmux
+tmux new -s "$RUN" "make train $M"   # the command is expanded HERE, by this shell
 #   13,500 updates; checkpoints every 1,500; milestones 4500/9000/13500
 #   output: models/wavlm-large-si-ta-200h/ ; log: logs/wavlm-large-si-ta-200h.log
 #   detach: Ctrl-b d   |   re-attach: tmux attach -t wavlm-large-si-ta-200h
-#   crashed after a checkpoint? just `make train $M` again -> auto-resumes from the newest one.
+#   crashed after a checkpoint? re-run the same command -> auto-resumes from the newest one.
+
+# confirm you launched what you meant to, before walking away
+head -3 logs/$RUN.log                # names the model and its params file
 
 # watch progress (another terminal; do NOT trust pretrain_metrics-*.json until it finishes)
 tail -f reports/pretrain_curves-wavlm-large-si-ta-200h.csv   # live: step, loss, accuracy/perplexity
@@ -182,11 +192,10 @@ make report $M                       # aggregate -> reports/results-<run>.md + r
 The contrastive models (`xlsr`, `wav2vec2`) are identical **minus** `fit-kmeans`/`labels`:
 
 ```bash
-M="MODEL=xlsr EXPERIMENT=si-ta-200h-norm"
+export M="MODEL=xlsr EXPERIMENT=si-ta-200h-norm"
 make phase0 MODEL=xlsr
-tmux new -s "$(make run-name $M)"    # -> xlsr300m-si-ta-200h-norm
-make train $M                        # inside tmux
-make ckpt $M && make bench $M && make report $M
+tmux new -s "$(make run-name $M)" "make train $M"   # -> xlsr300m-si-ta-200h-norm
+make ckpt $M && make bench $M && make report $M     # after it finishes
 ```
 
 `make all MODEL=<key> EXPERIMENT=<name>` chains
