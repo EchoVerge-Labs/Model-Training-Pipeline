@@ -56,10 +56,10 @@ setup:  ## install package + dev deps
 	$(PYTHON) -m pip install -e ".[data,dev]"
 
 lint:  ## ruff check + format check
-	ruff check src tests && ruff format --check src tests
+	$(PYTHON) -m ruff check src tests scripts && $(PYTHON) -m ruff format --check src tests scripts
 
 test:  ## run unit tests
-	pytest -q tests/
+	$(PYTHON) -m pytest -q tests/
 
 # ── Individual pipeline stages ──────────────────────
 
