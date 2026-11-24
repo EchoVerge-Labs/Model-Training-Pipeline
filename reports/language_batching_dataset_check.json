@@ -1,0 +1,34 @@
+{
+  "manifest": "data/manifests/train.jsonl",
+  "reference": "git:origin/WavLM-Large:data/manifests/train.jsonl",
+  "languages": {
+    "sinhala": {
+      "original_clip_count": 17143,
+      "new_clip_count": 17143,
+      "matching_ids": 17143,
+      "missing_from_new": 0,
+      "extra_in_new": 0,
+      "original_hours": 94.4922,
+      "new_hours": 94.4922,
+      "mismatch_count": 0,
+      "shar_cuts": 18917,
+      "shar_hours": 94.3671,
+      "shar_hours_ok": true
+    },
+    "tamil": {
+      "original_clip_count": 12819,
+      "new_clip_count": 12819,
+      "matching_ids": 12819,
+      "missing_from_new": 0,
+      "extra_in_new": 0,
+      "original_hours": 90.3937,
+      "new_hours": 90.3937,
+      "mismatch_count": 0,
+      "shar_cuts": 16030,
+      "shar_hours": 90.1565,
+      "shar_hours_ok": true
+    }
+  },
+  "total_mismatches": 0,
+  "ok": true
+}

@@ -87,7 +87,8 @@ bench-homogeneous:  ## [homogeneous] SLSB on the selected checkpoint (same setti
 	  $(call variant_get,benchmark.tasks) \
 	  $(call variant_get,benchmark.seeds) \
 	  $(call variant_get,benchmark.out_dir) \
-	  $(call variant_get,benchmark.mlflow_uri)
+	  $(call variant_get,benchmark.mlflow_uri) \
+	  $(call variant_get,benchmark.slsb_data_dir)
 
 run-homogeneous: train-homogeneous ckpt-homogeneous bench-homogeneous  ## [homogeneous] check -> train -> ckpt -> bench
 

@@ -46,7 +46,10 @@ def evaluate_checkpoint(
         str(out_dir),
     ]
     if data_dir:
-        cmd.extend(["--data-dir", data_dir])
+        # slsb reads its probe hyperparams from ./params.yaml by default, which here
+        # is the pipeline's params file -- use the one next to the benchmark data.
+        slsb_params = Path(data_dir).parent / "params.yaml"
+        cmd.extend(["--data-dir", data_dir, "--params", str(slsb_params)])
 
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode != 0:
