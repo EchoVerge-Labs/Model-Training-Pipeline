@@ -110,6 +110,17 @@ def _run(params: Params, tmp_path: Path, **kwargs) -> int:
     )
 
 
+def _curves(tmp_path: Path) -> list[list[str]]:
+    """Data rows of this run's loss-curve CSV, split into columns."""
+    lines = (
+        (tmp_path / "reports" / "pretrain_curves-xlsr300m-si-ta-200h-norm.csv")
+        .read_text()
+        .splitlines()
+    )
+    assert lines[0] == CURVES_HEADER
+    return [line.split(",") for line in lines[1:] if line]
+
+
 def _curve_steps(tmp_path: Path) -> list[int]:
     lines = (
         (tmp_path / "reports" / "pretrain_curves-xlsr300m-si-ta-200h-norm.csv")
@@ -433,3 +444,20 @@ def test_diversity_weight_and_negatives_from_params_reach_the_model(tmp_path):
     _run(params, tmp_path)
     saved = Wav2Vec2ForPreTraining.from_pretrained(params.pretrain.output_dir).config
     assert saved.diversity_loss_weight == 0.3 and saved.num_negatives == 7
+
+
+def test_logged_losses_are_all_per_masked_frame(tmp_path):
+    """The logged total must be per masked frame like contrastive_loss/diversity_loss beside
+    it (the backward still uses the unnormalised sum). A logged sum would scale with each
+    micro-batch's mask count, so it is checked via the identity the components must satisfy:
+    loss == contrastive_loss + diversity_loss_weight * diversity_loss."""
+    base = _make_base(tmp_path)
+    params = _params(tmp_path, base, max_updates=2, warmup_updates=1, eval_every_updates=1)
+    _run(params, tmp_path)
+    rows = _curves(tmp_path)
+    assert rows, "no curve rows logged"
+    for r in rows:
+        loss, contrastive, diversity = (float(r[i]) for i in (1, 2, 3))
+        expected = contrastive + params.pretrain.diversity_loss_weight * diversity
+        assert loss == pytest.approx(expected, rel=1e-3), r
+        assert 0.0 < loss < 100.0, f"per-frame loss out of range (looks like a raw sum): {loss}"

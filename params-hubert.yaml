@@ -82,6 +82,9 @@ benchmark:
     wavlm_large:
       path: microsoft/wavlm-large
       name: "WavLM Large"
+    hubert_large_vanilla:          # this model's own frozen base -- the key comparison
+      path: facebook/hubert-large-ll60k
+      name: "HuBERT Large (vanilla)"
     "{run}":
       path: models/selected-{run}
       name: "HuBERT Large ({run})"

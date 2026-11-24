@@ -193,6 +193,8 @@ def get_gumbel_temperature(
 # diversity_loss (scaled by mask_time_indices.sum()) are UNNORMALIZED sums
 # over masked positions -- dividing only by grad_accum_steps would let
 # gradient magnitude swing with batch size / mask density between steps.
+# (This is about the GRADIENT. What gets logged is normalised per masked
+# frame at the accumulation site, so the curves stay comparable.)
 # The training loop therefore sums the gradients of every micro-batch of an
 # update and rescales them ONCE by 1/(masked positions in the whole update), like
 # fairseq. (The HF example rescales after every backward(), which is only correct
@@ -581,10 +583,15 @@ def train(
             loss.backward()
             update_num_losses += num_losses.detach().to(device)
 
-            # Track losses for logging
+            # Track losses for logging. Everything logged is PER MASKED FRAME, including the
+            # total: the backward above uses the unnormalised sum (that is what the gradient
+            # normalisation below expects), but a logged sum would scale with each micro-batch's
+            # mask count instead of only with training progress, and would not be comparable
+            # with contrastive_loss / diversity_loss beside it, nor with the masked-prediction
+            # trainer's per-frame loss. loss ~= contrastive_loss + diversity_loss_weight * diversity_loss.
             with torch.no_grad():
                 num_losses_safe = num_losses.clamp(min=1)
-                accum_loss += loss.item()
+                accum_loss += (loss / num_losses_safe).item()
                 accum_contrastive_loss += (
                     (outputs.contrastive_loss / num_losses_safe).item()
                     if outputs.contrastive_loss is not None
