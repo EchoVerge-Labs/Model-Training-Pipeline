@@ -27,6 +27,9 @@ class SelectConfig(BaseModel):
     exclude_channels_file: str
     drive_root: str
     drive_index_path: str
+    # Where select writes train/dev manifests and materialise/shard read them. Give a smaller
+    # or experimental selection its own dir so it never overwrites the main run's manifests.
+    manifest_dir: str = "data/manifests"
 
     @field_validator("language_mix")
     @classmethod

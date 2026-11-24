@@ -22,8 +22,6 @@ from pathlib import Path
 
 from pipeline.common.schema import DataParams
 
-MANIFESTS = ("data/manifests/train.jsonl", "data/manifests/dev.jsonl")
-
 
 def read_filenames(manifest_paths) -> list[str]:
     """Sorted, de-duplicated manifest `filename` values (paths under drive_root)."""
@@ -36,8 +34,16 @@ def read_filenames(manifest_paths) -> list[str]:
 
 
 def copy_one(src: Path, dst: Path) -> tuple[str, int]:
-    """Returns (status, bytes): copied | skipped | missing. Raises on a bad copy."""
+    """Returns (status, bytes): copied | skipped | missing. Raises on a bad copy.
+
+    A clip that is already under raw_dir counts as done even when the source is unreachable:
+    once the audio is local the Drive mount is only needed for clips still to copy, so
+    re-running (or selecting a subset of an already-materialised set) works with the mount
+    detached instead of reporting every file as missing.
+    """
     if not src.exists():
+        if dst.is_file() and dst.stat().st_size > 0:
+            return "skipped", dst.stat().st_size
         return "missing", 0
     size = src.stat().st_size
     if dst.exists() and dst.stat().st_size == size:
@@ -97,7 +103,8 @@ def main():
 
     cfg = DataParams.from_yaml(args.config).select
     drive_root = Path(os.path.expanduser(cfg.drive_root))
-    filenames = read_filenames(MANIFESTS)
+    manifest_dir = Path(cfg.manifest_dir)
+    filenames = read_filenames([manifest_dir / "train.jsonl", manifest_dir / "dev.jsonl"])
     print(f"Copying {len(filenames):,} files from {drive_root} to {args.raw_dir}/ ...")
 
     report = materialise(filenames, drive_root, Path(args.raw_dir), args.workers)

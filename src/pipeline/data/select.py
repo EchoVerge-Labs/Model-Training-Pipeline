@@ -476,8 +476,9 @@ def main():
 
     train, holdout = select(segments, cfg, blocklist)
 
-    write_manifest(train, Path("data/manifests/train.jsonl"))
-    write_manifest(holdout, Path("data/manifests/dev.jsonl"))
+    manifest_dir = Path(cfg.manifest_dir)
+    write_manifest(train, manifest_dir / "train.jsonl")
+    write_manifest(holdout, manifest_dir / "dev.jsonl")
     write_report(
         train,
         holdout,

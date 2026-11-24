@@ -59,13 +59,36 @@ def failed_tasks(metrics_path: Path) -> list[str]:
     ]
 
 
+def configured_name(bench: dict, upstream: str) -> str | None:
+    """The `benchmark.upstreams` key whose `path` is this upstream, if any.
+
+    report.py looks a result up by that key (reports/bench/<key>/metrics.json), so a
+    configured baseline has to land there or it renders as "—" even after it was run.
+    """
+    for key, cfg in (bench.get("upstreams") or {}).items():
+        if isinstance(cfg, dict) and cfg.get("path") == upstream:
+            return key
+    return None
+
+
+def resolve_target(
+    raw: dict, upstream: str | None = None, name: str | None = None
+) -> tuple[str, str]:
+    """(upstream to benchmark, folder name under reports/bench/).
+
+    No --upstream means this run's own selected checkpoint, named after the run. For any
+    other upstream, prefer the benchmark.upstreams key that points at it, so baselines land
+    where report.py reads them; fall back to a name derived from the upstream itself.
+    """
+    bench = raw.get("benchmark", {})
+    if upstream is None:
+        return f"models/selected-{raw['run_name']}", name or raw["run_name"]
+    return upstream, name or configured_name(bench, upstream) or bench_name(upstream)
+
+
 def build_command(raw: dict, upstream: str | None = None, name: str | None = None) -> list[str]:
     bench = raw.get("benchmark", {})
-    run = raw["run_name"]
-    if upstream is None:
-        upstream = f"models/selected-{run}"
-        name = name or run
-    name = name or bench_name(upstream)
+    upstream, name = resolve_target(raw, upstream, name)
     cmd = [
         "bash",
         "scripts/run_benchmark.sh",
@@ -105,7 +128,7 @@ def main(argv: list[str] | None = None) -> int:
         require_complete_pretraining(raw["run_name"], args.allow_incomplete)
 
     cmd = build_command(raw, args.upstream, args.name)
-    name = args.name or (raw["run_name"] if args.upstream is None else bench_name(args.upstream))
+    _, name = resolve_target(raw, args.upstream, args.name)
     print("+", " ".join(cmd), flush=True)
     rc = subprocess.call(cmd)
     if rc != 0:

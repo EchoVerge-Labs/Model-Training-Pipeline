@@ -151,38 +151,69 @@ make pull                            # copy the selected clips off the mount -> 
 make shard                           # pack into Lhotse Shar tarballs -> data/shars/
 
 # --- per model: example WavLM (a HuBERT-family, masked-prediction model) ---
-make phase0 MODEL=wavlm              # measure throughput + peak memory, and estimate wall-clock
-make fit-kmeans MODEL=wavlm          # HuBERT family only: k-means on the base model's features
-make labels    MODEL=wavlm           # HuBERT family only: cluster id per frame -> data/labels/
+# Pick the model with MODEL=, and name this run with EXPERIMENT= (omit it for the
+# params file's default). Every command below takes the SAME MODEL/EXPERIMENT pair.
+M="MODEL=wavlm EXPERIMENT=si-ta-200h"
 
-tmux new -s wavlm                    # so the run survives a disconnect
-make train MODEL=wavlm               # <- run this INSIDE tmux
+make phase0 MODEL=wavlm              # throughput + peak memory + wall-clock estimate (per model)
+make fit-kmeans $M                   # HuBERT family only: k-means on the base model's features
+make labels     $M                   # HuBERT family only: cluster id per frame -> data/labels/
+
+# name the tmux session after the run, so several runs are never confused
+RUN=$(make run-name $M)              # -> wavlm-large-si-ta-200h
+tmux new -s "$RUN"
+make train $M                        # <- run this INSIDE tmux
 #   13,500 updates; checkpoints every 1,500; milestones 4500/9000/13500
 #   output: models/wavlm-large-si-ta-200h/ ; log: logs/wavlm-large-si-ta-200h.log
-#   detach from tmux with  Ctrl-b d  ; re-attach later with  tmux attach -t wavlm
+#   detach: Ctrl-b d   |   re-attach: tmux attach -t wavlm-large-si-ta-200h
+#   crashed after a checkpoint? just `make train $M` again -> auto-resumes from the newest one.
 
-# watch progress (from another terminal; do NOT trust pretrain_metrics-*.json until it finishes)
+# watch progress (another terminal; do NOT trust pretrain_metrics-*.json until it finishes)
 tail -f reports/pretrain_curves-wavlm-large-si-ta-200h.csv   # live: step, loss, accuracy/perplexity
 #   also the DagsHub MLflow run named "wavlm-large-si-ta-200h"
 
-make ckpt   MODEL=wavlm              # proxy-eval the milestones, copy the best (ranked on dev score)
+make ckpt   $M                       # proxy-eval the milestones, copy the best (ranked on dev score)
 #   -> models/selected-wavlm-large-si-ta-200h/ + reports/checkpoint_selection-<run>.json
-make bench  MODEL=wavlm              # SLSB benchmark of the selected checkpoint
+make bench  $M                       # SLSB benchmark of the selected checkpoint
 #   -> reports/bench/wavlm-large-si-ta-200h/metrics.json (+ MLflow runs, if configured)
-make report MODEL=wavlm              # aggregate -> reports/results-<run>.md + results_table-<run>.csv
+make report $M                       # aggregate -> reports/results-<run>.md + results_table-<run>.csv
 ```
 
 The contrastive models (`xlsr`, `wav2vec2`) are identical **minus** `fit-kmeans`/`labels`:
 
 ```bash
-tmux new -s xlsr
+M="MODEL=xlsr EXPERIMENT=si-ta-200h-norm"
 make phase0 MODEL=xlsr
-make train  MODEL=xlsr
-make ckpt   MODEL=xlsr && make bench MODEL=xlsr && make report MODEL=xlsr
+tmux new -s "$(make run-name $M)"    # -> xlsr300m-si-ta-200h-norm
+make train $M                        # inside tmux
+make ckpt $M && make bench $M && make report $M
 ```
 
-`make all MODEL=<key>` chains `shard → [fit-kmeans → labels →] train → ckpt → bench → report`
-(assumes `data/raw` is already selected and materialised). Still run it inside `tmux`.
+`make all MODEL=<key> EXPERIMENT=<name>` chains
+`shard → [fit-kmeans → labels →] train → ckpt → bench → report` (assumes `data/raw` is already
+selected and materialised). Still run it inside `tmux`.
+
+### Several experiments on one model
+
+`EXPERIMENT=` is how you keep runs of the *same* model apart — e.g. a frozen-CNN run and a
+CNN-unfreeze run of HuBERT. Each gets its own checkpoints, reports, benchmark folder, log and
+MLflow run, so nothing is overwritten and you can run them side by side on different servers:
+
+```bash
+make train MODEL=hubert EXPERIMENT=si-ta-200h       # -> models/hubert-large-si-ta-200h/
+make train MODEL=hubert EXPERIMENT=cnn-unfreeze     # -> models/hubert-large-cnn-unfreeze/
+```
+
+Use the same `MODEL`/`EXPERIMENT` pair for every stage of that run (`make run-name` prints the
+resulting name, which is also the tmux session name to use).
+
+**k-means and labels are per *model*, not per experiment** — `cluster.kmeans_output` and
+`labels_path` have no `{run}` in them, so all experiments of a model share one set of cluster
+targets (`models/kmeans/<model>-L<layer>-k<k>.joblib`, `data/labels/<model>_train_labels.jsonl.gz`).
+That is correct while `EXPERIMENT` only relabels outputs and the training data is unchanged —
+you run `make fit-kmeans`/`make labels` **once per model**, not once per experiment. If you ever
+change the *data* for an experiment, give that run its own `cluster.*` paths too, or it will
+train against the other run's targets.
 
 ## Training knobs
 
@@ -255,6 +286,13 @@ make bench MODEL=wavlm UPSTREAM=utter-project/mHuBERT-147       # any cross-mode
 # ... then:
 make report MODEL=wavlm
 ```
+
+Baselines are shared across models and only need running once each. `report.py` looks a result
+up by its **`benchmark.upstreams` key**, so benchmarking a configured baseline by its path
+automatically writes to that key's folder (`UPSTREAM=microsoft/wavlm-large` →
+`reports/bench/wavlm_large/`) and the table picks it up. Any other upstream gets a folder derived
+from its path (`…/checkpoint-9000` → `reports/bench/<run>-checkpoint-9000/`); add `NAME=<folder>`
+to override.
 
 ## Multi-node (DDP)
 

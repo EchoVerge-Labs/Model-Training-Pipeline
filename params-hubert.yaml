@@ -16,8 +16,8 @@ cluster:
   seed: 1337
   sample_hours: 40.0          # audio streamed for the k-means fit
   max_frames: 2000000         # frames kept for the fit (2M x 1024 fp32 = ~8 GB RAM)
-  kmeans_output: models/kmeans/km_model.joblib
-  labels_output: data/labels/train_labels.jsonl.gz
+  kmeans_output: models/kmeans/hubert-large-L18-k500.joblib
+  labels_output: data/labels/hubert_train_labels.jsonl.gz
 
 # ── Pre-training ────────────────────────────────────
 pretrain:
@@ -49,7 +49,7 @@ pretrain:
   mask_time_prob: 0.65
   mask_time_length: 10
 
-  labels_path: data/labels/train_labels.jsonl.gz
+  labels_path: data/labels/hubert_train_labels.jsonl.gz
 
   # checkpointing
   save_every_updates: 1500

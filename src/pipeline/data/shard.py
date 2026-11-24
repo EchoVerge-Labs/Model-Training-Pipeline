@@ -186,7 +186,7 @@ def main():
     params = DataParams.from_yaml(args.config)
     cfg = params.shard
 
-    cuts = load_manifest_as_cuts("data/manifests/train.jsonl", "data/raw")
+    cuts = load_manifest_as_cuts(str(Path(params.select.manifest_dir) / "train.jsonl"), "data/raw")
     print(f"Loaded {len(cuts)} cuts")
 
     # Split long clips first, then concatenate short ones

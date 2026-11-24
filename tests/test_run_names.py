@@ -47,3 +47,28 @@ def test_bench_of_any_other_checkpoint_gets_its_own_folder():
     cmd = build_command(raw, "models/wavlm-large-si-ta-200h/checkpoint-9000")
     assert cmd[5] == "reports/bench/wavlm-large-si-ta-200h-checkpoint-9000"
     assert bench_name("microsoft/wavlm-large") == "microsoft-wavlm-large"
+
+
+def test_a_configured_baseline_lands_where_report_reads_it():
+    """report.py looks results up by the benchmark.upstreams KEY, so benchmarking a
+    configured baseline by its path must use that key as the folder -- otherwise the
+    baseline renders as "—" in the table even after it was run."""
+    from pipeline.eval.benchmark import resolve_target
+
+    raw = load_raw_params("params-wavlm.yaml")
+    keys = raw["benchmark"]["upstreams"]
+    for key, cfg in keys.items():
+        if key == raw["run_name"]:
+            continue  # the adapted run itself, covered above
+        _, name = resolve_target(raw, cfg["path"])
+        assert name == key, f"baseline {cfg['path']} -> {name}, report.py expects {key}"
+
+
+def test_an_unconfigured_upstream_still_gets_a_derived_folder():
+    from pipeline.eval.benchmark import resolve_target
+
+    raw = load_raw_params("params-wavlm.yaml")
+    _, name = resolve_target(raw, "models/wavlm-large-si-ta-200h/checkpoint-9000")
+    assert name == "wavlm-large-si-ta-200h-checkpoint-9000"
+    _, explicit = resolve_target(raw, "microsoft/wavlm-large", name="my-folder")
+    assert explicit == "my-folder"  # --name / NAME= always wins

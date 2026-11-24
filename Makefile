@@ -1,4 +1,4 @@
-.PHONY: setup lint test phase0 snapshot index select pull shard fit-kmeans labels train ckpt bench report all clean help
+.PHONY: setup lint test phase0 snapshot index select pull shard fit-kmeans labels train ckpt bench report run-name all clean help
 
 # Load local credentials/config for recipes. Values already supplied by the
 # shell win over .env (make's own include would otherwise overwrite them, e.g.
@@ -16,6 +16,8 @@ export PYTHONPATH := $(CURDIR)/src$(if $(PYTHONPATH),:$(PYTHONPATH))
 # Model-specific targets (fit-kmeans, labels, train, ckpt, bench, report) take
 # MODEL=mhubert147|hubert|wavlm|xlsr|wav2vec2, e.g. `make train MODEL=wavlm`.
 MODEL ?= mhubert147
+# The shared data config the data stages read; override for a smaller/experimental selection.
+DATA_CONFIG ?= params-data.yaml
 ifeq ($(MODEL),mhubert147)
   CONFIG := params-mhubert147.yaml
   HAS_KMEANS := 1
@@ -43,8 +45,11 @@ EXP_ARG := $(if $(EXPERIMENT),--experiment=$(EXPERIMENT))
 INCOMPLETE_ARG := $(if $(ALLOW_INCOMPLETE),--allow-incomplete)
 RUN = $(shell $(PYTHON) -c "from pipeline.common.schema import load_raw_params as l; print(l('$(CONFIG)', $(if $(EXPERIMENT),'$(EXPERIMENT)',None))['run_name'])")
 
+run-name:  ## print this MODEL/EXPERIMENT's run name (e.g. for naming a tmux session)
+	@echo $(RUN)
+
 help:  ## show this help
-	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | \
+	@grep -E '^[a-zA-Z_-]+:.*?## ' $(firstword $(MAKEFILE_LIST)) | sort | \
 	  awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
 
 setup:  ## install package + dev deps
@@ -70,16 +75,16 @@ snapshot:  ## pull catalog from Google Sheet
 	  --sheet-id $${GOOGLE_SHEET_ID} --out data/catalog
 
 index:  ## index every wav on the Drive mount (relpath + size)
-	$(PYTHON) -m pipeline.data.drive_index --config params-data.yaml
+	$(PYTHON) -m pipeline.data.drive_index --config $(DATA_CONFIG)
 
 select:  ## select the training subset (needs `make index` first)
-	$(PYTHON) -m pipeline.data.select --config params-data.yaml
+	$(PYTHON) -m pipeline.data.select --config $(DATA_CONFIG)
 
 pull:  ## copy the selected clips from the Drive mount to data/raw/
-	$(PYTHON) -m pipeline.data.materialise --config params-data.yaml
+	$(PYTHON) -m pipeline.data.materialise --config $(DATA_CONFIG)
 
 shard:  ## shard WAVs into Lhotse Shar tarballs
-	$(PYTHON) -m pipeline.data.shard --config params-data.yaml
+	$(PYTHON) -m pipeline.data.shard --config $(DATA_CONFIG)
 
 fit-kmeans:  ## fit k-means on layer features of MODEL's base model -> models/kmeans/
 ifndef HAS_KMEANS
@@ -95,13 +100,13 @@ endif
 
 train:  ## continued pre-training of MODEL (HuBERT-family needs `make shard` and `make labels` first)
 	@mkdir -p logs
-	bash -o pipefail -c 'bash scripts/launch_pretrain.sh --model $(MODEL) $(EXP_ARG) 2>&1 | tee -a logs/$(RUN).log'
+	bash -o pipefail -c 'bash scripts/launch_pretrain.sh --config $(CONFIG) $(EXP_ARG) 2>&1 | tee -a logs/$(RUN).log'
 
 ckpt:  ## select best checkpoint via proxy eval
 	$(PYTHON) -m pipeline.eval.select_checkpoint --config $(CONFIG) $(EXP_ARG) $(INCOMPLETE_ARG)
 
-bench:  ## SLSB benchmark of the run's selected checkpoint -> reports/bench/<run>/; UPSTREAM=<dir|HF id> for another
-	$(PYTHON) -m pipeline.eval.benchmark --config $(CONFIG) $(EXP_ARG) $(INCOMPLETE_ARG) $(if $(UPSTREAM),--upstream=$(UPSTREAM))
+bench:  ## SLSB benchmark -> reports/bench/<run>/; UPSTREAM=<dir|HF id> for a baseline (NAME= overrides its folder)
+	$(PYTHON) -m pipeline.eval.benchmark --config $(CONFIG) $(EXP_ARG) $(INCOMPLETE_ARG) $(if $(UPSTREAM),--upstream=$(UPSTREAM)) $(if $(NAME),--name=$(NAME))
 
 report:  ## generate results table
 	$(PYTHON) -m pipeline.eval.report --config $(CONFIG) $(EXP_ARG)
