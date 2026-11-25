@@ -1,0 +1,26 @@
+{
+  "target_hours": 100.0,
+  "realised_train_hours": 99.16,
+  "realised_holdout_hours": 0.55,
+  "shortfall_pct": 0.8,
+  "train_segments": 13886,
+  "holdout_segments": 90,
+  "candidate_segments": 30965,
+  "longest_train_segment_seconds": 771.6,
+  "cleaning": {},
+  "train_channels": 2941,
+  "holdout_channels": 26,
+  "channel_overlap": 0,
+  "hours_by_language": {
+    "tamil": 99.16
+  },
+  "hours_by_genre": {
+    "drama": 14.81,
+    "education": 19.79,
+    "interview": 14.97,
+    "news": 17.79,
+    "podcast_or_discussion": 13.98,
+    "political_speech": 11.88,
+    "vlog": 5.94
+  }
+}
