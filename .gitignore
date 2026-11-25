@@ -42,3 +42,6 @@ Thumbs.db
 
 /secrets/*
 /data/shars_single/
+
+# SLSB feature caches (regenerable, multi-GB)
+/reports/bench/*/.features/

@@ -1,0 +1,16 @@
+{
+  "proxy_task": "asr",
+  "proxy_seed": 0,
+  "best_checkpoint": "checkpoint-6750",
+  "best_score": 0.6864547748447205,
+  "all_scores": {
+    "checkpoint-2250": 0.7041566381987577,
+    "checkpoint-4500": 0.691633346273292,
+    "checkpoint-5500": 0.6959132375776398,
+    "checkpoint-5750": 0.6979580745341615,
+    "checkpoint-6000": 0.6937635869565217,
+    "checkpoint-6250": 0.6906812888198758,
+    "checkpoint-6500": 0.6940663819875776,
+    "checkpoint-6750": 0.6864547748447205
+  }
+}
