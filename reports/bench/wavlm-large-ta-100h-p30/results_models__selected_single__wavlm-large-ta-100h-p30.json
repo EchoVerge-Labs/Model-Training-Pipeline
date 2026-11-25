@@ -1,0 +1,437 @@
+{
+  "upstream": "models/selected_single/wavlm-large-ta-100h-p30",
+  "families": [
+    "sid",
+    "er",
+    "asv"
+  ],
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "protocol": "v0.5",
+  "slsb_version": "0.5.0",
+  "slsb_commit": "681129e6b430bef057e08f07fd4f47fe1391142d",
+  "layer_norm": true,
+  "params": {
+    "upstream": {
+      "layer_norm": true
+    },
+    "utterance": {
+      "batch_size": 32,
+      "lr_grid": [
+        0.01,
+        0.001,
+        0.0001
+      ],
+      "max_epochs": 200,
+      "patience": 20
+    },
+    "asr": {
+      "hidden_size": 1024,
+      "rnn_layers": 2,
+      "dropout": 0.2,
+      "max_items": 32,
+      "max_frames": 12000,
+      "grad_clip": 1.0,
+      "lr_grid": [
+        0.001,
+        0.0001
+      ],
+      "max_epochs": 60,
+      "patience": 8
+    },
+    "sd": {
+      "head": "stats",
+      "embedding_size": 256,
+      "margin": 0.4,
+      "scale": 30.0,
+      "window_seconds": 1.5,
+      "hop_seconds": 0.75,
+      "min_train_seconds": 1.0,
+      "batch_size": 64,
+      "lr_grid": [
+        0.001,
+        0.0001
+      ],
+      "max_epochs": 30,
+      "patience": 5,
+      "collar": 0.25,
+      "thresholds": {
+        "start": 0.05,
+        "stop": 1.0,
+        "num": 20
+      },
+      "layer_mix": {
+        "batch_size": 32,
+        "lr_grid": [
+          0.001
+        ],
+        "max_epochs": 100,
+        "patience": 10
+      }
+    },
+    "asv": {
+      "head": "stats",
+      "embedding_size": 256,
+      "margin": 0.4,
+      "scale": 30.0,
+      "crop_frames": 200,
+      "batch_size": 64,
+      "lr_grid": [
+        0.001,
+        0.0001
+      ],
+      "max_epochs": 40,
+      "patience": 6,
+      "layer_mix_clips_per_speaker": 30,
+      "layer_mix": {
+        "batch_size": 32,
+        "lr_grid": [
+          0.001
+        ],
+        "max_epochs": 100,
+        "patience": 10
+      }
+    }
+  },
+  "results": [
+    {
+      "upstream": "models/selected_single/wavlm-large-ta-100h-p30",
+      "task": "asv",
+      "language": "tamil",
+      "name": "asv_tamil",
+      "kind": "verification",
+      "seed": 0,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "eer": 0.1116118769883351
+      },
+      "perf": {
+        "train_seconds": 164.47251343727112,
+        "peak_gpu_gb": 1.47625984,
+        "feature_seconds": 2099.8753724098206
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.001,
+        "best_epoch": 24,
+        "dev_eer": 0.0922222222222222,
+        "train_speakers": 80,
+        "layer_weights": [
+          0.0074,
+          0.0362,
+          0.0681,
+          0.1538,
+          0.1745,
+          0.1547,
+          0.1676,
+          0.0939,
+          0.0192,
+          0.016,
+          0.0084,
+          0.0064,
+          0.0063,
+          0.0067,
+          0.007,
+          0.0072,
+          0.0073,
+          0.0074,
+          0.0074,
+          0.0074,
+          0.0074,
+          0.0072,
+          0.0072,
+          0.0076,
+          0.0078
+        ]
+      }
+    },
+    {
+      "upstream": "models/selected_single/wavlm-large-ta-100h-p30",
+      "task": "asv",
+      "language": "tamil",
+      "name": "asv_tamil",
+      "kind": "verification",
+      "seed": 1,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "eer": 0.11251325556733827
+      },
+      "perf": {
+        "train_seconds": 54.2030975818634,
+        "peak_gpu_gb": 1.47625984,
+        "feature_seconds": 2099.8753724098206
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.001,
+        "best_epoch": 8,
+        "dev_eer": 0.09518518518518518,
+        "train_speakers": 80,
+        "layer_weights": [
+          0.0074,
+          0.0362,
+          0.0681,
+          0.1538,
+          0.1745,
+          0.1547,
+          0.1676,
+          0.0939,
+          0.0192,
+          0.016,
+          0.0084,
+          0.0064,
+          0.0063,
+          0.0067,
+          0.007,
+          0.0072,
+          0.0073,
+          0.0074,
+          0.0074,
+          0.0074,
+          0.0074,
+          0.0072,
+          0.0072,
+          0.0076,
+          0.0078
+        ]
+      }
+    },
+    {
+      "upstream": "models/selected_single/wavlm-large-ta-100h-p30",
+      "task": "asv",
+      "language": "tamil",
+      "name": "asv_tamil",
+      "kind": "verification",
+      "seed": 2,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "eer": 0.13844114528101803
+      },
+      "perf": {
+        "train_seconds": 66.18579912185669,
+        "peak_gpu_gb": 1.480620032,
+        "feature_seconds": 2099.8753724098206
+      },
+      "details": {
+        "head": "stats",
+        "lr": 0.001,
+        "best_epoch": 11,
+        "dev_eer": 0.09296296296296294,
+        "train_speakers": 80,
+        "layer_weights": [
+          0.0074,
+          0.0362,
+          0.0681,
+          0.1538,
+          0.1745,
+          0.1547,
+          0.1676,
+          0.0939,
+          0.0192,
+          0.016,
+          0.0084,
+          0.0064,
+          0.0063,
+          0.0067,
+          0.007,
+          0.0072,
+          0.0073,
+          0.0074,
+          0.0074,
+          0.0074,
+          0.0074,
+          0.0072,
+          0.0072,
+          0.0076,
+          0.0078
+        ]
+      }
+    },
+    {
+      "upstream": "models/selected_single/wavlm-large-ta-100h-p30",
+      "task": "er",
+      "language": "tamil",
+      "name": "er_tamil",
+      "kind": "classification",
+      "seed": 0,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.38387028323767025,
+        "macro_f1": 0.3712824423378259
+      },
+      "perf": {
+        "train_seconds": 22.39892268180847,
+        "peak_gpu_gb": 1.472405504,
+        "feature_seconds": 20.703288793563843
+      },
+      "details": {
+        "fold_accuracy": [
+          0.3817,
+          0.3039,
+          0.3267,
+          0.4593,
+          0.4477
+        ],
+        "fold_accuracy_std": 0.06232509287839712,
+        "fold_lr": [
+          0.0001,
+          0.01,
+          0.01,
+          0.001,
+          0.001
+        ]
+      }
+    },
+    {
+      "upstream": "models/selected_single/wavlm-large-ta-100h-p30",
+      "task": "er",
+      "language": "tamil",
+      "name": "er_tamil",
+      "kind": "classification",
+      "seed": 1,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.39361080806019794,
+        "macro_f1": 0.38719492138338885
+      },
+      "perf": {
+        "train_seconds": 5.033617973327637,
+        "peak_gpu_gb": 1.472362496,
+        "feature_seconds": 20.703288793563843
+      },
+      "details": {
+        "fold_accuracy": [
+          0.4032,
+          0.3186,
+          0.3218,
+          0.4419,
+          0.4826
+        ],
+        "fold_accuracy_std": 0.06498301513557946,
+        "fold_lr": [
+          0.0001,
+          0.01,
+          0.01,
+          0.001,
+          0.001
+        ]
+      }
+    },
+    {
+      "upstream": "models/selected_single/wavlm-large-ta-100h-p30",
+      "task": "er",
+      "language": "tamil",
+      "name": "er_tamil",
+      "kind": "classification",
+      "seed": 2,
+      "status": "ok",
+      "split": "speaker_disjoint_5fold",
+      "metrics": {
+        "accuracy": 0.37892184170096105,
+        "macro_f1": 0.36038041535550397
+      },
+      "perf": {
+        "train_seconds": 4.163469076156616,
+        "peak_gpu_gb": 1.472362496,
+        "feature_seconds": 20.703288793563843
+      },
+      "details": {
+        "fold_accuracy": [
+          0.328,
+          0.3088,
+          0.3218,
+          0.4651,
+          0.4709
+        ],
+        "fold_accuracy_std": 0.07303582098646491,
+        "fold_lr": [
+          0.0001,
+          0.01,
+          0.01,
+          0.001,
+          0.001
+        ]
+      }
+    },
+    {
+      "upstream": "models/selected_single/wavlm-large-ta-100h-p30",
+      "task": "sid",
+      "language": "multilingual",
+      "name": "sid",
+      "kind": "classification",
+      "seed": 0,
+      "status": "ok",
+      "split": "video_disjoint_closed_set",
+      "metrics": {
+        "accuracy": 0.826222684703434,
+        "macro_f1": 0.8019077938178935
+      },
+      "perf": {
+        "train_seconds": 23.247106552124023,
+        "peak_gpu_gb": 1.860951552,
+        "feature_seconds": 572.5626056194305
+      },
+      "details": {
+        "lr": 0.0001,
+        "best_epoch": 168,
+        "dev_accuracy": 0.8517618469015796
+      }
+    },
+    {
+      "upstream": "models/selected_single/wavlm-large-ta-100h-p30",
+      "task": "sid",
+      "language": "multilingual",
+      "name": "sid",
+      "kind": "classification",
+      "seed": 1,
+      "status": "ok",
+      "split": "video_disjoint_closed_set",
+      "metrics": {
+        "accuracy": 0.8033298647242456,
+        "macro_f1": 0.7760132236976558
+      },
+      "perf": {
+        "train_seconds": 10.81525444984436,
+        "peak_gpu_gb": 1.860302336,
+        "feature_seconds": 572.5626056194305
+      },
+      "details": {
+        "lr": 0.0001,
+        "best_epoch": 116,
+        "dev_accuracy": 0.8408262454434994
+      }
+    },
+    {
+      "upstream": "models/selected_single/wavlm-large-ta-100h-p30",
+      "task": "sid",
+      "language": "multilingual",
+      "name": "sid",
+      "kind": "classification",
+      "seed": 2,
+      "status": "ok",
+      "split": "video_disjoint_closed_set",
+      "metrics": {
+        "accuracy": 0.8074921956295525,
+        "macro_f1": 0.7841865693411562
+      },
+      "perf": {
+        "train_seconds": 10.734116077423096,
+        "peak_gpu_gb": 1.860302336,
+        "feature_seconds": 572.5626056194305
+      },
+      "details": {
+        "lr": 0.0001,
+        "best_epoch": 117,
+        "dev_accuracy": 0.8432563791008505
+      }
+    }
+  ]
+}
