@@ -1,9 +1,10 @@
 {
   "upstream": "models/selected_single/wavlm-large-ta-100h-p30",
   "families": [
-    "sid",
+    "asr",
+    "asv",
     "er",
-    "asv"
+    "sid"
   ],
   "seeds": [
     0,
@@ -97,6 +98,150 @@
     }
   },
   "results": [
+    {
+      "upstream": "models/selected_single/wavlm-large-ta-100h-p30",
+      "task": "asr",
+      "language": "sinhala",
+      "name": "asr_sinhala",
+      "kind": "asr",
+      "seed": 0,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.6149068322981367,
+        "cer": 0.16151558256821413
+      },
+      "perf": {
+        "train_seconds": 1325.3051671981812,
+        "peak_gpu_gb": 5.827771392,
+        "feature_seconds": 123.47837495803833
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 21,
+        "dev_cer": 0.1772531629059606
+      }
+    },
+    {
+      "upstream": "models/selected_single/wavlm-large-ta-100h-p30",
+      "task": "asr",
+      "language": "sinhala",
+      "name": "asr_sinhala",
+      "kind": "asr",
+      "seed": 1,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.6331521739130435,
+        "cer": 0.16145092460881935
+      },
+      "perf": {
+        "train_seconds": 631.7875850200653,
+        "peak_gpu_gb": 5.489779712,
+        "feature_seconds": 123.47837495803833
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 20,
+        "dev_cer": 0.18077474892395984
+      }
+    },
+    {
+      "upstream": "models/selected_single/wavlm-large-ta-100h-p30",
+      "task": "asr",
+      "language": "sinhala",
+      "name": "asr_sinhala",
+      "kind": "asr",
+      "seed": 2,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.6366459627329193,
+        "cer": 0.16552437605069184
+      },
+      "perf": {
+        "train_seconds": 485.2731919288635,
+        "peak_gpu_gb": 5.49091584,
+        "feature_seconds": 123.47837495803833
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 13,
+        "dev_cer": 0.1782965958001826
+      }
+    },
+    {
+      "upstream": "models/selected_single/wavlm-large-ta-100h-p30",
+      "task": "asr",
+      "language": "tamil",
+      "name": "asr_tamil",
+      "kind": "asr",
+      "seed": 0,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.7540625,
+        "cer": 0.2674359192710551
+      },
+      "perf": {
+        "train_seconds": 675.4934866428375,
+        "peak_gpu_gb": 5.914297856,
+        "feature_seconds": 56.51612043380737
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 37,
+        "dev_cer": 0.24273711193392197
+      }
+    },
+    {
+      "upstream": "models/selected_single/wavlm-large-ta-100h-p30",
+      "task": "asr",
+      "language": "tamil",
+      "name": "asr_tamil",
+      "kind": "asr",
+      "seed": 1,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.7503125,
+        "cer": 0.2638167418887848
+      },
+      "perf": {
+        "train_seconds": 345.4812641143799,
+        "peak_gpu_gb": 5.576858112,
+        "feature_seconds": 56.51612043380737
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 27,
+        "dev_cer": 0.23825121048134434
+      }
+    },
+    {
+      "upstream": "models/selected_single/wavlm-large-ta-100h-p30",
+      "task": "asr",
+      "language": "tamil",
+      "name": "asr_tamil",
+      "kind": "asr",
+      "seed": 2,
+      "status": "ok",
+      "split": "speaker_disjoint",
+      "metrics": {
+        "wer": 0.745,
+        "cer": 0.2641147917908541
+      },
+      "perf": {
+        "train_seconds": 344.03958439826965,
+        "peak_gpu_gb": 5.577522176,
+        "feature_seconds": 56.51612043380737
+      },
+      "details": {
+        "lr": 0.001,
+        "best_epoch": 27,
+        "dev_cer": 0.24416120763315294
+      }
+    },
     {
       "upstream": "models/selected_single/wavlm-large-ta-100h-p30",
       "task": "asv",
