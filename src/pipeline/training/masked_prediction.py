@@ -52,7 +52,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from transformers import Wav2Vec2FeatureExtractor
 from transformers.models.hubert.modeling_hubert import _compute_mask_indices
 
-from pipeline.common.callbacks import MaskedAccuracyStallDetector, MLflowLogger
+from pipeline.common.callbacks import MaskedAccuracyStallDetector
 from pipeline.common.checkpoints import (
     HEAD_FILE,
     STATE_FILE,
@@ -66,6 +66,11 @@ from pipeline.common.checkpoints import (
 from pipeline.common.datamodule import create_dataloader
 from pipeline.common.device import get_device
 from pipeline.common.schema import Params
+from pipeline.common.tracking import (
+    finish_training_run,
+    nondefault_method_params,
+    start_training_run,
+)
 from pipeline.models.registry import (
     describe_feature_encoder,
     feature_encoder_status,
@@ -349,18 +354,8 @@ def train(
     stall_detector = None
     if is_main:
         try:
-            import yaml
-
-            with open(config_path) as f:
-                raw_params = yaml.safe_load(f)
-            mlflow_cfg = raw_params.get("mlflow", {})
-            mlflow_logger = MLflowLogger(
-                tracking_uri=mlflow_cfg.get("tracking_uri", ""),
-                experiment_name=mlflow_cfg.get("experiment_name", "ssl-pretraining"),
-                run_name=params.run,
-            )
-            # Log all params
-            flat_params = {
+            # One MLflow run per training run, reopened on resume (pipeline.common.tracking).
+            run_params = {
                 "base_model": cfg.base_model,
                 "precision": cfg.precision,
                 "max_updates": cfg.max_updates,
@@ -371,20 +366,17 @@ def train(
                 "target_batch_seconds": cfg.target_batch_seconds,
                 "per_device_max_seconds": cfg.per_device_max_seconds,
                 "grad_accum_steps": grad_accum_steps,
-                "world_size": world_size,
                 "mask_time_prob": cfg.mask_time_prob,
                 "mask_time_length": cfg.mask_time_length,
                 "num_clusters": num_clusters,
                 "freeze_feature_encoder": cfg.freeze_feature_encoder,
                 "cnn_params_trainable": feature_encoder_status(raw_model, spec)[1],
-                "pecopt_method": cfg.pecopt.method,
                 "layerdrop": cfg.layerdrop,
-                "head_lr_mult": cfg.head_lr_mult,
                 "utterance_mix_prob": cfg.utterance_mix_prob,
                 "normalize": normalize,
-                "resumed_from_step": resume_step,
+                **nondefault_method_params(cfg),
             }
-            mlflow_logger.log_params(flat_params)
+            mlflow_logger = start_training_run(params, config_path, resume_step, run_params)
         except Exception as e:  # noqa: BLE001 -- experiment tracking must never kill a training run
             print(f"WARNING: MLflow setup failed: {e}")
             mlflow_logger = None
@@ -548,7 +540,6 @@ def train(
                 "train/grad_norm": round(avg_grad_norm, 4),
                 "train/lr": lr,
                 "train/audio_sec_per_wall_sec": round(audio_throughput, 1),
-                "train/global_step": global_step,
             }
 
             print(
@@ -579,8 +570,6 @@ def train(
                 if not should_continue:
                     print("KILLING TRAINING: masked-prediction accuracy stalled")
                     stop_signal[0] = 1.0
-                    if mlflow_logger:
-                        mlflow_logger.log_metrics({"train/killed_stall": 1}, step=global_step)
 
             # Reset accumulators
             accum_loss = 0.0
@@ -623,15 +612,20 @@ def train(
             "final_loss": round(last_logged_loss, 4) if last_logged_loss is not None else None,
             "completed": global_step >= cfg.max_updates,
         }
-        with open(f"reports/pretrain_metrics{suffix}.json", "w") as f:
+        metrics_path = Path(f"reports/pretrain_metrics{suffix}.json")
+        with open(metrics_path, "w") as f:
             json.dump(final_metrics, f, indent=2)
 
-        if mlflow_logger:
-            mlflow_logger.log_metrics(
-                {k: v for k, v in final_metrics.items() if isinstance(v, (int, float))},
-                step=global_step,
-            )
-            mlflow_logger.end()
+        finish_training_run(
+            mlflow_logger,
+            config_path,
+            completed=final_metrics["completed"],
+            artifacts={
+                "pretrain_curves.csv": curves_path,
+                "pretrain_metrics.json": metrics_path,
+                "kmeans_stats.json": Path(f"reports/kmeans_stats{suffix}.json"),
+            },
+        )
 
         print(f"\nPre-training complete. {global_step} updates.")
         print(f"Model saved to {output_dir}")

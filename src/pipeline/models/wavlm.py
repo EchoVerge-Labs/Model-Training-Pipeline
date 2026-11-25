@@ -12,4 +12,5 @@ SPEC = masked_spec(
     1024,
     "params-wavlm.yaml",
     "wavlm-large",
+    "wavlm",
 )

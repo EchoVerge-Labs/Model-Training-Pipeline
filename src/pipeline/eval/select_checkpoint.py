@@ -13,6 +13,7 @@ from pathlib import Path
 
 from pipeline.common.checkpoints import has_backbone
 from pipeline.common.schema import Params, load_raw_params
+from pipeline.common.tracking import reopen_training_run
 from pipeline.eval.benchmark import require_complete_pretraining
 
 # Checkpoints are ranked on the DEV score slsb records in each result entry's `details` (the
@@ -52,7 +53,7 @@ def evaluate_checkpoint(
 
     slsb writes its results to <out>/results_<upstream-with-/-as-__>.json, a
     list of per-(task,language,seed) result entries -- not a flat
-    {task: score} dict. See scripts/run_benchmark.sh for the same convention
+    {task: score} dict. See pipeline.eval.benchmark for the same convention
     used by the dvc.yaml `benchmark` stage.
     """
     # slsb's output is only needed to read the score: a private directory per call (so
@@ -200,6 +201,34 @@ def main():
     report_path.parent.mkdir(parents=True, exist_ok=True)
     with open(report_path, "w") as f:
         json.dump(report, f, indent=2)
+
+    log_selection(params, args.config, proxy_task, results, best_name, report_path)
+
+
+def log_selection(
+    params: Params,
+    config_path: str,
+    proxy_task: str,
+    results: dict,
+    best_name: str,
+    report_path: Path,
+) -> None:
+    """Add the selection to the run's ssl-pretraining MLflow run: each milestone's dev score as
+    checkpoint_selection/<checkpoint>, the winner as `selected_checkpoint`, and the report."""
+    logger = reopen_training_run(params, config_path)
+    if logger is None:
+        return
+    higher_is_better = DEV_SCORE[proxy_task][1]
+    scores = {
+        f"checkpoint_selection/{name}": -score if higher_is_better else score
+        for name, score in results.items()
+        if score != float("inf")
+    }
+    logger.log_metrics(scores, step=0)
+    logger.log_params({"selected_checkpoint": best_name})
+    logger.log_artifact(str(report_path), "checkpoint_selection.json")
+    logger.end(logger.status)
+    print(f"Logged the selection to MLflow run {logger.run_id}")
 
 
 if __name__ == "__main__":

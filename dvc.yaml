@@ -159,22 +159,16 @@ stages:
           cache: false
 
   benchmark:
-    cmd: >
-      bash scripts/run_benchmark.sh
-      models/selected-mhubert147-si-ta-200h
-      ${benchmark.tasks}
-      ${benchmark.seeds}
-      reports/bench/mhubert147-si-ta-200h
-      ${benchmark.mlflow_uri}
-      ${benchmark.slsb_data_dir}
+    cmd: python -m pipeline.eval.benchmark --config params-mhubert147.yaml
     deps:
       - models/selected-mhubert147-si-ta-200h/
-      - scripts/run_benchmark.sh
+      - src/pipeline/eval/benchmark.py
     params:
       - params-mhubert147.yaml:
           - benchmark.tasks
           - benchmark.seeds
           - benchmark.slsb_data_dir
+          - benchmark.slsb_version
     metrics:
       - reports/bench/mhubert147-si-ta-200h/metrics.json:
           cache: false

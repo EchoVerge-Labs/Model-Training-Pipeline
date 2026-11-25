@@ -8,4 +8,5 @@ SPEC = contrastive_spec(
     "facebook/wav2vec2-xls-r-300m",
     "params-xlsr.yaml",
     "xlsr300m",
+    "xlsr",
 )

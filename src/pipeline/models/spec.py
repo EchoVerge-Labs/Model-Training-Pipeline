@@ -30,7 +30,13 @@ class ModelSpec:
     params_file: str
     trainer_module: str  # the family trainer this model runs through
     mask_function: str  # that module's masking function
-    run_name_prefix: str  # MLflow run names are "<prefix>-si-ta-<batch seconds>s"
+    run_name_prefix: str  # local run names (models/, reports/) are "<prefix>-<experiment>"
+    # The model's name and family in the SLSB leaderboard (SLSB-benchmark.mlflow, slsb-<protocol>):
+    # the frozen base model's row is `slsb_name`, a continued pre-training run's row (and its
+    # ssl-pretraining run) is "<slsb_name>-copt<hours>h[-<lang>][-<variant>]", see
+    # pipeline.common.schema.model_name.
+    slsb_name: str
+    slsb_family: str
 
     @property
     def needs_labels(self) -> bool:
@@ -46,7 +52,9 @@ class ModelSpec:
         return getattr(importlib.import_module("transformers"), self.model_class_name)
 
 
-def masked_spec(key, base_model, hf_type, config_cls, model_cls, hidden_size, params, run_prefix):
+def masked_spec(
+    key, base_model, hf_type, config_cls, model_cls, hidden_size, params, run_prefix, slsb_family
+):
     return ModelSpec(
         key=key,
         family="masked_prediction",
@@ -60,10 +68,12 @@ def masked_spec(key, base_model, hf_type, config_cls, model_cls, hidden_size, pa
         trainer_module="pipeline.training.masked_prediction",
         mask_function="compute_mask",
         run_name_prefix=run_prefix,
+        slsb_name=run_prefix,
+        slsb_family=slsb_family,
     )
 
 
-def contrastive_spec(key, base_model, params, run_prefix):
+def contrastive_spec(key, base_model, params, run_prefix, slsb_family, slsb_name=None):
     return ModelSpec(
         key=key,
         family="contrastive",
@@ -77,6 +87,8 @@ def contrastive_spec(key, base_model, params, run_prefix):
         trainer_module="pipeline.training.contrastive",
         mask_function="compute_mask_and_negatives",
         run_name_prefix=run_prefix,
+        slsb_name=slsb_name or run_prefix,
+        slsb_family=slsb_family,
     )
 
 

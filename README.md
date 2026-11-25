@@ -45,7 +45,7 @@ after is per-model (`MODEL=`). Only the HuBERT family needs `fit-kmeans` + `labe
 Both families: reset optimizer/schedule, a low peak LR (CoPT, not from scratch), a trainable
 quantizer/head, tri-stage LR (warmup → hold → exp decay), gradient accumulation to a target
 seconds-of-audio batch, atomic checkpoints with auto-resume, a training-health detector
-(below), and MLflow logging.
+(below), and MLflow logging to DagsHub (see [Where results go](#where-results-go-dagshub)).
 
 ## Prerequisites
 
@@ -109,7 +109,7 @@ share a path:
 | Benchmark           | `reports/bench/<run>/metrics.json`            |
 | Results table       | `reports/results-<run>.md`                    |
 | Training log        | `logs/<run>.log`                              |
-| MLflow run          | named `<run>`                                 |
+| DagsHub (MLflow)    | `<model name>`, e.g. `wavlm-large-copt200h`: the ssl-pretraining run and the SLSB leaderboard row (`make model-name`) |
 
 > **`EXPERIMENT` only labels the outputs — it does not change what is trained.** The data,
 > language mix and number of updates come from `params-data.yaml` (`select.target_hours`,
@@ -180,12 +180,12 @@ head -3 logs/$RUN.log                # names the model and its params file
 
 # watch progress (another terminal; do NOT trust pretrain_metrics-*.json until it finishes)
 tail -f reports/pretrain_curves-wavlm-large-si-ta-200h.csv   # live: step, loss, accuracy/perplexity
-#   also the DagsHub MLflow run named "wavlm-large-si-ta-200h"
+#   also the DagsHub ssl-pretraining run "wavlm-large-copt200h" (`make model-name $M`)
 
 make ckpt   $M                       # proxy-eval the milestones, copy the best (ranked on dev score)
 #   -> models/selected-wavlm-large-si-ta-200h/ + reports/checkpoint_selection-<run>.json
 make bench  $M                       # SLSB benchmark of the selected checkpoint
-#   -> reports/bench/wavlm-large-si-ta-200h/metrics.json (+ MLflow runs, if configured)
+#   -> reports/bench/wavlm-large-si-ta-200h/metrics.json + leaderboard row wavlm-large-copt200h
 make report $M                       # aggregate -> reports/results-<run>.md + results_table-<run>.csv
 ```
 
@@ -205,8 +205,8 @@ selected and materialised). Still run it inside `tmux`.
 ### Several experiments on one model
 
 `EXPERIMENT=` is how you keep runs of the *same* model apart — e.g. a frozen-CNN run and a
-CNN-unfreeze run of HuBERT. Each gets its own checkpoints, reports, benchmark folder, log and
-MLflow run, so nothing is overwritten and you can run them side by side on different servers:
+CNN-unfreeze run of HuBERT. Each gets its own checkpoints, reports, benchmark folder, log,
+ssl-pretraining run and leaderboard row, so nothing is overwritten and you can run them side by side on different servers:
 
 ```bash
 make train MODEL=hubert EXPERIMENT=si-ta-200h       # -> models/hubert-large-si-ta-200h/
@@ -286,22 +286,58 @@ recorded as complete.
 
 `make report` renders one row per upstream in the model's `benchmark.upstreams` (its adapted run
 plus the un-adapted baselines), showing `—` for any upstream it can't find a `metrics.json` for
-rather than fabricating a score. `make bench` only benchmarks the adapted checkpoint, so run each
-baseline once first with `UPSTREAM=`:
+rather than fabricating a score. `make bench` only benchmarks the adapted checkpoint, so run the
+model's own base once with `FROZEN=1` (its leaderboard row is the frozen model, e.g.
+`wavlm-large`), and any other baseline with `UPSTREAM=`:
 
 ```bash
-make bench MODEL=wavlm UPSTREAM=microsoft/wavlm-large           # the un-adapted base
-make bench MODEL=wavlm UPSTREAM=utter-project/mHuBERT-147       # any cross-model baseline
+make bench MODEL=wavlm FROZEN=1                                 # microsoft/wavlm-large, row wavlm-large
+make bench MODEL=wavlm UPSTREAM=utter-project/mHuBERT-147       # results only (no NAME=, no row)
 # ... then:
 make report MODEL=wavlm
 ```
 
 Baselines are shared across models and only need running once each. `report.py` looks a result
 up by its **`benchmark.upstreams` key**, so benchmarking a configured baseline by its path
-automatically writes to that key's folder (`UPSTREAM=microsoft/wavlm-large` →
-`reports/bench/wavlm_large/`) and the table picks it up. Any other upstream gets a folder derived
-from its path (`…/checkpoint-9000` → `reports/bench/<run>-checkpoint-9000/`); add `NAME=<folder>`
-to override.
+automatically writes to that key's folder (`FROZEN=1` for wavlm → `reports/bench/wavlm_large/`)
+and the table picks it up. Any other upstream gets a folder derived from its path
+(`…/checkpoint-9000` → `reports/bench/<run>-checkpoint-9000/`); `OUT=<folder>` overrides it. An
+`UPSTREAM=` is logged to the leaderboard only when you give it a row name with `NAME=`, so an
+ad-hoc checkpoint can never overwrite a model's row.
+
+## Where results go (DagsHub)
+
+Credentials: `DAGSHUB_USER` / `DAGSHUB_TOKEN` in `.env`. Every run has ONE name in DagsHub, its
+**model name** (`make model-name`): `<model>-copt<hours>h[-<language>][-<variant>]`, derived from
+`EXPERIMENT` (`si-ta-200h` → `wavlm-large-copt200h`, `si-100h-p30` → `wavlm-large-copt100h-si-p30`,
+`cnn-unfreeze` → `hubert-large-copt200h-cnn-unfreeze`). Set `model_name:` at the top of the params
+file when an experiment needs a different one. Checkpoints stay on the training server.
+
+**Training → `Model-Training-Pipeline.mlflow`, experiment `ssl-pretraining`** (`mlflow:` in the
+params file), one run per training run:
+
+- tags `kind=adapted`, `family`, `base_model`, `data=<experiment>`, `slsb.model=<model name>`, a note;
+- params: `experiment`, `output_dir`, `params_commit`, the training settings, `trained` (start to
+  end), and `selected_checkpoint` once `make ckpt` ran;
+- metrics: the `train/*` curves every `eval_every_updates`, and `checkpoint_selection/<checkpoint>`
+  (each milestone's dev score) from `make ckpt`;
+- artifacts: `params.yaml`, `pretrain_curves.csv`, `pretrain_metrics.json`, `kmeans_stats.json`
+  (HuBERT family), `checkpoint_selection.json`.
+
+A resumed run continues the same MLflow run (its id is in `models/<run>/mlflow_run_id.txt`, next to
+the checkpoints). A run ends **FINISHED** only when it reached `max_updates`; stopped early (stall /
+collapse detector, kill signal) it ends **KILLED**, crashed **FAILED**.
+
+**Benchmark → `SLSB-benchmark.mlflow`, experiment `slsb-<protocol>`** (the leaderboard). `make bench`
+runs `slsb run` without live MLflow logging, copies the results to `reports/bench/<run>/`, then
+logs them once with SLSB's own `scripts/log_results.py` as one run per model: every task's metric
+(mean over seeds) and its `_std`, with `kind`, `family`, `base_model`, `checkpoint`,
+`pretrain_hours`, protocol and slsb version, and `per_seed.csv` plus the results folder as
+artifacts. `benchmark.slsb_version` pins the protocol (`make bench` refuses another slsb version);
+a row needs all six task families (`benchmark.tasks`). A model that already has a row is left
+alone unless `REPLACE=1`; after a protocol release that changed only some tasks, re-run those with
+`CARRY_OVER=1`. Without the credentials (or with `NO_LOG=1`) the results stay local and the logging
+command is printed. `DRY_RUN=1` prints the commands only.
 
 ## Multi-node (DDP)
 
@@ -329,7 +365,7 @@ diverge).
 
 `dvc.yaml` describes the data stages and the default **mHuBERT-147** run end to end (its `vars`
 come from `params-mhubert147.yaml`); `dvc repro` runs whatever is stale. The other four models
-are driven by `make`, not DVC — there is no `dvc-<model>.yaml`. `scripts/run_benchmark.sh` bridges
+are driven by `make`, not DVC — there is no `dvc-<model>.yaml`. `pipeline.eval.benchmark` bridges
 slsb's real output filename (`results_<upstream-with-/-as-__>.json`) to the fixed `metrics.json`
 path `dvc.yaml` and `report.py` expect. `dvc.lock` may be stale after config renames — **don't
 `dvc repro` blindly**, as it can retrain for hours.
@@ -353,6 +389,7 @@ src/pipeline/
   train.py                  CLI entry point; dispatches on objective family
   common/                   infra used everywhere (no model/family logic)
     schema.py  device.py  checkpoints.py  callbacks.py  datamodule.py
+    tracking.py               the run's DagsHub record (ssl-pretraining)
   models/                   one file per model (its ModelSpec) + the registry
     registry.py  spec.py  mhubert147.py  hubert.py  wavlm.py  xlsr.py  wav2vec2.py
   training/                 the engine: one trainer per objective family
@@ -362,10 +399,9 @@ src/pipeline/
   pecopt/                   full_copt (default) + PE-CoPT method templates
   data/                     snapshot_catalog / drive_index / select / materialise / shard
   labels/                   fit_kmeans / assign_cluster_labels / layer_features (k-means targets)
-  eval/                     select_checkpoint / benchmark / report
+  eval/                     select_checkpoint / benchmark (+ slsb.py) / report
 scripts/
   launch_pretrain.sh        torchrun wrapper (single- and multi-node)
   phase0_throughput.py      throughput / memory probe
-  run_benchmark.sh          slsb wrapper used by make bench
   nccl_bandwidth_test.sh    inter-node link check before multi-node training
 ```

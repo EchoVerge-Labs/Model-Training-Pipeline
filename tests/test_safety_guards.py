@@ -40,11 +40,18 @@ def test_an_explicit_upstream_skips_the_completion_gate(monkeypatch):
     """Benchmarking a baseline / arbitrary checkpoint (--upstream) is deliberate and ungated;
     runs from the repo root so params-wavlm.yaml resolves, with no metrics file present."""
     captured = {}
-    monkeypatch.setattr(
-        benchmark.subprocess, "call", lambda cmd: captured.setdefault("cmd", cmd) and 0 or 0
-    )
+
+    def fake_call(cmd):
+        captured.setdefault("cmd", cmd)
+        return 1  # stop after slsb: nothing to copy or log
+
+    monkeypatch.setattr(benchmark, "slsb_command", lambda: ["slsb"])
+    monkeypatch.setattr(benchmark, "log_results_script", lambda: "log_results.py")
+    monkeypatch.setattr(benchmark, "require_version", lambda expected, cmd: expected)
+    monkeypatch.setattr(benchmark.subprocess, "call", fake_call)
     rc = benchmark.main(["--config", "params-wavlm.yaml", "--upstream", "microsoft/wavlm-large"])
-    assert rc == 0 and captured["cmd"][2] == "microsoft/wavlm-large"  # ran without a metrics file
+    cmd = captured["cmd"]  # slsb ran without a metrics file
+    assert rc == 1 and cmd[cmd.index("--upstream") + 1] == "microsoft/wavlm-large"
 
 
 def test_failed_tasks_flags_a_partial_slsb_run(tmp_path):

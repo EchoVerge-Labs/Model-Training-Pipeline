@@ -8,4 +8,6 @@ SPEC = contrastive_spec(
     "facebook/wav2vec2-large-lv60",
     "params-wav2vec2.yaml",
     "wav2vec2-mono",
+    "wav2vec2",
+    "wav2vec2-large-lv60",
 )

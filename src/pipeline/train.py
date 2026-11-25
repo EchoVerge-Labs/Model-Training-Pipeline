@@ -17,9 +17,11 @@ options (e.g. the contrastive trainer's --resume-from / --no-resume) work as bef
 """
 
 import argparse
+import signal
 import sys
 
 from pipeline.common.schema import Params
+from pipeline.common.tracking import end_active_run
 from pipeline.models.registry import MODEL_REGISTRY, get_model_spec
 
 
@@ -54,7 +56,23 @@ def main(argv: list[str] | None = None):
         from pipeline.training.contrastive import main as family_main
 
     sys.argv = [sys.argv[0], "--config", config, *rest]
-    family_main()
+    # torchrun stops a worker with SIGTERM: turn it into an exception so the run's MLflow run
+    # is ended KILLED (a crash ends it FAILED) instead of being left RUNNING, or being marked
+    # FINISHED by MLflow's exit hook. pipeline.common.tracking ends a completed run FINISHED.
+    signal.signal(signal.SIGTERM, _raise_on_sigterm)
+    try:
+        family_main()
+    except (KeyboardInterrupt, SystemExit) as e:
+        if not (isinstance(e, SystemExit) and e.code in (0, None)):
+            end_active_run("KILLED")
+        raise
+    except BaseException:
+        end_active_run("FAILED")
+        raise
+
+
+def _raise_on_sigterm(signum, frame):
+    raise SystemExit(128 + signum)
 
 
 if __name__ == "__main__":

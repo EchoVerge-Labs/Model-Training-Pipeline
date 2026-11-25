@@ -1,4 +1,4 @@
-.PHONY: setup lint test phase0 snapshot index select pull shard fit-kmeans labels train ckpt bench report run-name all clean help
+.PHONY: setup lint test phase0 snapshot index select pull shard fit-kmeans labels train ckpt bench report run-name model-name all clean help
 
 # Load local credentials/config for recipes. Values already supplied by the
 # shell win over .env (make's own include would otherwise overwrite them, e.g.
@@ -36,7 +36,7 @@ else
 endif
 
 # EXPERIMENT names the run: outputs go to <model>-<EXPERIMENT> (models/, reports/*-<run>.*,
-# models/selected-<run>, reports/bench/<run>, MLflow run, logs/<run>.log), so runs never
+# models/selected-<run>, reports/bench/<run>, logs/<run>.log), so runs never
 # share a path. Default: the `experiment:` in the params file (si-ta-200h).
 # e.g. `make train MODEL=wavlm EXPERIMENT=si-100h`, then `make ckpt|bench|report` the same.
 EXPERIMENT ?=
@@ -47,6 +47,9 @@ RUN = $(shell $(PYTHON) -c "from pipeline.common.schema import load_raw_params a
 
 run-name:  ## print this MODEL/EXPERIMENT's run name (e.g. for naming a tmux session)
 	@echo $(RUN)
+
+model-name:  ## print its name in DagsHub (ssl-pretraining run + SLSB leaderboard row)
+	@$(PYTHON) -c "from pipeline.common.schema import load_raw_params as l; print(l('$(CONFIG)', $(if $(EXPERIMENT),'$(EXPERIMENT)',None))['model_name'])"
 
 help:  ## show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(firstword $(MAKEFILE_LIST)) | sort | \
@@ -105,8 +108,8 @@ train:  ## continued pre-training of MODEL (HuBERT-family needs `make shard` and
 ckpt:  ## select best checkpoint via proxy eval
 	$(PYTHON) -m pipeline.eval.select_checkpoint --config $(CONFIG) $(EXP_ARG) $(INCOMPLETE_ARG)
 
-bench:  ## SLSB benchmark -> reports/bench/<run>/; UPSTREAM=<dir|HF id> for a baseline (NAME= overrides its folder)
-	$(PYTHON) -m pipeline.eval.benchmark --config $(CONFIG) $(EXP_ARG) $(INCOMPLETE_ARG) $(if $(UPSTREAM),--upstream=$(UPSTREAM)) $(if $(NAME),--name=$(NAME))
+bench:  ## SLSB benchmark -> reports/bench/<run>/ + the SLSB leaderboard; FROZEN=1 for the base model, UPSTREAM=<dir|HF id> NAME=<row> for any other
+	$(PYTHON) -m pipeline.eval.benchmark --config $(CONFIG) $(EXP_ARG) $(INCOMPLETE_ARG) $(if $(FROZEN),--frozen) $(if $(UPSTREAM),--upstream=$(UPSTREAM)) $(if $(NAME),--name=$(NAME)) $(if $(OUT),--out=$(OUT)) $(if $(NOTE),--note="$(NOTE)") $(if $(REPLACE),--replace) $(if $(CARRY_OVER),--carry-over) $(if $(NO_LOG),--no-log) $(if $(DRY_RUN),--dry-run)
 
 report:  ## generate results table
 	$(PYTHON) -m pipeline.eval.report --config $(CONFIG) $(EXP_ARG)

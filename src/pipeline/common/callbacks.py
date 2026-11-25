@@ -15,9 +15,18 @@ except ImportError:
 
 
 class MLflowLogger:
-    """Log training metrics to MLflow."""
+    """Log one training run to MLflow; every call is best-effort (a tracking error warns, it never
+    stops training). `run_id` reopens an existing run (a resumed training run keeps its run)."""
 
-    def __init__(self, tracking_uri: str, experiment_name: str, run_name: str | None = None):
+    def __init__(
+        self,
+        tracking_uri: str,
+        experiment_name: str,
+        run_name: str | None = None,
+        run_id: str | None = None,
+    ):
+        self.enabled = False
+        self.run_id = None
         if not HAS_MLFLOW:
             warnings.warn("mlflow not installed, logging disabled")
             return
@@ -29,23 +38,59 @@ class MLflowLogger:
 
         # A tracking outage must never kill a multi-hour training run: if the experiment
         # can't be reached, disable logging for the rest of the run instead of raising.
-        self.enabled = False
         try:
             mlflow.set_tracking_uri(tracking_uri)
             mlflow.set_experiment(experiment_name)
-            self.run = mlflow.start_run(run_name=run_name)
+            if run_id:
+                self.run = mlflow.start_run(run_id=run_id)
+            else:
+                self.run = mlflow.start_run(run_name=run_name)
+            self.run_id = self.run.info.run_id
             self.enabled = True
         except Exception as e:  # noqa: BLE001 -- any MLflow/network error, logging is optional
             warnings.warn(f"MLflow logging disabled: could not start a run ({e})")
 
     def log_params(self, params: dict):
-        self._safe(mlflow.log_params, params)
+        """Params are write-once in MLflow: a resumed run re-logs only the ones it lacks, and a
+        value that changed since the run started is reported instead of failing the batch."""
+        if not (HAS_MLFLOW and self.enabled):
+            return
+        try:
+            existing = mlflow.get_run(self.run_id).data.params
+        except Exception:  # noqa: BLE001
+            existing = {}
+        new = {}
+        for key, value in params.items():
+            if key not in existing:
+                new[key] = value
+            elif existing[key] != str(value):
+                warnings.warn(
+                    f"MLflow param {key!r} is {existing[key]!r} in this run; not changing it "
+                    f"to {value!r}"
+                )
+        if new:
+            self._safe(mlflow.log_params, new)
+
+    def set_tags(self, tags: dict):
+        self._safe(mlflow.set_tags, tags)
 
     def log_metrics(self, metrics: dict, step: int):
         self._safe(mlflow.log_metrics, metrics, step=step)
 
-    def end(self):
-        self._safe(mlflow.end_run)
+    def log_artifact(self, path: str, name: str | None = None):
+        """Upload a file to the run, as `name` (default: its own file name)."""
+        if not (HAS_MLFLOW and self.enabled):
+            return
+        import shutil
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            target = os.path.join(tmp, name or os.path.basename(path))
+            shutil.copyfile(path, target)
+            self._safe(mlflow.log_artifact, target)
+
+    def end(self, status: str = "FINISHED"):
+        self._safe(mlflow.end_run, status=status)
 
     def _safe(self, fn, *args, **kwargs):
         """Run an MLflow call, but a tracking error only warns -- it never stops training."""

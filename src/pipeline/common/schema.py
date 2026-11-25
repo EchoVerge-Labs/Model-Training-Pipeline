@@ -6,6 +6,7 @@ contrastive learning with a Gumbel quantiser. Fields that only one family uses a
 optional here, and `Params` requires them exactly when the family does.
 """
 
+import re
 from pathlib import Path
 from typing import Literal
 
@@ -204,14 +205,54 @@ DEFAULT_EXPERIMENT = "si-ta-200h"
 
 DATA_CONFIG = "params-data.yaml"
 
+# Language codes an experiment name may carry (si-ta-200h, si-100h-p30, ta-100h, ...).
+LANGUAGE_CODES = ("si", "ta")
+
+
+def _hours_str(hours) -> str:
+    hours = float(hours)
+    return str(int(hours)) if hours.is_integer() else str(hours)
+
+
+def experiment_hours(experiment: str, default_hours) -> str:
+    """Hours of continued pre-training: the experiment's "<N>h" token, else the data config's
+    select.target_hours (an experiment like cnn-unfreeze trains on the default selection)."""
+    for token in experiment.split("-"):
+        if re.fullmatch(r"\d+(\.\d+)?h", token):
+            return _hours_str(token[:-1])
+    return _hours_str(default_hours)
+
+
+def model_name(model_key: str, experiment: str, default_hours) -> str:
+    """The run's name in DagsHub: its ssl-pretraining run and its SLSB leaderboard row.
+
+    "<slsb name>-copt<hours>h[-<language>][-<variant>]", the convention of the leaderboard:
+      wavlm si-ta-200h      -> wavlm-large-copt200h
+      xlsr  si-ta-200h-norm -> xlsr300m-copt200h-norm
+      wavlm si-100h-p30     -> wavlm-large-copt100h-si-p30
+      hubert cnn-unfreeze   -> hubert-large-copt200h-cnn-unfreeze
+    A language is named only when the run trains on one (si-ta is the default mix). A params
+    file's top-level `model_name:` overrides this.
+    """
+    tokens = experiment.split("-")
+    hours = experiment_hours(experiment, default_hours)
+    rest = [t for t in tokens if not re.fullmatch(r"\d+(\.\d+)?h", t)]
+    languages = sorted({t for t in rest if t in LANGUAGE_CODES})
+    variant = [t for t in rest if t not in LANGUAGE_CODES]
+    parts = [f"{MODEL_REGISTRY[model_key].slsb_name}-copt{hours}h"]
+    if len(languages) == 1:
+        parts += languages
+    return "-".join(parts + variant)
+
 
 def load_raw_params(path: str = "params-mhubert147.yaml", experiment: str | None = None) -> dict:
     """The params file as a dict with the run name resolved.
 
     A run is a model plus an experiment name (si-ta-200h, si-100h, ...). Its name,
     `<model prefix>-<experiment>` (e.g. wavlm-large-si-100h), replaces `{run}` in every
-    key and value, so models/{run}, reports/*-{run}.json, the selected checkpoint, the
-    benchmark folder and the MLflow run all carry it and two runs never share a path.
+    key and value, so models/{run}, reports/*-{run}.json, the selected checkpoint and the
+    benchmark folder all carry it and two runs never share a path. `model_name` is the run's
+    name in DagsHub (see model_name()); `pretrain_hours` its hours of continued pre-training.
     `experiment` overrides the file's own `experiment:` (the --experiment flag).
     """
     import yaml
@@ -244,6 +285,11 @@ def load_raw_params(path: str = "params-mhubert147.yaml", experiment: str | None
 
     raw = fill(raw)
     raw["experiment"], raw["run_name"] = experiment, run
+    target_hours = raw["select"]["target_hours"]
+    raw["model_name"] = raw.get("model_name") or model_name(
+        raw["model_key"], experiment, target_hours
+    )
+    raw["pretrain_hours"] = experiment_hours(experiment, target_hours)
     return raw
 
 
@@ -265,6 +311,10 @@ class Params(BaseModel):
     model_key: ModelKey
     experiment: str = DEFAULT_EXPERIMENT  # names this run's outputs; see load_raw_params
     run_name: str | None = None  # default "<model prefix>-<experiment>"
+    # The run's name in DagsHub (ssl-pretraining run, SLSB leaderboard row) and its hours of
+    # continued pre-training; derived from model_key + experiment unless set (see model_name()).
+    model_name: str | None = None
+    pretrain_hours: str | None = None
     select: SelectConfig
     shard: ShardConfig
     cluster: ClusterConfig | None = None
@@ -281,6 +331,14 @@ class Params(BaseModel):
     @property
     def model_family(self) -> ModelFamily:
         return MODEL_REGISTRY[self.model_key].family
+
+    @model_validator(mode="after")
+    def dagshub_name(self):
+        if self.pretrain_hours is None:
+            self.pretrain_hours = experiment_hours(self.experiment, self.select.target_hours)
+        if self.model_name is None:
+            self.model_name = model_name(self.model_key, self.experiment, self.select.target_hours)
+        return self
 
     @model_validator(mode="after")
     def family_fields_are_present(self):

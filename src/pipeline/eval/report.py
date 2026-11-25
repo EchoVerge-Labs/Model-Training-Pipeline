@@ -2,7 +2,7 @@
 
 Reads reports/bench/<upstream>/metrics.json for each upstream in
 params-mhubert147.yaml's benchmark.upstreams -- that file is a copy of slsb's own
-results_<upstream>.json (see scripts/run_benchmark.sh), a list of
+results_<upstream>.json (see pipeline.eval.benchmark), a list of
 per-(task,language,seed) result entries, not a flat {task: score} dict.
 This groups entries by task family (matching slsb's own data/<prefix>*
 directory convention) and reports mean +/- std of the primary metric across

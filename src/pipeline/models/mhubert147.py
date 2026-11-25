@@ -12,4 +12,5 @@ SPEC = masked_spec(
     768,
     "params-mhubert147.yaml",
     "mhubert147",
+    "mhubert",
 )

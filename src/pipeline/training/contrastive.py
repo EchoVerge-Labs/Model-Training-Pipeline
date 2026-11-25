@@ -52,7 +52,6 @@ os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 
 import torch
 import torch.distributed as dist
-import yaml
 from torch.nn.parallel import DistributedDataParallel as DDP
 from transformers import (
     Wav2Vec2FeatureExtractor,
@@ -63,7 +62,7 @@ from transformers.models.wav2vec2.modeling_wav2vec2 import (
     _sample_negative_indices,
 )
 
-from pipeline.common.callbacks import CodebookCollapseDetector, MLflowLogger
+from pipeline.common.callbacks import CodebookCollapseDetector
 from pipeline.common.checkpoints import (
     find_resume,
     prepare_curves,
@@ -73,6 +72,11 @@ from pipeline.common.checkpoints import (
 from pipeline.common.datamodule import create_dataloader
 from pipeline.common.device import get_device
 from pipeline.common.schema import Params
+from pipeline.common.tracking import (
+    finish_training_run,
+    nondefault_method_params,
+    start_training_run,
+)
 from pipeline.models.registry import (
     describe_feature_encoder,
     feature_encoder_status,
@@ -445,18 +449,8 @@ def train(
     if is_main:
         if use_mlflow:
             try:
-                with open(config_path) as f:
-                    mlflow_cfg = yaml.safe_load(f).get("mlflow", {})
-                run_name = params.run
-                if resume:
-                    run_name += f"-resume{resume_step}"
-                mlflow_logger = MLflowLogger(
-                    tracking_uri=mlflow_cfg.get("tracking_uri", ""),
-                    experiment_name=mlflow_cfg.get("experiment_name", "ssl-pretraining"),
-                    run_name=run_name,
-                )
-                # Log all params
-                flat_params = {
+                # One MLflow run per training run, reopened on resume (pipeline.common.tracking).
+                run_params = {
                     "base_model": cfg.base_model,
                     "precision": cfg.precision,
                     "max_updates": cfg.max_updates,
@@ -467,7 +461,6 @@ def train(
                     "target_batch_seconds": cfg.target_batch_seconds,
                     "per_device_max_seconds": cfg.per_device_max_seconds,
                     "grad_accum_steps": grad_accum_steps,
-                    "world_size": world_size,
                     "mask_time_prob": cfg.mask_time_prob,
                     "mask_time_length": cfg.mask_time_length,
                     "diversity_loss_weight": cfg.diversity_loss_weight,
@@ -476,11 +469,11 @@ def train(
                     "gumbel_temperature_decay": cfg.gumbel_temperature_decay,
                     "freeze_feature_encoder": cfg.freeze_feature_encoder,
                     "cnn_params_trainable": feature_encoder_status(raw_model, spec)[1],
-                    "pecopt_method": cfg.pecopt.method,
+                    "layerdrop": cfg.layerdrop,
                     "normalize": normalize,
-                    "resumed_from_step": resume_step,
+                    **nondefault_method_params(cfg),
                 }
-                mlflow_logger.log_params(flat_params)
+                mlflow_logger = start_training_run(params, config_path, resume_step, run_params)
             except Exception as e:  # noqa: BLE001 -- experiment tracking must never kill a training run
                 print(f"WARNING: MLflow setup failed: {e}")
                 mlflow_logger = None
@@ -667,7 +660,6 @@ def train(
                 "train/lr": lr,
                 "train/gumbel_temp": round(gumbel_temp, 6),
                 "train/audio_sec_per_wall_sec": round(audio_throughput, 1),
-                "train/global_step": global_step,
             }
 
             print(
@@ -698,8 +690,6 @@ def train(
                 if not should_continue:
                     print("KILLING TRAINING DUE TO CODEBOOK COLLAPSE")
                     stop_signal[0] = 1.0
-                    if mlflow_logger:
-                        mlflow_logger.log_metrics({"train/killed_collapse": 1}, step=global_step)
 
             # Reset accumulators
             accum_loss = 0.0
@@ -747,15 +737,16 @@ def train(
             "completed": global_step >= cfg.max_updates,
         }
         reports_dir.mkdir(parents=True, exist_ok=True)
-        with open(reports_dir / f"pretrain_metrics{suffix}.json", "w") as f:
+        metrics_path = reports_dir / f"pretrain_metrics{suffix}.json"
+        with open(metrics_path, "w") as f:
             json.dump(final_metrics, f, indent=2)
 
-        if mlflow_logger:
-            mlflow_logger.log_metrics(
-                {k: v for k, v in final_metrics.items() if isinstance(v, (int, float))},
-                step=global_step,
-            )
-            mlflow_logger.end()
+        finish_training_run(
+            mlflow_logger,
+            config_path,
+            completed=final_metrics["completed"],
+            artifacts={"pretrain_curves.csv": curves_path, "pretrain_metrics.json": metrics_path},
+        )
 
         print(f"\nPre-training complete. {global_step} updates.")
         print(f"Model saved to {output_dir}")

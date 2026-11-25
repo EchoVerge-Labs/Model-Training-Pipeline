@@ -11,4 +11,5 @@ SPEC = masked_spec(
     1024,
     "params-hubert.yaml",
     "hubert-large",
+    "hubert",
 )

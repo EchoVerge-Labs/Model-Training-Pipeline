@@ -1,10 +1,12 @@
 """A run is <model>-<experiment>; everything it writes carries that name, so two
 experiments (or two models) never share a folder, report or benchmark directory."""
 
+import argparse
+
 import pytest
 
 from pipeline.common.schema import Params, load_raw_params
-from pipeline.eval.benchmark import bench_name, build_command
+from pipeline.eval.benchmark import bench_name, log_results_command, make_plan, slsb_run_command
 
 
 def test_default_run_name_is_model_prefix_plus_experiment():
@@ -35,17 +37,75 @@ def test_experiment_must_be_a_plain_name(bad):
         load_raw_params("params-wavlm.yaml", bad)
 
 
+def _args(**kw):
+    base = {
+        "frozen": False,
+        "upstream": None,
+        "name": None,
+        "out": None,
+        "checkpoint": None,
+        "leaderboard_uri": None,
+    }
+    return argparse.Namespace(**{**base, **kw})
+
+
+def test_model_name_follows_the_leaderboard_convention():
+    cases = {
+        ("params-wavlm.yaml", None): "wavlm-large-copt200h",
+        ("params-xlsr.yaml", None): "xlsr300m-copt200h-norm",
+        ("params-wavlm.yaml", "si-100h-p30"): "wavlm-large-copt100h-si-p30",
+        ("params-xlsr.yaml", "ta-100h"): "xlsr300m-copt100h-ta",
+        ("params-hubert.yaml", "cnn-unfreeze"): "hubert-large-copt200h-cnn-unfreeze",
+        ("params-wav2vec2.yaml", None): "wav2vec2-large-lv60-copt200h",
+        ("params-mhubert147.yaml", None): "mhubert147-copt200h",
+    }
+    for (config, experiment), expected in cases.items():
+        assert load_raw_params(config, experiment)["model_name"] == expected
+        assert Params.from_yaml(config, experiment).model_name == expected
+    assert load_raw_params("params-wavlm.yaml", "si-100h-p30")["pretrain_hours"] == "100"
+
+
 def test_bench_defaults_to_the_runs_selected_checkpoint_and_own_folder():
-    cmd = build_command(load_raw_params("params-wavlm.yaml", "si-100h"))
-    assert cmd[2] == "models/selected-wavlm-large-si-100h"
-    assert cmd[5] == "reports/bench/wavlm-large-si-100h"
-    assert cmd[-1] == "model=wavlm,experiment=si-100h" and cmd[-2] == "wavlm-large-si-100h"
+    plan = make_plan(load_raw_params("params-wavlm.yaml", "si-100h"), _args())
+    assert plan.upstream == "models/selected-wavlm-large-si-100h"
+    assert str(plan.out_dir) == "reports/bench/wavlm-large-si-100h"
+    assert (plan.name, plan.kind, plan.family) == ("wavlm-large-copt100h-si", "adapted", "wavlm")
+    assert plan.pretrain_hours == "100"
+
+
+def test_bench_never_logs_live_and_logs_one_leaderboard_row():
+    plan = make_plan(load_raw_params("params-wavlm.yaml"), _args(checkpoint="9000"))
+    run = slsb_run_command(plan, ["slsb"])
+    assert "--mlflow-uri" not in run  # no per-task/seed runs anywhere
+    assert run[run.index("--tasks") + 1] == "asr,sid,er,sd,asv,ic"
+    log = log_results_command(plan, "python", "log_results.py")
+    assert log[2] == "reports/bench/wavlm-large-si-ta-200h"
+    assert log[log.index("--name") + 1] == "wavlm-large-copt200h"
+    assert log[log.index("--mlflow-uri") + 1].endswith("/SLSB-benchmark.mlflow")
+    assert log[log.index("--checkpoint") + 1] == "9000"
+
+
+def test_frozen_baseline_is_the_base_model_row():
+    plan = make_plan(load_raw_params("params-wav2vec2.yaml"), _args(frozen=True))
+    assert plan.upstream == "facebook/wav2vec2-large-lv60"
+    assert (plan.name, plan.kind, plan.checkpoint, plan.pretrain_hours) == (
+        "wav2vec2-large-lv60",
+        "frozen",
+        "",
+        "",
+    )
+
+
+def test_an_adhoc_upstream_is_not_logged_without_a_name():
+    raw = load_raw_params("params-wavlm.yaml")
+    plan = make_plan(raw, _args(upstream="utter-project/mHuBERT-147"))
+    assert plan.name is None and plan.kind == "frozen" and plan.family == "mhubert"
 
 
 def test_bench_of_any_other_checkpoint_gets_its_own_folder():
     raw = load_raw_params("params-wavlm.yaml")
-    cmd = build_command(raw, "models/wavlm-large-si-ta-200h/checkpoint-9000")
-    assert cmd[5] == "reports/bench/wavlm-large-si-ta-200h-checkpoint-9000"
+    plan = make_plan(raw, _args(upstream="models/wavlm-large-si-ta-200h/checkpoint-9000"))
+    assert str(plan.out_dir) == "reports/bench/wavlm-large-si-ta-200h-checkpoint-9000"
     assert bench_name("microsoft/wavlm-large") == "microsoft-wavlm-large"
 
 

@@ -70,10 +70,11 @@ checkpoint_selection:
 
 # ── Benchmark ───────────────────────────────────────
 benchmark:
-  tasks: "asr,sid,er,asv"
+  tasks: "asr,sid,er,sd,asv,ic"   # all six families: a leaderboard row covers every task
   seeds: "0,1,2"
   slsb_data_dir: ../SLSB-benchmark/data    # relative to this repo root
-  mlflow_uri: https://dagshub.com/EchoVerge-LABS/Model-Training-Pipeline.mlflow
+  slsb_version: "0.5.0"   # protocol v0.5; scores from other versions are not comparable
+  # results are logged to the SLSB leaderboard (SLSB-benchmark.mlflow, slsb-<protocol>)
   upstreams:
     xlsr300m_vanilla:
       path: facebook/wav2vec2-xls-r-300m
