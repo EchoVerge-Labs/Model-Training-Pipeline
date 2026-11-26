@@ -139,6 +139,7 @@ def test_probabilities_must_cover_the_languages_and_sum_to_one():
 
 def _two_language_shars(tmp_path, n_each=24):
     sf = pytest.importorskip("soundfile")
+    pytest.importorskip("lhotse")
     from lhotse import CutSet, MonoCut, Recording
 
     from pipeline.data.shard import shard_cuts

@@ -182,6 +182,7 @@ def test_select_refuses_to_overwrite_a_different_selection(tmp_path, monkeypatch
 def test_fit_kmeans_never_overwrites_an_existing_model(tmp_path, monkeypatch):
     import sys
 
+    pytest.importorskip("lhotse")
     from pipeline.labels import fit_kmeans
 
     monkeypatch.chdir(tmp_path)
