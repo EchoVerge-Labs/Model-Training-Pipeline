@@ -13,13 +13,19 @@ export $(ENV_VARS)
 PYTHON ?= $(if $(wildcard $(CURDIR)/.venv/bin/python),$(CURDIR)/.venv/bin/python,python3)
 export PYTHONPATH := $(CURDIR)/src$(if $(PYTHONPATH),:$(PYTHONPATH))
 
-# Model-specific targets (fit-kmeans, labels, train, ckpt, bench, report) take
-# MODEL=mhubert147|hubert|wavlm|xlsr|wav2vec2, e.g. `make train MODEL=wavlm`.
-MODEL ?= mhubert147
+# Model-specific targets (name, phase0, fit-kmeans, labels, train, ckpt, bench, report, all)
+# need MODEL=mhubert147|hubert|wavlm|xlsr|wav2vec2, e.g. `make train MODEL=wavlm`. There is
+# deliberately no default: a forgotten MODEL= would otherwise train the wrong model for days.
+MODEL ?=
+MODEL_KEYS := mhubert147, hubert, wavlm, xlsr or wav2vec2
+# First recipe line of every model-specific target: stops make before anything runs.
+REQUIRE_MODEL = $(if $(MODEL),,$(error MODEL is not set; pass one of $(MODEL_KEYS), e.g. `make $@ MODEL=wavlm`))
 # The shared data config the data stages read (with the same VARIANT/TAG as the run, a variant
 # that changes the selection -- e.g. smoke-1h -- gets its own data id and folders).
 DATA_CONFIG ?= params-data.yaml
-ifeq ($(MODEL),mhubert147)
+ifeq ($(MODEL),)
+  # data stages, lint, test, ... don't need a model
+else ifeq ($(MODEL),mhubert147)
   CONFIG := params-mhubert147.yaml
   HAS_KMEANS := 1
 else ifeq ($(MODEL),hubert)
@@ -33,7 +39,7 @@ else ifeq ($(MODEL),xlsr)
 else ifeq ($(MODEL),wav2vec2)
   CONFIG := params-wav2vec2.yaml
 else
-  $(error Unknown MODEL '$(MODEL)'; use mhubert147, hubert, wavlm, xlsr or wav2vec2)
+  $(error Unknown MODEL '$(MODEL)'; use $(MODEL_KEYS))
 endif
 
 # A run's name is derived from its config (pipeline.common.naming):
@@ -52,6 +58,7 @@ RUN = $(shell $(NAME_CMD))
 BENCH_LOG = logs/$(if $(FROZEN),$(shell $(NAME_CMD) --frozen),$(if $(UPSTREAM),$(or $(NAME),adhoc),$(RUN)))/bench.log
 
 name:  ## print this MODEL/VARIANT/TAG's run name (folders, tmux session, DagsHub run and row)
+	$(REQUIRE_MODEL)
 	@$(NAME_CMD)
 
 run-name: name  ## same as `make name`
@@ -72,6 +79,7 @@ test:  ## run unit tests
 # ── Individual pipeline stages ──────────────────────
 
 phase0:  ## measure GPU throughput (run first!); PHASE0_ARGS=--no-freeze-cnn to measure a trainable CNN
+	$(REQUIRE_MODEL)
 	$(PYTHON) scripts/phase0_throughput.py --model $(MODEL) --steps 100 $(PHASE0_ARGS)
 
 snapshot:  ## pull catalog from Google Sheet
@@ -95,35 +103,42 @@ shard:  ## shard WAVs into Lhotse Shar tarballs
 	$(PYTHON) -m pipeline.data.shard --config $(DATA_CONFIG) $(RUN_ARGS)
 
 fit-kmeans:  ## fit k-means on layer features of MODEL's base model -> models/kmeans/ (FORCE=1 to refit)
+	$(REQUIRE_MODEL)
 ifndef HAS_KMEANS
 	$(error MODEL=$(MODEL) uses a contrastive objective and has no k-means step)
 endif
 	$(PYTHON) -m pipeline.labels.fit_kmeans --config $(CONFIG) $(RUN_ARGS) $(if $(FORCE),--force)
 
 labels:  ## assign cluster-id pseudo-labels to every training cut (needs `make fit-kmeans` first)
+	$(REQUIRE_MODEL)
 ifndef HAS_KMEANS
 	$(error MODEL=$(MODEL) uses a contrastive objective and has no cluster labels)
 endif
 	$(PYTHON) -m pipeline.labels.assign_cluster_labels --config $(CONFIG) $(RUN_ARGS)
 
 train:  ## continued pre-training of MODEL -> models/<run>/, reports/<run>/ (HuBERT family: `make labels` first)
+	$(REQUIRE_MODEL)
 	@mkdir -p logs/$(RUN)
 	bash -o pipefail -c 'bash scripts/launch_pretrain.sh --config $(CONFIG) $(RUN_ARGS) 2>&1 | tee -a logs/$(RUN)/train.log'
 
 ckpt:  ## select the best checkpoint via proxy eval -> models/<run>/selected/
+	$(REQUIRE_MODEL)
 	@mkdir -p logs/$(RUN)
 	bash -o pipefail -c '$(PYTHON) -m pipeline.eval.select_checkpoint --config $(CONFIG) $(RUN_ARGS) $(INCOMPLETE_ARG) 2>&1 | tee -a logs/$(RUN)/ckpt.log'
 
 bench:  ## SLSB benchmark -> reports/<run>/bench/ + one leaderboard row; FROZEN=1 for <model>-frozen, UPSTREAM= NAME= for any other
+	$(REQUIRE_MODEL)
 	@mkdir -p $(dir $(BENCH_LOG))
 	bash -o pipefail -c '$(PYTHON) -m pipeline.eval.benchmark --config $(CONFIG) $(RUN_ARGS) $(INCOMPLETE_ARG) $(if $(FROZEN),--frozen) $(if $(UPSTREAM),--upstream=$(UPSTREAM)) $(if $(NAME),--name=$(NAME)) $(if $(OUT),--out=$(OUT)) $(if $(NOTE),--note="$(NOTE)") $(if $(REPLACE),--replace) $(if $(CARRY_OVER),--carry-over) $(if $(NO_LOG),--no-log) $(if $(DRY_RUN),--dry-run) 2>&1 | tee -a $(BENCH_LOG)'
 
 report:  ## results table of the run vs its frozen baselines -> reports/<run>/results.md
+	$(REQUIRE_MODEL)
 	$(PYTHON) -m pipeline.eval.report --config $(CONFIG) $(RUN_ARGS)
 
 # ── Full pipeline ───────────────────────────────────
 
 all:  ## MODEL's whole pipeline (needs data/ selected+materialised): shard, [k-means, labels,] train, ckpt, bench, report
+	$(REQUIRE_MODEL)
 	$(MAKE) shard VARIANT=$(VARIANT) TAG=$(TAG)
 ifdef HAS_KMEANS
 	$(MAKE) fit-kmeans labels MODEL=$(MODEL) VARIANT=$(VARIANT) TAG=$(TAG)

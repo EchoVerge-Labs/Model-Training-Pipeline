@@ -13,8 +13,8 @@ with `MODEL=<key>`.
 | `xlsr`       | `facebook/wav2vec2-xls-r-300m`      | wav2vec 2.0 contrastive       | `xlsr300m-…` / `xlsr300m-frozen` |
 | `wav2vec2`   | `facebook/wav2vec2-large-lv60`      | wav2vec 2.0 contrastive       | `wav2vec2-large-lv60-…` / `wav2vec2-large-lv60-frozen` |
 
-`mhubert147` is the default when `MODEL` is omitted. A run's full name is derived from its
-config, e.g. `wavlm-large-copt-si-ta-200h` (see [Run names](#run-names)).
+`MODEL` has no default: every per-model target stops with an error when it is missing. A run's
+full name is derived from its config, e.g. `wavlm-large-copt-si-ta-200h` (see [Run names](#run-names)).
 
 ## Pipeline DAG
 
@@ -164,8 +164,9 @@ collapsed; rows that don't resolve to exactly one file are set aside in
 Run them in **`tmux`** (not `nohup`), and before launching either, check you're not already
 running this pipeline as part of a larger session on the same GPU.
 
-**Always pass `MODEL=`.** Every per-model target defaults to `MODEL=mhubert147`, so a `make
-train` that loses its `MODEL=` trains mHuBERT-147 — silently, and for days. `make name
+**Always pass `MODEL=`.** There is no default: a per-model target without `MODEL=` (`name`,
+`phase0`, `fit-kmeans`, `labels`, `train`, `ckpt`, `bench`, `report`, `all`) stops with an
+error instead of guessing. `make name
 MODEL=<key> VARIANT=<overlays> TAG=<tag>` prints the run name; if it isn't the run you meant,
 nothing below will be either.
 
@@ -190,7 +191,7 @@ make shard                           # pack into Lhotse Shar tarballs -> data/sh
 # --- per run: example WavLM (a HuBERT-family, masked-prediction model) ---
 # Every command below takes the SAME MODEL/VARIANT/TAG. `export`, not a plain assignment:
 # tmux starts a fresh shell, and an unexported $M would expand to nothing there --
-# `make train` alone falls back to MODEL=mhubert147 and trains the wrong model for days.
+# `make train` alone then stops with "MODEL is not set".
 export M="MODEL=wavlm"               # e.g. "MODEL=wavlm VARIANT=configs/variants/cnn.yaml"
 
 make phase0 MODEL=wavlm              # throughput + peak memory + wall-clock estimate (per model)
