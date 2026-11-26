@@ -2,7 +2,7 @@
 
 import json
 
-from pipeline.materialise import materialise, read_filenames
+from pipeline.data.materialise import materialise, read_filenames
 
 
 def _drive(tmp_path):
@@ -60,3 +60,18 @@ def test_read_filenames_merges_train_and_dev_without_repeats(tmp_path):
         "b.wav",
         "c.wav",
     ]
+
+
+def test_an_already_local_clip_is_done_even_if_the_mount_is_detached(tmp_path):
+    """Re-running (or selecting a subset of) an already-materialised set must not report every
+    file as missing just because the Drive mount is gone -- the audio is already on disk."""
+    from pipeline.data.materialise import copy_one
+
+    dst = tmp_path / "raw" / "Sinhala" / "news" / "clip.wav"
+    dst.parent.mkdir(parents=True)
+    dst.write_bytes(b"audio")
+    missing_src = tmp_path / "not-mounted" / "Sinhala" / "news" / "clip.wav"
+
+    assert copy_one(missing_src, dst) == ("skipped", 5)
+    # genuinely absent on both sides is still an error
+    assert copy_one(missing_src, tmp_path / "raw" / "nope.wav") == ("missing", 0)

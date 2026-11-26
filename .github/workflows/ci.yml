@@ -21,16 +21,14 @@ jobs:
           pip install -e ".[dev]"
 
       - name: Lint
-        run: |
-          ruff check src tests
-          ruff format --check src tests
+        run: make lint          # same target developers run, so the two cannot drift
 
       - name: Validate config
         run: |
-          python -c "from pipeline.schema import Params; Params.from_yaml('params.yaml')"
+          python -c "from pipeline.common.schema import Params; Params.from_yaml('params-mhubert147.yaml')"
 
       - name: Test
-        run: pytest -q tests/
+        run: make test
 
       - name: Check DVC pipeline
         run: |

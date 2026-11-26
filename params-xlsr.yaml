@@ -1,0 +1,77 @@
+# Which model this file configures; fixes its SSL objective family (see pipeline.common.schema).
+model_key: xlsr
+# A run's name, folders and DagsHub records are derived from this file plus any
+# VARIANT overlays and TAG: see pipeline.common.naming (`make name` prints it).
+
+# select / shard: shared by all models -> params-data.yaml
+
+# ── Pre-training ────────────────────────────────────
+pretrain:
+  base_model: facebook/wav2vec2-xls-r-300m
+  precision: bf16
+  freeze_feature_encoder: true   # false = full CoPT, the CNN trains too (more memory; check `make phase0`)
+
+  max_updates: 13500          # ~30 passes over 200h (was 50000 / 111 passes)
+  warmup_updates: 1000        # ~8% (was 4000)
+  peak_lr: 5.0e-5
+  lr_schedule: tri_stage      # warmup / hold / exponential decay
+  hold_ratio: 0.4             # fraction of remaining after warmup to hold
+  optimizer: adamw
+  adam_betas: [0.9, 0.98]
+  adam_eps: 1.0e-6
+  weight_decay: 0.01
+  max_grad_norm: 1.0
+
+  # batch size in AUDIO SECONDS (not examples)
+  target_batch_seconds: 1600
+  per_device_max_seconds: 200
+  num_workers: 4
+  max_gpu_memory_fraction: 0.8  # GB10 unified memory: leave ~24GB for the OS / sshd
+
+  # wav2vec2 masking
+  mask_time_prob: 0.65
+  mask_time_length: 10
+
+  # Gumbel quantizer
+  diversity_loss_weight: 0.1
+  max_gumbel_temperature: 1.0
+  min_gumbel_temperature: 0.5
+  gumbel_temperature_decay: 0.999995
+
+  # checkpointing
+  save_every_updates: 1500
+  eval_every_updates: 500
+  keep_last_n_checkpoints: 5
+  milestone_checkpoints: [4500, 9000, 13500]   # 10, 20, 30 passes
+
+  # Waveform normalisation is not a setting: it follows base_model's do_normalize
+  # (true for XLS-R), as on the HuBERT-Large / WavLM-Large branches. The first run,
+  # models/xlsr300m-si-ta-200h, predates that and trained on raw audio.
+
+# ── Monitoring ──────────────────────────────────────
+monitoring:
+  perplexity_floor: 10.0     # a codebook-perplexity reading below this counts as "low"
+  consecutive_alerts: 5      # this many low readings in a row stops training; one reading
+                             # per pretrain.eval_every_updates, so 5 x 500 = 2,500 updates
+
+# ── Checkpoint Selection ────────────────────────────
+checkpoint_selection:
+  proxy_task: asr
+  proxy_data_dir: ../SLSB-benchmark/data   # relative to this repo root
+  proxy_seed: 0
+
+# ── Benchmark ───────────────────────────────────────
+benchmark:
+  tasks: "asr,sid,er,sd,asv,ic"   # all six families: a leaderboard row covers every task
+  seeds: "0,1,2"
+  slsb_data_dir: ../SLSB-benchmark/data    # relative to this repo root
+  slsb_version: "0.5.0"   # protocol v0.5; scores from other versions are not comparable
+  # results are logged to the SLSB leaderboard (SLSB-benchmark.mlflow, slsb-<protocol>)
+  # Frozen baselines in the results table (make report), by model key: each is that model's
+  # base, benchmarked once with `make bench MODEL=<key> FROZEN=1` -> reports/<its name>/bench/.
+  baselines: [xlsr, mhubert147, wavlm]
+
+# ── MLflow ──────────────────────────────────────────
+mlflow:
+  tracking_uri: https://dagshub.com/EchoVerge-LABS/Model-Training-Pipeline.mlflow
+  experiment_name: ssl-pretraining

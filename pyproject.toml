@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "echoverge-pipeline"
 version = "0.1.0"
-description = "Continued SSL pre-training pipeline for XLS-R 300m on Sinhala/Tamil"
+description = "Continued SSL pre-training of five speech encoders (mHuBERT-147, HuBERT, WavLM, XLS-R, wav2vec2) on Sinhala/Tamil"
 requires-python = ">=3.10"
 dependencies = [
     "torch>=2.0",
@@ -22,8 +22,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-data = ["lhotse", "gspread", "google-auth"]
-benchmark = ["slsb @ git+https://github.com/EchoVerge-Labs/SLSB-benchmark.git@v0.1.0"]
+data = ["lhotse", "gspread", "google-auth", "scikit-learn", "joblib"]
+benchmark = ["slsb @ git+https://github.com/EchoVerge-Labs/SLSB-benchmark.git@v0.5.0"]
 dev = ["pytest", "ruff", "mypy"]
 
 [tool.hatch.metadata]

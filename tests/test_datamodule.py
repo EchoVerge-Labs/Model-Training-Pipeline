@@ -1,5 +1,7 @@
 """datamodule: seconds-budgeted batches from Shar shards, no clip dropped or duplicated."""
 
+import gzip
+import json
 import random
 
 import numpy as np
@@ -10,8 +12,14 @@ import soundfile as sf
 import torch
 from lhotse import CutSet, MonoCut, Recording
 
-from pipeline.datamodule import SAMPLE_RATE, create_dataloader, normalize_waveform, pack_batches
-from pipeline.shard import shard_cuts
+from pipeline.common.datamodule import (
+    SAMPLE_RATE,
+    create_dataloader,
+    load_labels,
+    pack_batches,
+    pad_batch,
+)
+from pipeline.data.shard import shard_cuts
 
 
 def _wave(seconds):
@@ -102,21 +110,150 @@ def test_too_few_shards_for_the_workers_is_a_clear_error(tmp_path):
         create_dataloader(str(shars), per_device_max_seconds=12.0, num_workers=4)
 
 
+def test_pad_batch_labels_are_padded_with_ignore_index():
+    waves = [torch.zeros(3), torch.zeros(5)]
+    label_seqs = [[1, 2], [3, 4, 5]]
+    batch = pad_batch(waves, label_seqs)
+    assert batch["labels"].shape == (2, 3)
+    assert batch["labels"][0].tolist() == [1, 2, -100]
+    assert batch["labels"][1].tolist() == [3, 4, 5]
+
+
+def test_load_labels_reads_gzip_jsonl(tmp_path):
+    path = tmp_path / "labels.jsonl.gz"
+    with gzip.open(path, "wt", encoding="utf-8") as f:
+        f.write(json.dumps({"id": "a", "labels": [1, 2, 3]}) + "\n")
+        f.write(json.dumps({"id": "b", "labels": [4, 5]}) + "\n")
+    labels_by_id = load_labels(str(path))
+    assert labels_by_id == {"a": [1, 2, 3], "b": [4, 5]}
+
+
+def test_dataloader_attaches_labels_and_missing_id_raises_clearly(tmp_path):
+    durations = [1.0, 1.0, 1.0, 1.0]
+    shars = _make_shars(tmp_path, durations, shard_size=1)  # 4 shards
+    labels_path = tmp_path / "labels.jsonl.gz"
+    with gzip.open(labels_path, "wt", encoding="utf-8") as f:
+        for i in range(len(durations)):
+            f.write(json.dumps({"id": f"c{i}", "labels": [i, i, i]}) + "\n")
+
+    loader = create_dataloader(
+        str(shars), per_device_max_seconds=12.0, num_workers=0, seed=1, labels_path=str(labels_path)
+    )
+    for batch in loader:
+        assert "labels" in batch
+        assert batch["labels"].shape[0] == batch["input_values"].shape[0]
+
+    # a labels file missing one id should fail loudly when that cut is read, not silently
+    with gzip.open(labels_path, "wt", encoding="utf-8") as f:
+        for i in range(len(durations) - 1):  # drop the last id
+            f.write(json.dumps({"id": f"c{i}", "labels": [i, i, i]}) + "\n")
+    loader = create_dataloader(
+        str(shars), per_device_max_seconds=12.0, num_workers=0, seed=1, labels_path=str(labels_path)
+    )
+    with pytest.raises(KeyError, match="no cluster labels"):
+        list(loader)
+
+
+def test_normalize_uses_only_the_real_samples_and_leaves_padding_zero():
+    from pipeline.common.datamodule import normalize_waveform, pad_batch
+
+    short = torch.randn(4000) * 3 + 5
+    long = torch.randn(8000)
+    batch = pad_batch([short, long], normalize=True)
+    x, mask = batch["input_values"], batch["attention_mask"]
+
+    row = x[0, : short.shape[0]]
+    assert abs(float(row.mean())) < 1e-4
+    assert abs(float(row.var(unbiased=False)) - 1.0) < 1e-3
+    assert torch.equal(x[0, short.shape[0] :], torch.zeros(4000))  # padding stays zero
+    assert torch.allclose(row, normalize_waveform(short))
+    assert int(mask[0].sum()) == 4000
+
+    raw = pad_batch([short, long])
+    assert torch.equal(raw["input_values"][0, :4000], short)  # off by default
+
+
+def _rms(x):
+    return float(x.pow(2).mean().sqrt())
+
+
+def test_mixing_with_prob_zero_or_a_single_utterance_is_a_no_op():
+    from pipeline.common.datamodule import mix_utterances
+
+    waves = [torch.randn(4000), torch.randn(6000)]
+    assert all(
+        torch.equal(a, b) for a, b in zip(mix_utterances(waves, 0.0, random.Random(0)), waves)
+    )
+    assert torch.equal(mix_utterances(waves[:1], 1.0, random.Random(0))[0], waves[0])
+
+
+def test_mixing_adds_one_bounded_window_of_another_utterance_at_the_right_level():
+    from pipeline.common.datamodule import mix_utterances
+
+    rng = random.Random(3)
+    for _ in range(50):
+        waves = [torch.randn(8000), torch.randn(8000) * 0.1 + 2.0, torch.randn(9000)]
+        originals = [w.clone() for w in waves]
+        mixed = mix_utterances(waves, 1.0, rng)
+
+        for w, o in zip(waves, originals):  # inputs are never modified in place
+            assert torch.equal(w, o)
+        for m, o in zip(mixed, originals):
+            assert m.shape == o.shape  # length, hence the labels' frame count, unchanged
+            changed = (m != o).nonzero().flatten()
+            assert len(changed) > 0
+            window = int(changed[-1] - changed[0]) + 1
+            assert window <= 0.5 * o.shape[0] + 1  # at most half the primary
+            added = (m - o)[changed[0] : changed[-1] + 1]
+            # secondary's RMS relative to the primary's is within +-5 dB
+            ratio_db = 20 * torch.log10(torch.tensor(_rms(added) / _rms(o)))
+            assert -5.5 <= float(ratio_db) <= 5.5
+
+
+def test_mixing_never_uses_an_utterance_as_its_own_secondary():
+    from pipeline.common.datamodule import mix_utterances
+
+    a = torch.ones(4000)
+    b = -torch.ones(4000)  # a mixed-in `a` would be positive-only, `b` negative-only
+    for seed in range(20):
+        mixed_a, mixed_b = mix_utterances([a, b], 1.0, random.Random(seed))
+        assert (mixed_a - a).max() <= 0  # only b (negative) was added to a
+        assert (mixed_b - b).min() >= 0  # only a (positive) was added to b
+
+
+def test_pad_batch_mixes_after_normalising_and_keeps_padding_and_labels():
+    from pipeline.common.datamodule import normalize_waveform, pad_batch
+
+    short, long = torch.randn(4000) * 3 + 5, torch.randn(8000)
+    labels = [[1, 2, 3], [4, 5, 6, 7]]
+    batch = pad_batch([short, long], labels, True, 1.0, random.Random(0))
+    assert batch["labels"].tolist() == [[1, 2, 3, -100], [4, 5, 6, 7]]  # clean labels
+    assert torch.equal(batch["input_values"][0, 4000:], torch.zeros(4000))  # padding stays zero
+    assert not torch.allclose(batch["input_values"][0, :4000], normalize_waveform(short))  # mixed
+    assert int(batch["attention_mask"][0].sum()) == 4000
+    with pytest.raises(ValueError, match="rng"):
+        pad_batch([short, long], mix_prob=0.5)
+
+
 def test_normalize_waveform_matches_the_wav2vec2_feature_extractor():
     transformers = pytest.importorskip("transformers")
+    from pipeline.common.datamodule import normalize_waveform
+
     w = torch.from_numpy(np.random.default_rng(0).normal(0.01, 0.066, 16000).astype("float32"))
     fe = transformers.Wav2Vec2FeatureExtractor(do_normalize=True)
     expected = fe(w.numpy(), sampling_rate=SAMPLE_RATE, return_tensors="pt")["input_values"][0]
     torch.testing.assert_close(normalize_waveform(w), expected, atol=1e-4, rtol=1e-4)
 
 
-def test_normalize_scales_each_clip_on_its_own_samples_and_leaves_padding_zero(tmp_path):
+def test_dataloader_without_labels_or_mixing_normalizes_each_clip_on_its_own_samples(tmp_path):
+    """The contrastive models (XLS-R, wav2vec2) use the loader this way."""
     shars = _make_shars(tmp_path, DURATIONS[:12], shard_size=6, noise_std=0.066)
     loader = create_dataloader(
         str(shars), per_device_max_seconds=12.0, num_workers=0, seed=1, normalize=True
     )
     rows = 0
     for batch in loader:
+        assert "labels" not in batch
         x, mask = batch["input_values"], batch["attention_mask"]
         for row in range(x.shape[0]):
             n = int(mask[row].sum())

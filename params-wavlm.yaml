@@ -1,0 +1,81 @@
+# Which model this file configures; fixes its SSL objective family (see pipeline.common.schema).
+model_key: wavlm
+# A run's name, folders and DagsHub records are derived from this file plus any
+# VARIANT overlays and TAG: see pipeline.common.naming (`make name` prints it).
+
+# select / shard: shared by all models -> params-data.yaml
+
+# ── k-means pseudo-labels (WavLM masked-prediction targets) ──
+# Cluster ids come from ONE transformer layer of the ORIGINAL pretrained
+# checkpoint (pretrain.base_model), run once offline over the training audio:
+# k-means on layer-`layer` frames, then every frame -> its nearest centroid.
+# Training then continues that same model against these ids. Not distillation.
+# See pipeline.labels.layer_features / .fit_kmeans / .assign_cluster_labels.
+cluster:
+  layer: 18                   # 3/4 of the way through the 24 layers of WavLM Large
+  num_clusters: 500           # fairseq HuBERT iteration >= 2
+  seed: 1337
+  sample_hours: 40.0          # audio streamed for the k-means fit
+  max_frames: 2000000         # frames kept for the fit (2M x 1024 fp32 = ~8 GB RAM)
+
+# ── Pre-training ────────────────────────────────────
+pretrain:
+  base_model: microsoft/wavlm-large
+  precision: bf16
+  freeze_feature_encoder: true   # false = full CoPT, the CNN trains too (more memory; check `make phase0`)
+  layerdrop: 0.1              # same as main: XLS-R's stock config value (HuBERT/WavLM stock is 0.1 too)
+
+  max_updates: 13500          # ~30 passes over 200h (was 50000 / 111 passes)
+  warmup_updates: 1000        # ~8% (was 4000)
+  peak_lr: 5.0e-5
+  lr_schedule: tri_stage      # warmup / hold / exponential decay
+  hold_ratio: 0.4             # fraction of remaining after warmup to hold
+  optimizer: adamw
+  adam_betas: [0.9, 0.98]
+  adam_eps: 1.0e-6
+  weight_decay: 0.01
+  max_grad_norm: 1.0
+  head_lr_mult: 1.0           # same LR as everything else, as on main (the head is new; raise to warm it up faster)
+
+  # batch size in AUDIO SECONDS (not examples)
+  target_batch_seconds: 1600
+  per_device_max_seconds: 200
+  num_workers: 4
+  max_gpu_memory_fraction: 0.8  # GB10 unified memory: leave ~24GB for the OS / sshd
+
+  # masking (applied by WavLMModel itself). Same values as main's wav2vec2 run
+  # so the comparison is fair (fairseq's own HuBERT default would be 0.8).
+  mask_time_prob: 0.65
+  mask_time_length: 10
+
+  # WavLM utterance mixing (method, not tuning): 20% of utterances get another
+  # utterance from the batch mixed in (<=50% overlap, -5..+5 dB). Labels stay clean.
+  utterance_mix_prob: 0.2
+
+  # checkpointing
+  save_every_updates: 1500
+  eval_every_updates: 500
+  keep_last_n_checkpoints: 5
+  milestone_checkpoints: [4500, 9000, 13500]   # 10, 20, 30 passes
+
+# ── Checkpoint Selection ────────────────────────────
+checkpoint_selection:
+  proxy_task: asr
+  proxy_data_dir: ../SLSB-benchmark/data   # relative to this repo root
+  proxy_seed: 0
+
+# ── Benchmark ───────────────────────────────────────
+benchmark:
+  tasks: "asr,sid,er,sd,asv,ic"   # all six families: a leaderboard row covers every task
+  seeds: "0,1,2"
+  slsb_data_dir: ../SLSB-benchmark/data    # relative to this repo root
+  slsb_version: "0.5.0"   # protocol v0.5; scores from other versions are not comparable
+  # results are logged to the SLSB leaderboard (SLSB-benchmark.mlflow, slsb-<protocol>)
+  # Frozen baselines in the results table (make report), by model key: each is that model's
+  # base, benchmarked once with `make bench MODEL=<key> FROZEN=1` -> reports/<its name>/bench/.
+  baselines: [wavlm, xlsr, mhubert147]
+
+# ── MLflow ──────────────────────────────────────────
+mlflow:
+  tracking_uri: https://dagshub.com/EchoVerge-LABS/Model-Training-Pipeline.mlflow
+  experiment_name: ssl-pretraining

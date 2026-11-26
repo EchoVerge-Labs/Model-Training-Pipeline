@@ -1,22 +1,21 @@
 """Checkpoint resume, auto-resume, and the collapse detector's wiring into train().
 
-Everything here uses a tiny random wav2vec2 on CPU, synthetic batches injected in
+Everything here uses a tiny random wav2vec2 on the GPU, synthetic batches injected in
 place of the shard loader, and pytest's tmp_path for every output -- never the
 repo's real reports/ or models/ directories (a real training run may be writing
 to them).
 """
 
+import json
 from pathlib import Path
 
 import pytest
 import torch
 from transformers import Wav2Vec2FeatureExtractor, Wav2Vec2ForPreTraining
 
-from pipeline.callbacks import CodebookCollapseDetector
-from pipeline.schema import MonitoringConfig, Params
-from pipeline.train import (
-    CURVES_HEADER,
-    TRAINING_STATE_FILE,
+from pipeline.common.callbacks import CodebookCollapseDetector
+from pipeline.common.checkpoints import (
+    STATE_FILE,
     checkpoint_step,
     find_resume,
     list_checkpoints,
@@ -24,19 +23,30 @@ from pipeline.train import (
     prepare_curves,
     prune_checkpoints,
     save_checkpoint,
+)
+from pipeline.common.schema import MonitoringConfig, Params
+from pipeline.common.tracking import RUN_FILE, run_record
+from pipeline.training.contrastive import (
+    CURVES_HEADER,
     train,
 )
-from tests.test_smoke_train import _tiny_model
+from tests.test_smoke_train_xlsr import _tiny_model
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-CPU = torch.device("cpu")
+DEVICE = torch.device("cuda")
 
 
 @pytest.fixture(autouse=True)
 def _run_in_tmp(tmp_path, monkeypatch):
-    """Any stray relative path (reports/, models/, params.yaml) lands in tmp_path, never
+    """Any stray relative path (reports/, models/, params-xlsr.yaml) lands in tmp_path, never
     in the repo -- a real training run may be reading and writing those."""
     monkeypatch.chdir(tmp_path)
+
+
+def _hand_over(folder: Path, params: Params) -> None:
+    """Deliberately give a run folder to a different config (what writing run.json by hand
+    does): claim_run_folder otherwise refuses a folder made for another config."""
+    (folder / RUN_FILE).write_text(json.dumps(run_record(params)))
 
 
 def _feature_extractor() -> Wav2Vec2FeatureExtractor:
@@ -58,7 +68,7 @@ def _make_base(tmp_path: Path) -> Path:
 
 
 def _params(tmp_path: Path, base: Path, monitoring: dict | None = None, **pretrain) -> Params:
-    params = Params.from_yaml(str(REPO_ROOT / "params.yaml"))
+    params = Params.from_yaml(str(REPO_ROOT / "params-xlsr.yaml"))
     settings = {
         "base_model": str(base),
         "precision": "fp32",
@@ -98,13 +108,15 @@ def _batches(n: int = 4) -> list[dict]:
 
 def _run(params: Params, tmp_path: Path, **kwargs) -> int:
     kwargs.setdefault("use_mlflow", False)
-    return train(
-        params,
-        dataloader=_batches(),
-        reports_dir=tmp_path / "reports",
-        device="cpu",
-        **kwargs,
-    )
+    kwargs.setdefault("reports_dir", tmp_path / "reports")
+    return train(params, dataloader=_batches(), device="cuda", **kwargs)
+
+
+def _curves(tmp_path: Path) -> list[list[str]]:
+    """Data rows of this run's loss-curve CSV, split into columns."""
+    lines = (tmp_path / "reports" / "pretrain_curves.csv").read_text().splitlines()
+    assert lines[0] == CURVES_HEADER
+    return [line.split(",") for line in lines[1:] if line]
 
 
 def _curve_steps(tmp_path: Path) -> list[int]:
@@ -117,7 +129,14 @@ def _write_checkpoint(out: Path, step: int):
     """A real (tiny) complete checkpoint, written by the production save path."""
     model = _tiny_model()
     optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4)
-    return save_checkpoint(model, _feature_extractor(), optimizer, step, 0.9, out)
+    return save_checkpoint(
+        model,
+        _feature_extractor(),
+        optimizer,
+        step,
+        out / f"checkpoint-{step}",
+        gumbel_temperature=0.9,
+    )
 
 
 # ── the scenario asked for: save at step 3, resume, 2 more steps -> step 5 ──
@@ -128,10 +147,13 @@ def test_resume_from_step_3_runs_two_more_updates_and_ends_at_step_5(tmp_path, c
     out = tmp_path / "out"
 
     assert _run(_params(tmp_path, base, max_updates=3), tmp_path) == 3
-    assert (out / "checkpoint-3" / TRAINING_STATE_FILE).exists()
+    assert (out / "checkpoint-3" / STATE_FILE).exists()
 
-    # Same command, longer schedule, no flags: picks up checkpoint-3 by itself.
-    assert _run(_params(tmp_path, base, max_updates=5), tmp_path) == 5
+    # A longer schedule is a different run (by default a new name and folder); here the
+    # folder is handed over deliberately, then the same command picks up checkpoint-3 itself.
+    longer = _params(tmp_path, base, max_updates=5)
+    _hand_over(out, longer)
+    assert _run(longer, tmp_path) == 5
 
     printed = capsys.readouterr().out
     assert "Resuming automatically from" in printed and "checkpoint-3 at step 3" in printed
@@ -161,7 +183,9 @@ def test_no_resume_starts_from_the_base_model_even_with_checkpoints_present(tmp_
     _run(_params(tmp_path, base, max_updates=3), tmp_path)
     capsys.readouterr()
 
-    assert _run(_params(tmp_path, base, max_updates=2), tmp_path, auto_resume=False) == 2
+    shorter = _params(tmp_path, base, max_updates=2)
+    _hand_over(tmp_path / "out", shorter)  # starting over with another schedule, on purpose
+    assert _run(shorter, tmp_path, auto_resume=False) == 2
     assert "Starting from the base model" in capsys.readouterr().out
     assert _curve_steps(tmp_path) == [1, 2]  # a fresh curve, not appended to the old one
 
@@ -191,11 +215,18 @@ def test_model_and_optimizer_state_round_trip_through_a_checkpoint(tmp_path):
         for p in params:
             p.grad = torch.randn_like(p)
         optimizer.step()
-    ckpt = save_checkpoint(model, _feature_extractor(), optimizer, 3, 0.9, tmp_path)
+    ckpt = save_checkpoint(
+        model,
+        _feature_extractor(),
+        optimizer,
+        3,
+        tmp_path / "checkpoint-3",
+        gumbel_temperature=0.9,
+    )
 
-    restored = Wav2Vec2ForPreTraining.from_pretrained(ckpt)
+    restored = Wav2Vec2ForPreTraining.from_pretrained(ckpt).to(DEVICE)
     optimizer2 = torch.optim.AdamW(list(restored.parameters()), lr=1e-3)
-    state = load_training_state(ckpt, CPU)
+    state = load_training_state(ckpt, DEVICE)
     optimizer2.load_state_dict(state["optimizer"])
 
     assert state["global_step"] == 3 and state["gumbel_temperature"] == pytest.approx(0.9)
@@ -218,12 +249,12 @@ def test_auto_resume_picks_the_newest_complete_checkpoint_and_ignores_debris(tmp
     _write_checkpoint(out, 3)
     _write_checkpoint(out, 6)
     incomplete = _write_checkpoint(out, 9)
-    (incomplete / TRAINING_STATE_FILE).unlink()  # a save that died before its last file
-    (out / ".tmp-checkpoint-12").mkdir()  # a save that never finished renaming
+    (incomplete / STATE_FILE).unlink()  # a save that died before its last file
+    (out / "checkpoint-12.tmp").mkdir()  # a save that never finished renaming
     (out / "checkpoint-final").mkdir()  # not a numbered checkpoint
 
-    assert [checkpoint_step(p) for p in list_checkpoints(out)] == [6, 3]
-    path, state = find_resume(None, out, CPU)
+    assert [step for step, _ in list_checkpoints(out, with_head=False)] == [3, 6]
+    path, state = find_resume(None, out, DEVICE, with_head=False)
     assert path.name == "checkpoint-6" and state["global_step"] == 6
 
 
@@ -231,17 +262,17 @@ def test_auto_resume_falls_back_when_the_newest_checkpoint_is_unreadable(tmp_pat
     out = tmp_path / "out"
     _write_checkpoint(out, 3)
     truncated = _write_checkpoint(out, 6)
-    (truncated / TRAINING_STATE_FILE).write_bytes(b"cut off mid-write")
+    (truncated / STATE_FILE).write_bytes(b"cut off mid-write")
 
-    path, state = find_resume(None, out, CPU)
+    path, state = find_resume(None, out, DEVICE, with_head=False)
     assert path.name == "checkpoint-3" and state["global_step"] == 3
     assert "skipping unreadable checkpoint" in capsys.readouterr().out
 
 
 def test_no_checkpoints_means_a_fresh_start(tmp_path):
-    assert find_resume(None, tmp_path / "empty", CPU) is None
+    assert find_resume(None, tmp_path / "empty", DEVICE, with_head=False) is None
     _write_checkpoint(tmp_path / "out", 3)
-    assert find_resume(None, tmp_path / "out", CPU, auto_resume=False) is None
+    assert find_resume(None, tmp_path / "out", DEVICE, auto_resume=False, with_head=False) is None
 
 
 def test_a_crash_while_saving_leaves_no_checkpoint_that_looks_valid(tmp_path, monkeypatch):
@@ -253,15 +284,22 @@ def test_a_crash_while_saving_leaves_no_checkpoint_that_looks_valid(tmp_path, mo
 
     monkeypatch.setattr(torch, "save", die)
     with pytest.raises(RuntimeError, match="disk full"):
-        save_checkpoint(model, _feature_extractor(), optimizer, 3, 0.9, tmp_path)
+        save_checkpoint(
+            model,
+            _feature_extractor(),
+            optimizer,
+            3,
+            tmp_path / "checkpoint-3",
+            gumbel_temperature=0.9,
+        )
 
     assert not (tmp_path / "checkpoint-3").exists()
-    assert list_checkpoints(tmp_path) == []
+    assert list_checkpoints(tmp_path, with_head=False) == []
 
 
 def test_a_stale_partial_save_is_cleaned_up_at_startup(tmp_path):
     base = _make_base(tmp_path)
-    stale = tmp_path / "out" / ".tmp-checkpoint-1500"
+    stale = tmp_path / "out" / "checkpoint-1500.tmp"
     stale.mkdir(parents=True)
     (stale / "half_written.bin").write_bytes(b"x")
     _run(_params(tmp_path, base, max_updates=1), tmp_path)
@@ -284,13 +322,15 @@ def test_resuming_trims_the_loss_curve_so_it_has_no_duplicates(tmp_path):
     rows = [f"{s},1,1,1,1,1,1,1,1" for s in (500, 1000, 1500, 2000)]
     curves.write_text("\n".join([CURVES_HEADER, *rows]) + "\n")
 
-    prepare_curves(curves, resume_step=1500)  # crashed after logging 2000, last checkpoint at 1500
+    prepare_curves(
+        curves, 1500, CURVES_HEADER
+    )  # crashed after logging 2000, last checkpoint at 1500
     steps = [line.split(",")[0] for line in curves.read_text().splitlines()]
     assert steps == ["step", "500", "1000", "1500"]
 
-    prepare_curves(curves, resume_step=0)  # a fresh run starts over
+    prepare_curves(curves, 0, CURVES_HEADER)  # a fresh run starts over
     assert curves.read_text() == CURVES_HEADER + "\n"
-    prepare_curves(tmp_path / "missing.csv", resume_step=1500)  # resuming with no history file
+    prepare_curves(tmp_path / "missing.csv", 1500, CURVES_HEADER)  # resuming with no history file
     assert (tmp_path / "missing.csv").read_text() == CURVES_HEADER + "\n"
 
 
@@ -322,7 +362,7 @@ def test_a_healthy_reading_resets_the_count():
 def test_monitoring_defaults_and_validation():
     assert MonitoringConfig().perplexity_floor == 10.0
     assert MonitoringConfig().consecutive_alerts == 5
-    real = Params.from_yaml(str(REPO_ROOT / "params.yaml")).monitoring
+    real = Params.from_yaml(str(REPO_ROOT / "params-xlsr.yaml")).monitoring
     assert (real.perplexity_floor, real.consecutive_alerts) == (10.0, 5)
     with pytest.raises(ValueError):
         MonitoringConfig(consecutive_alerts=0)
@@ -342,3 +382,70 @@ def test_train_uses_the_monitoring_settings_to_stop_on_collapse(tmp_path, capsys
         assert _run(params, tmp_path) == 2
     assert "CODEBOOK COLLAPSE DETECTED" in capsys.readouterr().out
     assert '"completed": false' in (tmp_path / "reports" / "pretrain_metrics.json").read_text()
+
+
+def test_each_contrastive_model_key_writes_its_own_report_files(tmp_path):
+    """wav2vec2 Large runs through the same trainer; its reports go to its own run folder."""
+    base = _make_base(tmp_path)
+    params = _params(tmp_path, base).model_copy(update={"model_key": "wav2vec2", "run_name": None})
+    assert params.run.startswith("wav2vec2-large-lv60-copt-si-ta-200h")
+    _run(params, tmp_path, reports_dir=None)  # the default: reports/<run name>/
+    assert (tmp_path / "reports" / params.run / "pretrain_curves.csv").exists()
+    assert (tmp_path / "reports" / params.run / "pretrain_metrics.json").exists()
+    assert (tmp_path / "out" / RUN_FILE).exists()
+
+
+def test_a_masked_prediction_model_key_is_rejected(tmp_path):
+    base = _make_base(tmp_path)
+    params = _params(tmp_path, base).model_copy(update={"model_key": "wavlm"})
+    with pytest.raises(ValueError, match="masked_prediction"):
+        _run(params, tmp_path)
+
+
+def test_a_pe_copt_method_stops_at_the_template_until_it_is_implemented(tmp_path):
+    from pipeline.pecopt import PECoPTConfig
+
+    base = _make_base(tmp_path)
+    params = _params(tmp_path, base)
+    params.pretrain.pecopt = PECoPTConfig(method="gc_lora")
+    with pytest.raises(NotImplementedError, match="template only"):
+        _run(params, tmp_path)
+
+
+def test_final_loss_is_the_last_logged_contrastive_loss_not_null(tmp_path):
+    """The accumulators are reset at every log step, so the end-of-run average was always
+    empty and final_loss came out null."""
+    base = _make_base(tmp_path)
+    _run(_params(tmp_path, base, max_updates=3), tmp_path)
+    metrics = json.loads((tmp_path / "reports" / "pretrain_metrics.json").read_text())
+    last_row = (tmp_path / "reports" / "pretrain_curves.csv").read_text().splitlines()[-1]
+    assert metrics["completed"] is True and metrics["final_loss"] is not None
+    # per masked frame: the CSV's contrastive_loss column, not the batch-size-dependent sum
+    assert metrics["final_loss"] == pytest.approx(float(last_row.split(",")[2]), abs=1e-4)
+
+
+def test_diversity_weight_and_negatives_from_params_reach_the_model(tmp_path):
+    """Both settings used to be read but ignored; the loss and negative sampling use the
+    model config, so what is saved must carry the params values."""
+    base = _make_base(tmp_path)
+    params = _params(tmp_path, base, diversity_loss_weight=0.3, num_negatives=7)
+    _run(params, tmp_path)
+    saved = Wav2Vec2ForPreTraining.from_pretrained(params.pretrain.output_dir).config
+    assert saved.diversity_loss_weight == 0.3 and saved.num_negatives == 7
+
+
+def test_logged_losses_are_all_per_masked_frame(tmp_path):
+    """The logged total must be per masked frame like contrastive_loss/diversity_loss beside
+    it (the backward still uses the unnormalised sum). A logged sum would scale with each
+    micro-batch's mask count, so it is checked via the identity the components must satisfy:
+    loss == contrastive_loss + diversity_loss_weight * diversity_loss."""
+    base = _make_base(tmp_path)
+    params = _params(tmp_path, base, max_updates=2, warmup_updates=1, eval_every_updates=1)
+    _run(params, tmp_path)
+    rows = _curves(tmp_path)
+    assert rows, "no curve rows logged"
+    for r in rows:
+        loss, contrastive, diversity = (float(r[i]) for i in (1, 2, 3))
+        expected = contrastive + params.pretrain.diversity_loss_weight * diversity
+        assert loss == pytest.approx(expected, rel=1e-3), r
+        assert 0.0 < loss < 100.0, f"per-frame loss out of range (looks like a raw sum): {loss}"
