@@ -2,7 +2,8 @@
 # models share is in params-data.yaml.
 # Which model this file configures; fixes its SSL objective family (see pipeline.common.schema).
 model_key: mhubert147
-experiment: si-ta-200h   # names this run: <model>-<experiment> -> models/, reports/, bench/, MLflow
+# A run's name, folders and DagsHub records are derived from this file plus any
+# VARIANT overlays and TAG: see pipeline.common.naming (`make name` prints it).
 
 # select / shard: shared by all models -> params-data.yaml
 
@@ -18,8 +19,6 @@ cluster:
   seed: 1337
   sample_hours: 40.0          # audio streamed for the k-means fit
   max_frames: 2000000         # frames kept for the fit (2M x 1024 fp32 = ~8 GB RAM)
-  kmeans_output: models/kmeans/mhubert147-L9-k500.joblib
-  labels_output: data/labels/mhubert147_train_labels.jsonl.gz
 
 # ── Pre-training ────────────────────────────────────
 pretrain:
@@ -51,22 +50,17 @@ pretrain:
   mask_time_prob: 0.65
   mask_time_length: 10
 
-  labels_path: data/labels/mhubert147_train_labels.jsonl.gz
-
   # checkpointing
   save_every_updates: 1500
   eval_every_updates: 500
   keep_last_n_checkpoints: 5
   milestone_checkpoints: [4500, 9000, 13500]   # 10, 20, 30 passes
 
-  output_dir: models/{run}
-
 # ── Checkpoint Selection ────────────────────────────
 checkpoint_selection:
   proxy_task: asr
   proxy_data_dir: ../SLSB-benchmark/data   # relative to this repo root
   proxy_seed: 0
-  output_dir: models/selected-{run}
 
 # ── Benchmark ───────────────────────────────────────
 benchmark:
@@ -75,20 +69,9 @@ benchmark:
   slsb_data_dir: ../SLSB-benchmark/data    # relative to this repo root
   slsb_version: "0.5.0"   # protocol v0.5; scores from other versions are not comparable
   # results are logged to the SLSB leaderboard (SLSB-benchmark.mlflow, slsb-<protocol>)
-  upstreams:
-    xlsr300m_vanilla:
-      path: facebook/wav2vec2-xls-r-300m
-      name: "XLS-R 300M (vanilla)"
-    mhubert147:
-      path: utter-project/mHuBERT-147
-      name: "mHuBERT-147 (vanilla)"
-    wavlm_large:
-      path: microsoft/wavlm-large
-      name: "WavLM Large"
-    "{run}":
-      path: models/selected-{run}
-      name: "mHuBERT-147 ({run})"
-      is_local: true
+  # Frozen baselines in the results table (make report), by model key: each is that model's
+  # base, benchmarked once with `make bench MODEL=<key> FROZEN=1` -> reports/<its name>/bench/.
+  baselines: [mhubert147, xlsr, wavlm]
 
 # ── MLflow ──────────────────────────────────────────
 mlflow:

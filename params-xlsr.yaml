@@ -1,6 +1,7 @@
 # Which model this file configures; fixes its SSL objective family (see pipeline.common.schema).
 model_key: xlsr
-experiment: si-ta-200h-norm   # outputs: models/xlsr300m-si-ta-200h-norm (existing checkpoints)
+# A run's name, folders and DagsHub records are derived from this file plus any
+# VARIANT overlays and TAG: see pipeline.common.naming (`make name` prints it).
 
 # select / shard: shared by all models -> params-data.yaml
 
@@ -46,7 +47,6 @@ pretrain:
   # Waveform normalisation is not a setting: it follows base_model's do_normalize
   # (true for XLS-R), as on the HuBERT-Large / WavLM-Large branches. The first run,
   # models/xlsr300m-si-ta-200h, predates that and trained on raw audio.
-  output_dir: models/{run}
 
 # ── Monitoring ──────────────────────────────────────
 monitoring:
@@ -59,7 +59,6 @@ checkpoint_selection:
   proxy_task: asr
   proxy_data_dir: ../SLSB-benchmark/data   # relative to this repo root
   proxy_seed: 0
-  output_dir: models/selected-{run}
 
 # ── Benchmark ───────────────────────────────────────
 benchmark:
@@ -68,31 +67,9 @@ benchmark:
   slsb_data_dir: ../SLSB-benchmark/data    # relative to this repo root
   slsb_version: "0.5.0"   # protocol v0.5; scores from other versions are not comparable
   # results are logged to the SLSB leaderboard (SLSB-benchmark.mlflow, slsb-<protocol>)
-  upstreams:
-    xlsr300m_vanilla:
-      path: facebook/wav2vec2-xls-r-300m
-      name: "XLS-R 300M (vanilla)"
-    mhubert147:
-      path: utter-project/mHuBERT-147
-      name: "mHuBERT-147"
-    wavlm_large:
-      path: microsoft/wavlm-large
-      name: "WavLM Large"
-    # The first pre-training run (raw audio, models/xlsr300m-si-ta-200h): its
-    # checkpoint-9000 benchmarked with normalisation on, and its checkpoint-13500
-    # with normalisation off, as it was trained.
-    xlsr300m_adapted:
-      path: models/xlsr300m-si-ta-200h/checkpoint-9000
-      name: "XLS-R 300M (Si/Ta 200h, raw-trained, norm eval)"
-      is_local: true
-    xlsr300m_adapted_raw:
-      path: models/selected_raw
-      name: "XLS-R 300M (Si/Ta 200h, raw-trained, raw eval)"
-      is_local: true
-    "{run}":
-      path: models/selected-{run}
-      name: "XLS-R 300M ({run})"
-      is_local: true
+  # Frozen baselines in the results table (make report), by model key: each is that model's
+  # base, benchmarked once with `make bench MODEL=<key> FROZEN=1` -> reports/<its name>/bench/.
+  baselines: [xlsr, mhubert147, wavlm]
 
 # ── MLflow ──────────────────────────────────────────
 mlflow:

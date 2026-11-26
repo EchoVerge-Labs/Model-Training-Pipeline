@@ -1,0 +1,8 @@
+# Language-homogeneous updates: every optimizer update (all its gradient-accumulation
+# micro-batches, on every rank) comes from one language. Same data, schedule and recipe.
+pretrain:
+  language_batching:
+    enabled: true
+    mode: balanced_random   # or: alternate (strict Sinhala/Tamil/Sinhala/...)
+    window: 20              # every 20 consecutive updates: exactly 10 + 10, shuffled
+    seed: 1337

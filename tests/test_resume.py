@@ -25,6 +25,7 @@ from pipeline.common.checkpoints import (
     save_checkpoint,
 )
 from pipeline.common.schema import MonitoringConfig, Params
+from pipeline.common.tracking import RUN_FILE, run_record
 from pipeline.training.contrastive import (
     CURVES_HEADER,
     train,
@@ -40,6 +41,12 @@ def _run_in_tmp(tmp_path, monkeypatch):
     """Any stray relative path (reports/, models/, params-xlsr.yaml) lands in tmp_path, never
     in the repo -- a real training run may be reading and writing those."""
     monkeypatch.chdir(tmp_path)
+
+
+def _hand_over(folder: Path, params: Params) -> None:
+    """Deliberately give a run folder to a different config (what writing run.json by hand
+    does): claim_run_folder otherwise refuses a folder made for another config."""
+    (folder / RUN_FILE).write_text(json.dumps(run_record(params)))
 
 
 def _feature_extractor() -> Wav2Vec2FeatureExtractor:
@@ -101,32 +108,19 @@ def _batches(n: int = 4) -> list[dict]:
 
 def _run(params: Params, tmp_path: Path, **kwargs) -> int:
     kwargs.setdefault("use_mlflow", False)
-    return train(
-        params,
-        dataloader=_batches(),
-        reports_dir=tmp_path / "reports",
-        device="cuda",
-        **kwargs,
-    )
+    kwargs.setdefault("reports_dir", tmp_path / "reports")
+    return train(params, dataloader=_batches(), device="cuda", **kwargs)
 
 
 def _curves(tmp_path: Path) -> list[list[str]]:
     """Data rows of this run's loss-curve CSV, split into columns."""
-    lines = (
-        (tmp_path / "reports" / "pretrain_curves-xlsr300m-si-ta-200h-norm.csv")
-        .read_text()
-        .splitlines()
-    )
+    lines = (tmp_path / "reports" / "pretrain_curves.csv").read_text().splitlines()
     assert lines[0] == CURVES_HEADER
     return [line.split(",") for line in lines[1:] if line]
 
 
 def _curve_steps(tmp_path: Path) -> list[int]:
-    lines = (
-        (tmp_path / "reports" / "pretrain_curves-xlsr300m-si-ta-200h-norm.csv")
-        .read_text()
-        .splitlines()
-    )
+    lines = (tmp_path / "reports" / "pretrain_curves.csv").read_text().splitlines()
     assert lines[0] == CURVES_HEADER
     return [int(line.split(",")[0]) for line in lines[1:]]
 
@@ -155,17 +149,17 @@ def test_resume_from_step_3_runs_two_more_updates_and_ends_at_step_5(tmp_path, c
     assert _run(_params(tmp_path, base, max_updates=3), tmp_path) == 3
     assert (out / "checkpoint-3" / STATE_FILE).exists()
 
-    # Same command, longer schedule, no flags: picks up checkpoint-3 by itself.
-    assert _run(_params(tmp_path, base, max_updates=5), tmp_path) == 5
+    # A longer schedule is a different run (by default a new name and folder); here the
+    # folder is handed over deliberately, then the same command picks up checkpoint-3 itself.
+    longer = _params(tmp_path, base, max_updates=5)
+    _hand_over(out, longer)
+    assert _run(longer, tmp_path) == 5
 
     printed = capsys.readouterr().out
     assert "Resuming automatically from" in printed and "checkpoint-3 at step 3" in printed
     # Run 2 continued (4, 5) instead of starting over (which would re-log 1, 2, ...).
     assert _curve_steps(tmp_path) == [1, 2, 3, 4, 5]
-    assert (
-        '"final_step": 5'
-        in (tmp_path / "reports" / "pretrain_metrics-xlsr300m-si-ta-200h-norm.json").read_text()
-    )
+    assert '"final_step": 5' in (tmp_path / "reports" / "pretrain_metrics.json").read_text()
 
 
 def test_explicit_resume_from_a_checkpoint_directory(tmp_path):
@@ -189,7 +183,9 @@ def test_no_resume_starts_from_the_base_model_even_with_checkpoints_present(tmp_
     _run(_params(tmp_path, base, max_updates=3), tmp_path)
     capsys.readouterr()
 
-    assert _run(_params(tmp_path, base, max_updates=2), tmp_path, auto_resume=False) == 2
+    shorter = _params(tmp_path, base, max_updates=2)
+    _hand_over(tmp_path / "out", shorter)  # starting over with another schedule, on purpose
+    assert _run(shorter, tmp_path, auto_resume=False) == 2
     assert "Starting from the base model" in capsys.readouterr().out
     assert _curve_steps(tmp_path) == [1, 2]  # a fresh curve, not appended to the old one
 
@@ -322,7 +318,7 @@ def test_pruning_keeps_milestones_plus_the_newest_few_others(tmp_path):
 
 
 def test_resuming_trims_the_loss_curve_so_it_has_no_duplicates(tmp_path):
-    curves = tmp_path / "pretrain_curves-xlsr300m-si-ta-200h-norm.csv"
+    curves = tmp_path / "pretrain_curves.csv"
     rows = [f"{s},1,1,1,1,1,1,1,1" for s in (500, 1000, 1500, 2000)]
     curves.write_text("\n".join([CURVES_HEADER, *rows]) + "\n")
 
@@ -385,20 +381,18 @@ def test_train_uses_the_monitoring_settings_to_stop_on_collapse(tmp_path, capsys
     with pytest.warns(UserWarning):
         assert _run(params, tmp_path) == 2
     assert "CODEBOOK COLLAPSE DETECTED" in capsys.readouterr().out
-    assert (
-        '"completed": false'
-        in (tmp_path / "reports" / "pretrain_metrics-xlsr300m-si-ta-200h-norm.json").read_text()
-    )
+    assert '"completed": false' in (tmp_path / "reports" / "pretrain_metrics.json").read_text()
 
 
 def test_each_contrastive_model_key_writes_its_own_report_files(tmp_path):
-    """wav2vec2 Large runs through the same trainer; its reports carry its own suffix."""
+    """wav2vec2 Large runs through the same trainer; its reports go to its own run folder."""
     base = _make_base(tmp_path)
     params = _params(tmp_path, base).model_copy(update={"model_key": "wav2vec2", "run_name": None})
-    _run(params, tmp_path)
-    assert (tmp_path / "reports" / "pretrain_curves-wav2vec2-mono-si-ta-200h-norm.csv").exists()
-    assert (tmp_path / "reports" / "pretrain_metrics-wav2vec2-mono-si-ta-200h-norm.json").exists()
-    assert not (tmp_path / "reports" / "pretrain_curves-xlsr300m-si-ta-200h-norm.csv").exists()
+    assert params.run.startswith("wav2vec2-large-lv60-copt-si-ta-200h")
+    _run(params, tmp_path, reports_dir=None)  # the default: reports/<run name>/
+    assert (tmp_path / "reports" / params.run / "pretrain_curves.csv").exists()
+    assert (tmp_path / "reports" / params.run / "pretrain_metrics.json").exists()
+    assert (tmp_path / "out" / RUN_FILE).exists()
 
 
 def test_a_masked_prediction_model_key_is_rejected(tmp_path):
@@ -423,14 +417,8 @@ def test_final_loss_is_the_last_logged_contrastive_loss_not_null(tmp_path):
     empty and final_loss came out null."""
     base = _make_base(tmp_path)
     _run(_params(tmp_path, base, max_updates=3), tmp_path)
-    metrics = json.loads(
-        (tmp_path / "reports" / "pretrain_metrics-xlsr300m-si-ta-200h-norm.json").read_text()
-    )
-    last_row = (
-        (tmp_path / "reports" / "pretrain_curves-xlsr300m-si-ta-200h-norm.csv")
-        .read_text()
-        .splitlines()[-1]
-    )
+    metrics = json.loads((tmp_path / "reports" / "pretrain_metrics.json").read_text())
+    last_row = (tmp_path / "reports" / "pretrain_curves.csv").read_text().splitlines()[-1]
     assert metrics["completed"] is True and metrics["final_loss"] is not None
     # per masked frame: the CSV's contrastive_loss column, not the batch-size-dependent sum
     assert metrics["final_loss"] == pytest.approx(float(last_row.split(",")[2]), abs=1e-4)

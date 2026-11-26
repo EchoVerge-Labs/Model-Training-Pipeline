@@ -1,7 +1,8 @@
 """Select the best pre-training checkpoint using a fast proxy evaluation.
 
-Serves all five models: the params file (--config) says which model and where its
-checkpoints are; report files default to the run's suffix `-<run>` (e.g. -wavlm-large-si-ta-200h).
+Serves all five models: the params file (--config, plus --variant / --tag) names the run, and
+the run's name says where everything is: it evaluates the milestones in models/<run>/, copies
+the best to models/<run>/selected/ and writes reports/<run>/checkpoint_selection.json.
 """
 
 import argparse
@@ -12,8 +13,8 @@ import tempfile
 from pathlib import Path
 
 from pipeline.common.checkpoints import has_backbone
-from pipeline.common.schema import Params, load_raw_params
-from pipeline.common.tracking import reopen_training_run
+from pipeline.common.schema import Params, add_run_args, load_params, variants_arg
+from pipeline.common.tracking import RUN_FILE, RUN_ID_FILE, claim_run_folder, reopen_training_run
 from pipeline.eval.benchmark import require_complete_pretraining
 
 # Checkpoints are ranked on the DEV score slsb records in each result entry's `details` (the
@@ -117,14 +118,7 @@ def _evaluate(ckpt_path: Path, task: str, seed: int, data_dir: str | None, out_d
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="params-mhubert147.yaml")
-    parser.add_argument("--experiment", default=None, help="run name; overrides `experiment:`")
-    parser.add_argument(
-        "--report-suffix",
-        default=None,
-        help="Suffix for the report file; default '-<run name>' e.g. "
-        "checkpoint_selection-wavlm-large-si-ta-200h.json",
-    )
+    add_run_args(parser)
     parser.add_argument(
         "--allow-incomplete",
         action="store_true",
@@ -132,18 +126,19 @@ def main():
     )
     args = parser.parse_args()
 
-    params = Params.from_yaml(args.config, args.experiment)
+    raw, params = load_params(args.config, variants_arg(args.variant), args.tag)
     cfg = params.pretrain
+    print(f"Run: {params.run}")
+    claim_run_folder(params, write=False)  # the folder must be this config's run
     # Don't pick a "best" checkpoint from a run that hasn't finished -- the later milestones
     # it would choose among may not exist yet.
-    require_complete_pretraining(params.run, args.allow_incomplete)
-    raw = load_raw_params(args.config, args.experiment)
+    require_complete_pretraining(params, args.allow_incomplete)
     sel_cfg = raw.get("checkpoint_selection", {})
 
     proxy_task = sel_cfg.get("proxy_task", "asr")
     proxy_seed = sel_cfg.get("proxy_seed", 0)
     proxy_data = sel_cfg.get("proxy_data_dir")
-    output_dir = Path(sel_cfg.get("output_dir", f"models/selected-{params.run}"))
+    output_dir = params.selected_dir  # models/<run>/selected/
 
     if proxy_task not in DEV_SCORE:
         raise SystemExit(
@@ -157,7 +152,11 @@ def main():
         output_dir.mkdir(parents=True, exist_ok=True)
         # Copy/symlink the main model dir
         for f in Path(cfg.output_dir).iterdir():
-            if f.name.startswith("checkpoint-"):
+            if f.name.startswith("checkpoint-") or f.name in (
+                output_dir.name,
+                RUN_FILE,
+                RUN_ID_FILE,
+            ):
                 continue
             dest = output_dir / f.name
             if not dest.exists():
@@ -196,8 +195,7 @@ def main():
         "best_score": results[best_name],
         "all_scores": results,
     }
-    suffix = args.report_suffix if args.report_suffix is not None else f"-{params.run}"
-    report_path = Path(f"reports/checkpoint_selection{suffix}.json")
+    report_path = params.reports_dir / "checkpoint_selection.json"
     report_path.parent.mkdir(parents=True, exist_ok=True)
     with open(report_path, "w") as f:
         json.dump(report, f, indent=2)

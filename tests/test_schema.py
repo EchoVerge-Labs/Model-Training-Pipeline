@@ -42,7 +42,7 @@ def _shard_cfg(**overrides):
         "min_cut_seconds": 5.0,
         "target_cut_seconds": 15.0,
         "max_cut_seconds": 30.0,
-        "output_dir": "data/shars",
+        "output_dir": "data/shars/si-ta-200h",
     }
     base.update(overrides)
     return ShardConfig(**base)
@@ -122,7 +122,7 @@ def _raw(path="params-mhubert147.yaml"):
     return load_raw_params(path)
 
 
-def test_masked_prediction_requires_cluster_and_labels_path():
+def test_masked_prediction_requires_cluster_and_derives_its_label_paths():
     import pytest
     from pydantic import ValidationError
 
@@ -130,10 +130,9 @@ def test_masked_prediction_requires_cluster_and_labels_path():
     del raw["cluster"]
     with pytest.raises(ValidationError, match="cluster"):
         Params(**raw)
-    raw = _raw()
-    del raw["pretrain"]["labels_path"]
-    with pytest.raises(ValidationError, match="labels_path"):
-        Params(**raw)
+    p = Params(**_raw())  # no paths in the file: derived from the model and the data id
+    assert p.cluster.kmeans_output == "models/kmeans/mhubert147-L9-k500-si-ta-200h.joblib"
+    assert p.pretrain.labels_path == "data/labels/mhubert147-L9-k500-si-ta-200h.jsonl.gz"
 
 
 def test_contrastive_requires_gumbel_fields():

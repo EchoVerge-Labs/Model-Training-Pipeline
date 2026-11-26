@@ -29,7 +29,8 @@ stages:
       - data/catalog/drive_index.tsv
 
   # Manifests and selection reports are small and worth diffing, so they live
-  # in git (cache: false) rather than in the DVC cache.
+  # in git (cache: false) rather than in the DVC cache. A selection is named by its data id
+  # (pipeline.common.naming): si-ta-200h is the default 200 h Sinhala+Tamil selection.
   select:
     cmd: python -m pipeline.data.select --config params-data.yaml
     deps:
@@ -41,31 +42,33 @@ stages:
       - params-data.yaml:
           - select
     outs:
-      - data/manifests/train.jsonl:
+      - data/manifests/si-ta-200h/train.jsonl:
           cache: false
-      - data/manifests/dev.jsonl:
+      - data/manifests/si-ta-200h/dev.jsonl:
           cache: false
-      - reports/selection_report.md:
+      - data/manifests/si-ta-200h/selection.json:
           cache: false
-      - reports/unresolved_clips.csv:
+      - reports/data/si-ta-200h/selection_report.md:
+          cache: false
+      - reports/data/si-ta-200h/unresolved_clips.csv:
           cache: false
     metrics:
-      - reports/selection_stats.json:
+      - reports/data/si-ta-200h/selection_stats.json:
           cache: false
 
   materialise:
     cmd: python -m pipeline.data.materialise --config params-data.yaml
     deps:
       - src/pipeline/data/materialise.py
-      - data/manifests/train.jsonl
-      - data/manifests/dev.jsonl
+      - data/manifests/si-ta-200h/train.jsonl
+      - data/manifests/si-ta-200h/dev.jsonl
     params:
       - params-data.yaml:
           - select.drive_root
     outs:
       - data/raw/:
           persist: true
-      - reports/materialise.json:
+      - reports/data/si-ta-200h/materialise.json:
           cache: false
 
   shard:
@@ -73,12 +76,12 @@ stages:
     deps:
       - src/pipeline/data/shard.py
       - data/raw/
-      - data/manifests/train.jsonl
+      - data/manifests/si-ta-200h/train.jsonl
     params:
       - params-data.yaml:
           - shard
     outs:
-      - data/shars/
+      - data/shars/si-ta-200h/
 
   fit_kmeans:
     cmd: python -m pipeline.labels.fit_kmeans --config params-mhubert147.yaml
@@ -86,7 +89,7 @@ stages:
       - src/pipeline/labels/fit_kmeans.py
       - src/pipeline/labels/layer_features.py
       - src/pipeline/common/datamodule.py
-      - data/shars/
+      - data/shars/si-ta-200h/
     params:
       - params-mhubert147.yaml:
           - cluster
@@ -94,10 +97,10 @@ stages:
       - params-data.yaml:
           - shard
     outs:
-      - models/kmeans/mhubert147-L9-k500.joblib:
+      - models/kmeans/mhubert147-L9-k500-si-ta-200h.joblib:
           persist: true
     metrics:
-      - reports/kmeans_stats-mhubert147-si-ta-200h.json:
+      - reports/data/si-ta-200h/kmeans-mhubert147-L9-k500-si-ta-200h.json:
           cache: false
 
   assign_cluster_labels:
@@ -106,8 +109,8 @@ stages:
       - src/pipeline/labels/assign_cluster_labels.py
       - src/pipeline/labels/layer_features.py
       - src/pipeline/common/datamodule.py
-      - models/kmeans/mhubert147-L9-k500.joblib
-      - data/shars/
+      - models/kmeans/mhubert147-L9-k500-si-ta-200h.joblib
+      - data/shars/si-ta-200h/
     params:
       - params-mhubert147.yaml:
           - cluster
@@ -115,7 +118,7 @@ stages:
       - params-data.yaml:
           - shard
     outs:
-      - data/labels/mhubert147_train_labels.jsonl.gz:
+      - data/labels/mhubert147-L9-k500-si-ta-200h.jsonl.gz:
           persist: true
 
   pretrain:
@@ -127,41 +130,41 @@ stages:
       - src/pipeline/common/callbacks.py
       - src/pipeline/training/masked_model.py
       - src/pipeline/common/checkpoints.py
-      - data/shars/
-      - data/labels/mhubert147_train_labels.jsonl.gz
+      - data/shars/si-ta-200h/
+      - data/labels/mhubert147-L9-k500-si-ta-200h.jsonl.gz
     params:
       - params-mhubert147.yaml:
           - pretrain
           - cluster.num_clusters
     outs:
-      - models/mhubert147-si-ta-200h/:
+      # the run's folder: checkpoints, final model, selected/ (make ckpt), run.json
+      - models/mhubert147-copt-si-ta-200h/:
           persist: true
     metrics:
-      - reports/pretrain_metrics-mhubert147-si-ta-200h.json:
+      - reports/mhubert147-copt-si-ta-200h/pretrain_metrics.json:
           cache: false
     plots:
-      - reports/pretrain_curves-mhubert147-si-ta-200h.csv:
+      - reports/mhubert147-copt-si-ta-200h/pretrain_curves.csv:
           cache: false
 
   select_checkpoint:
     cmd: python -m pipeline.eval.select_checkpoint --config params-mhubert147.yaml
     deps:
       - src/pipeline/eval/select_checkpoint.py
-      - models/mhubert147-si-ta-200h/
+      - models/mhubert147-copt-si-ta-200h/
     params:
       - params-mhubert147.yaml:
           - checkpoint_selection
-    outs:
-      - models/selected-mhubert147-si-ta-200h/:
-          persist: true
+    # writes models/mhubert147-copt-si-ta-200h/selected/, inside the pretrain stage's output (DVC allows no
+    # nested outputs), so its declared output is the selection report
     metrics:
-      - reports/checkpoint_selection-mhubert147-si-ta-200h.json:
+      - reports/mhubert147-copt-si-ta-200h/checkpoint_selection.json:
           cache: false
 
   benchmark:
     cmd: python -m pipeline.eval.benchmark --config params-mhubert147.yaml
     deps:
-      - models/selected-mhubert147-si-ta-200h/
+      - reports/mhubert147-copt-si-ta-200h/checkpoint_selection.json
       - src/pipeline/eval/benchmark.py
     params:
       - params-mhubert147.yaml:
@@ -170,16 +173,16 @@ stages:
           - benchmark.slsb_data_dir
           - benchmark.slsb_version
     metrics:
-      - reports/bench/mhubert147-si-ta-200h/metrics.json:
+      - reports/mhubert147-copt-si-ta-200h/bench/metrics.json:
           cache: false
 
   report:
     cmd: python -m pipeline.eval.report --config params-mhubert147.yaml
     deps:
       - src/pipeline/eval/report.py
-      - reports/bench/
+      - reports/mhubert147-copt-si-ta-200h/bench/metrics.json
     outs:
-      - reports/results-mhubert147-si-ta-200h.md:
+      - reports/mhubert147-copt-si-ta-200h/results.md:
           cache: false
-      - reports/results_table-mhubert147-si-ta-200h.csv:
+      - reports/mhubert147-copt-si-ta-200h/results_table.csv:
           cache: false

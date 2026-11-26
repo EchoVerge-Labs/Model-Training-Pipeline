@@ -1,7 +1,8 @@
 """Continued pre-training of the wav2vec 2.0 models (XLS-R 300M, wav2vec2 Large) on Sinhala/Tamil.
 
 One trainer for both. `params.model_key` (set in each params file) picks the report
-file suffix and the MLflow run name; the base checkpoint comes from pretrain.base_model.
+run's name and folders (pipeline.common.naming); the base checkpoint comes from
+pretrain.base_model.
 XLS-R continues the multilingual checkpoint and wav2vec2 Large the monolingual (English)
 one, so the two runs are a fair mono-vs-multilingual base comparison.
 
@@ -69,13 +70,17 @@ from pipeline.common.checkpoints import (
     prune_checkpoints,
     save_checkpoint,
 )
-from pipeline.common.datamodule import create_dataloader
+from pipeline.common.datamodule import create_dataloader, create_language_dataloaders
 from pipeline.common.device import get_device
-from pipeline.common.schema import Params
+from pipeline.common.schema import Params, add_run_args, load_params, variants_arg
 from pipeline.common.tracking import (
+    CONFIG_FILE,
+    claim_run_folder,
     finish_training_run,
+    language_batching_params,
     nondefault_method_params,
     start_training_run,
+    write_run_config,
 )
 from pipeline.models.registry import (
     describe_feature_encoder,
@@ -83,6 +88,14 @@ from pipeline.models.registry import (
     get_model_spec,
 )
 from pipeline.pecopt import apply_pecopt
+from pipeline.training.language_batching import (
+    LanguageBatchSource,
+    LanguageSchedule,
+    LanguageTracker,
+    assert_ranks_agree,
+    language_curves_header,
+    log_languages,
+)
 
 # ─── Tri-stage LR schedule ──────────────────────────────────────────────
 #
@@ -265,7 +278,7 @@ def train(
     resume_from: str | Path | None = None,
     auto_resume: bool = True,
     dataloader=None,
-    reports_dir: str | Path = "reports",
+    reports_dir: str | Path | None = None,
     use_mlflow: bool = True,
     device: str | None = None,
 ) -> int:
@@ -276,14 +289,16 @@ def train(
         checkpoint in pretrain.output_dir if there is one (so a crash followed by
         the same launch command just continues).
     dataloader / device / reports_dir / use_mlflow: seams for tests; in a real run
-        they default to the shard loader, CUDA if present, ./reports, and MLflow.
+        they default to the shard loader (one per language for a homogeneous run, which a
+        test passes as {language: loader}), CUDA, reports/<run name>/, and MLflow.
     """
     spec = get_model_spec(params.model_key)
     if spec.family != "contrastive":
         raise ValueError(f"{spec.key} is a {spec.family} model; use the masked-prediction trainer")
-    suffix = f"-{params.run}"  # per-run report files: <model>-<experiment>
     cfg = params.pretrain
-    reports_dir = Path(reports_dir)
+    reports_dir = Path(reports_dir) if reports_dir is not None else params.reports_dir
+    lb = cfg.language_batching
+    homogeneous = lb.enabled
 
     # ── Distributed setup ──
     local_rank = int(os.environ.get("LOCAL_RANK", "0"))
@@ -297,6 +312,9 @@ def train(
 
     device = get_device(local_rank, device)
     torch.cuda.set_per_process_memory_fraction(cfg.max_gpu_memory_fraction, device)
+
+    # models/<run>/run.json: this folder is this config's, or the run stops here.
+    claim_run_folder(params, write=local_rank == 0)
 
     # ── Output dir + resume ──
     output_dir = Path(cfg.output_dir)
@@ -324,6 +342,7 @@ def train(
     model_source = str(resume[0]) if resume else cfg.base_model
 
     if is_main:
+        print(f"Run: {params.run} (data {params.data_id})")
         print(f"World size: {world_size}, device: {device}")
         print(f"Base model: {cfg.base_model}")
         if resume:
@@ -335,6 +354,11 @@ def train(
         print(f"Max updates: {cfg.max_updates}")
         print(f"Peak LR: {cfg.peak_lr}")
         print(f"Target batch seconds: {cfg.target_batch_seconds}")
+        if homogeneous:
+            print(
+                f"Language-homogeneous updates: {lb.mode}, languages={lb.languages}, "
+                f"p={lb.probabilities}, window={lb.window}, seed={lb.seed}"
+            )
 
     # ── Load model ──
     model = Wav2Vec2ForPreTraining.from_pretrained(model_source)
@@ -421,15 +445,30 @@ def train(
     # ── Data ──
     # Seeded with the resume step, so a resumed run doesn't replay the exact
     # shard order of the first epoch (a fresh run has step 0, i.e. seed 0 as before).
-    if dataloader is None:
-        dataloader = create_dataloader(
-            shar_dir=params.shard.output_dir,
-            per_device_max_seconds=cfg.per_device_max_seconds,
-            num_workers=cfg.num_workers,
-            seed=resume_step,
-            normalize=normalize,
+    loader_args = {
+        "shar_dir": params.shard.output_dir,
+        "per_device_max_seconds": cfg.per_device_max_seconds,
+        "num_workers": cfg.num_workers,
+        "seed": resume_step,
+        "normalize": normalize,
+    }
+    schedule = tracker = batch_source = data_iter = None
+    if homogeneous:
+        # One stream per language; each update draws all its micro-batches from the language
+        # the schedule (a pure function of seed and step) gives it.
+        schedule = LanguageSchedule(lb)
+        tracker = LanguageTracker(lb.languages)
+        if dataloader is None:
+            dataloader = create_language_dataloaders(languages=lb.languages, **loader_args)
+        batch_source = LanguageBatchSource(dataloader)
+        tracker.load_state(
+            (resume[1] if resume else {}).get("language_stats"),
+            schedule.counts_before(resume_step),
         )
-    data_iter = iter(dataloader)
+    else:
+        if dataloader is None:
+            dataloader = create_dataloader(**loader_args)
+        data_iter = iter(dataloader)
 
     # ── Gradient accumulation ──
     # target_batch_seconds / (per_device_max_seconds * world_size)
@@ -472,6 +511,7 @@ def train(
                     "layerdrop": cfg.layerdrop,
                     "normalize": normalize,
                     **nondefault_method_params(cfg),
+                    **language_batching_params(lb),
                 }
                 mlflow_logger = start_training_run(params, config_path, resume_step, run_params)
             except Exception as e:  # noqa: BLE001 -- experiment tracking must never kill a training run
@@ -502,9 +542,12 @@ def train(
     log_start_time = time.perf_counter()
 
     # CSV for loss curves (kept across a resume, see prepare_curves)
-    curves_path = reports_dir / f"pretrain_curves{suffix}.csv"
+    curves_path = reports_dir / "pretrain_curves.csv"
+    lang_curves_path = reports_dir / "pretrain_language_curves.csv"
     if is_main:
         prepare_curves(curves_path, resume_step, CURVES_HEADER)
+        if homogeneous:
+            prepare_curves(lang_curves_path, resume_step, language_curves_header(lb.languages))
 
     if is_main:
         print(f"\n{'=' * 60}")
@@ -523,13 +566,24 @@ def train(
         optimizer.zero_grad()
         update_num_losses = torch.zeros((), device=device)  # masked positions in this update
 
+        # Homogeneous: one language for the whole update, the same on every rank.
+        update_language = None
+        if homogeneous:
+            update_language = schedule.language_at(global_step)
+            assert_ranks_agree(update_language, lb.languages, device, tracker)
+            tracker.begin_update()
+
         for accum_step in range(grad_accum_steps):
-            # Get batch (restart iterator if exhausted = new epoch)
-            try:
-                batch = next(data_iter)
-            except StopIteration:
-                data_iter = iter(dataloader)
-                batch = next(data_iter)
+            if homogeneous:
+                batch = batch_source.next(update_language)
+                tracker.check_microbatch(batch, update_language)
+            else:
+                # Get batch (restart iterator if exhausted = new epoch)
+                try:
+                    batch = next(data_iter)
+                except StopIteration:
+                    data_iter = iter(dataloader)
+                    batch = next(data_iter)
 
             input_values = batch["input_values"].to(device)
             attention_mask = batch["attention_mask"].to(device)
@@ -599,6 +653,15 @@ def train(
                     accum_perplexity += outputs.codevector_perplexity.item()
                 accum_num_losses += 1
                 accum_audio_seconds += attention_mask.sum().item() / 16000.0  # 16kHz
+                if homogeneous:
+                    tracker.add_microbatch(
+                        update_language,
+                        attention_mask.sum().item() / 16000.0,
+                        (loss / num_losses_safe).item(),
+                    )
+
+        if homogeneous:
+            tracker.end_update(update_language)
 
         # Normalise the accumulated gradient ONCE per update by the masked-position count
         # of the whole update (all micro-batches, all ranks). Rescaling after every
@@ -636,6 +699,13 @@ def train(
         optimizer.step()
         global_step += 1
 
+        # Per-language audio totals are summed over ranks: a collective every rank joins,
+        # at the same (step-determined) moments.
+        if homogeneous and (
+            global_step % cfg.eval_every_updates == 0 or global_step % cfg.save_every_updates == 0
+        ):
+            tracker.reduce_seconds(device)
+
         # ── Logging ──
         if is_main and global_step % cfg.eval_every_updates == 0:
             elapsed = time.perf_counter() - log_start_time
@@ -671,6 +741,11 @@ def train(
                 f"temp={gumbel_temp:.4f} | "
                 f"{audio_throughput:.0f} aud-s/wall-s"
             )
+
+            if homogeneous:
+                metrics.update(
+                    log_languages(tracker, update_language, global_step, lang_curves_path)
+                )
 
             if mlflow_logger:
                 mlflow_logger.log_metrics(metrics, step=global_step)
@@ -718,6 +793,7 @@ def train(
                 global_step,
                 output_dir / f"checkpoint-{global_step}",
                 gumbel_temperature=gumbel_temp,
+                **({"language_stats": tracker.state_dict()} if homogeneous else {}),
             )
             print(f"  Saved checkpoint: {ckpt_dir}")
             prune_checkpoints(output_dir, cfg.milestone_checkpoints, cfg.keep_last_n_checkpoints)
@@ -736,8 +812,10 @@ def train(
             "final_loss": round(last_logged_loss, 4) if last_logged_loss is not None else None,
             "completed": global_step >= cfg.max_updates,
         }
+        if homogeneous:
+            final_metrics.update(tracker.summary())
         reports_dir.mkdir(parents=True, exist_ok=True)
-        metrics_path = reports_dir / f"pretrain_metrics{suffix}.json"
+        metrics_path = reports_dir / "pretrain_metrics.json"
         with open(metrics_path, "w") as f:
             json.dump(final_metrics, f, indent=2)
 
@@ -745,7 +823,12 @@ def train(
             mlflow_logger,
             config_path,
             completed=final_metrics["completed"],
-            artifacts={"pretrain_curves.csv": curves_path, "pretrain_metrics.json": metrics_path},
+            artifacts={
+                "params.yaml": reports_dir / CONFIG_FILE,
+                "pretrain_curves.csv": curves_path,
+                "pretrain_metrics.json": metrics_path,
+                "pretrain_language_curves.csv": lang_curves_path,
+            },
         )
 
         print(f"\nPre-training complete. {global_step} updates.")
@@ -758,8 +841,7 @@ def train(
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="params-xlsr.yaml")
-    parser.add_argument("--experiment", default=None, help="run name; overrides `experiment:`")
+    add_run_args(parser)
     resume = parser.add_mutually_exclusive_group()
     resume.add_argument(
         "--resume-from",
@@ -775,7 +857,9 @@ def main():
     )
     args = parser.parse_args()
 
-    params = Params.from_yaml(args.config, args.experiment)
+    raw, params = load_params(args.config, variants_arg(args.variant), args.tag)
+    if int(os.environ.get("RANK", "0")) == 0:
+        write_run_config(params, raw)
     train(
         params,
         config_path=args.config,

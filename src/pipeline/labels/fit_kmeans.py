@@ -15,7 +15,7 @@ import numpy as np
 from sklearn.cluster import MiniBatchKMeans
 
 from pipeline.common.device import get_device
-from pipeline.common.schema import Params
+from pipeline.common.schema import Params, add_run_args, variants_arg
 from pipeline.labels.layer_features import (
     base_normalizes,
     layer_features,
@@ -70,20 +70,23 @@ def fit_kmeans(features: np.ndarray, num_clusters: int, seed: int) -> MiniBatchK
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="params-mhubert147.yaml")
-    parser.add_argument("--experiment", default=None, help="run name; overrides `experiment:`")
-    parser.add_argument(
-        "--report-suffix",
-        default=None,
-        help="Suffix for the report file; default '-<run name>' -> kmeans_stats-<run>.json",
-    )
+    add_run_args(parser)
+    parser.add_argument("--force", action="store_true", help="overwrite an existing k-means model")
     args = parser.parse_args()
 
-    params = Params.from_yaml(args.config, args.experiment)
+    params = Params.from_yaml(args.config, variants_arg(args.variant), args.tag)
     cfg = params.cluster
+    out_path = Path(cfg.kmeans_output)
+    if out_path.exists() and not args.force:
+        raise SystemExit(
+            f"{out_path} already exists (k-means on {params.kmeans_data_id}); every run on that "
+            f"data uses it. Pass --force (make fit-kmeans FORCE=1) to refit it."
+        )
+    shar_dir = f"data/shars/{params.kmeans_data_id}"
+    print(f"Fitting {out_path} on {shar_dir}")
     device = get_device()
 
-    cuts = load_shar_cuts(params.shard.output_dir, shuffle=True, seed=cfg.seed)
+    cuts = load_shar_cuts(shar_dir, shuffle=True, seed=cfg.seed)
     model = load_feature_model(params.pretrain.base_model, cfg.layer, device)
     normalize = base_normalizes(params.pretrain.base_model)
     features, n_cuts, sampled_hours = collect_frames(
@@ -101,7 +104,6 @@ def main():
 
     km = fit_kmeans(features, cfg.num_clusters, cfg.seed)
 
-    out_path = Path(cfg.kmeans_output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump(km, out_path)
     print(f"Saved k-means model to {out_path}")
@@ -118,8 +120,7 @@ def main():
         "cluster_usage_max": int(counts.max()) if len(counts) else 0,
         "clusters_used": len(counts),
     }
-    suffix = args.report_suffix if args.report_suffix is not None else f"-{params.run}"
-    reports_path = Path(f"reports/kmeans_stats{suffix}.json")
+    reports_path = params.kmeans_stats_path
     reports_path.parent.mkdir(parents=True, exist_ok=True)
     with open(reports_path, "w") as f:
         json.dump(stats, f, indent=2)

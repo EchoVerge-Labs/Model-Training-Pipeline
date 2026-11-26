@@ -93,11 +93,7 @@ def test_one_update_over_several_micro_batches_uses_every_micro_batch(tmp_path):
 
     _seed()
     _run(params, tmp_path)
-    rows = (
-        (tmp_path / "reports" / "pretrain_curves-xlsr300m-si-ta-200h-norm.csv")
-        .read_text()
-        .splitlines()
-    )
+    rows = (tmp_path / "reports" / "pretrain_curves.csv").read_text().splitlines()
     logged = float(rows[-1].split(",")[5])  # grad_norm: the normalised gradient, pre-clipping
 
     assert logged == __import__("pytest").approx(reference, rel=2e-2, abs=1e-3), (
@@ -129,11 +125,7 @@ def test_logged_codebook_perplexity_is_the_mean_over_the_micro_batches(tmp_path,
         precision="fp32",
     )
     _run(params, tmp_path)
-    rows = (
-        (tmp_path / "reports" / "pretrain_curves-xlsr300m-si-ta-200h-norm.csv")
-        .read_text()
-        .splitlines()
-    )
+    rows = (tmp_path / "reports" / "pretrain_curves.csv").read_text().splitlines()
     logged = float(rows[-1].split(",")[4])  # codebook_perplexity
     assert len(seen) == ACCUM and len({round(v, 2) for v in seen}) > 1
     assert logged == __import__("pytest").approx(sum(seen) / ACCUM, abs=0.01)

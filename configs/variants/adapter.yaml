@@ -1,0 +1,5 @@
+# PE-CoPT: residual_adapter instead of full continued pre-training. The method is a template and
+# raises NotImplementedError until it is implemented (src/pipeline/pecopt/).
+pretrain:
+  pecopt:
+    method: residual_adapter

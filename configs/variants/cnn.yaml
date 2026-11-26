@@ -1,0 +1,3 @@
+# Full CoPT: the CNN feature encoder trains too (more memory: run `make phase0` with this).
+pretrain:
+  freeze_feature_encoder: false

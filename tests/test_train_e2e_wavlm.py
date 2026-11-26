@@ -22,6 +22,7 @@ from pipeline.common.schema import (
     SelectConfig,
     ShardConfig,
 )
+from pipeline.common.tracking import RUN_FILE, run_record
 from pipeline.data.shard import shard_cuts
 from pipeline.training.masked_prediction import train
 
@@ -128,6 +129,13 @@ def _params(tmp_path, base, shars, labels_path, max_updates):
     )
 
 
+def _report(tmp_path, name):
+    """A file in the run's own reports/<run name>/ folder (the only run in this test)."""
+    runs = [d for d in (tmp_path / "reports").iterdir() if d.is_dir()]
+    assert len(runs) == 1, runs
+    return runs[0] / name
+
+
 def test_train_runs_checkpoints_atomically_and_resumes(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
     base, shars, labels_path = _setup(tmp_path)
@@ -144,23 +152,18 @@ def test_train_runs_checkpoints_atomically_and_resumes(tmp_path, monkeypatch, ca
     assert lrs == [1.0, 10.0]  # head trains at head_lr_mult x the encoder LR
     assert WavLMModel.from_pretrained(out).config.layerdrop == 0.0  # pretrain.layerdrop applied
 
-    curves = (
-        (tmp_path / "reports" / "pretrain_curves-wavlm-large-si-ta-200h.csv")
-        .read_text()
-        .splitlines()
-    )
+    curves = _report(tmp_path, "pretrain_curves.csv").read_text().splitlines()
     assert curves[0].startswith("step,loss,masked_accuracy,unmasked_accuracy,pred_perplexity")
     assert [int(r.split(",")[0]) for r in curves[1:]] == [2, 4]
 
     capsys.readouterr()
-    train(_params(tmp_path, base, shars, labels_path, max_updates=6))
+    longer = _params(tmp_path, base, shars, labels_path, max_updates=6)
+    # a longer schedule is another config: hand the run folder over deliberately
+    (tmp_path / "out" / RUN_FILE).write_text(json.dumps(run_record(longer)))
+    train(longer)
     printed = capsys.readouterr().out
     assert "Resuming from" in printed and "step 4" in printed
     assert latest_checkpoint(out)[0] == 6
-    curves = (
-        (tmp_path / "reports" / "pretrain_curves-wavlm-large-si-ta-200h.csv")
-        .read_text()
-        .splitlines()
-    )
+    curves = _report(tmp_path, "pretrain_curves.csv").read_text().splitlines()
     assert [int(r.split(",")[0]) for r in curves[1:]] == [2, 4, 6]  # appended, not restarted
     assert "Waveform normalisation (do_normalize): True" in printed

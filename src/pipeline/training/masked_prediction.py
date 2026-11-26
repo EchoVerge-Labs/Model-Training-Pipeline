@@ -1,8 +1,8 @@
 """Continued pre-training of the HuBERT family (mHuBERT-147, HuBERT Large, WavLM Large).
 
 One trainer for all three models. `params.model_key` (set in each params file) picks
-the encoder class, the report file suffix and the MLflow run name; everything else is
-shared. All three keep the HuBERT objective: masked prediction of k-means
+the encoder class; the run's name and folders come from pipeline.common.naming; everything
+else is shared. All three keep the HuBERT objective: masked prediction of k-means
 pseudo-labels (data/labels/, produced by pipeline.labels.fit_kmeans +
 pipeline.labels.assign_cluster_labels from layer-N features of the original
 pretrained model -- see pipeline.labels.layer_features), not wav2vec2's contrastive learning with a
@@ -63,13 +63,17 @@ from pipeline.common.checkpoints import (
     prune_checkpoints,
     save_checkpoint,
 )
-from pipeline.common.datamodule import create_dataloader
+from pipeline.common.datamodule import create_dataloader, create_language_dataloaders
 from pipeline.common.device import get_device
-from pipeline.common.schema import Params
+from pipeline.common.schema import Params, add_run_args, load_params, variants_arg
 from pipeline.common.tracking import (
+    CONFIG_FILE,
+    claim_run_folder,
     finish_training_run,
+    language_batching_params,
     nondefault_method_params,
     start_training_run,
+    write_run_config,
 )
 from pipeline.models.registry import (
     describe_feature_encoder,
@@ -77,6 +81,14 @@ from pipeline.models.registry import (
     get_model_spec,
 )
 from pipeline.pecopt import apply_pecopt
+from pipeline.training.language_batching import (
+    LanguageBatchSource,
+    LanguageSchedule,
+    LanguageTracker,
+    assert_ranks_agree,
+    language_curves_header,
+    log_languages,
+)
 from pipeline.training.masked_model import MaskedPredictionModel
 
 # Must be set before the first CUDA allocation. Less fragmentation on the GB10's
@@ -211,9 +223,11 @@ def train(
     spec = get_model_spec(params.model_key)
     if spec.family != "masked_prediction":
         raise ValueError(f"{spec.key} is a {spec.family} model; use the contrastive trainer")
-    suffix = f"-{params.run}"  # per-run report files: <model>-<experiment>
+    reports_dir = params.reports_dir  # reports/<run name>/
     cfg = params.pretrain
     num_clusters = params.cluster.num_clusters
+    lb = cfg.language_batching
+    homogeneous = lb.enabled
 
     # ── Distributed setup ──
     local_rank = int(os.environ.get("LOCAL_RANK", "0"))
@@ -228,7 +242,11 @@ def train(
     device = get_device(local_rank)
     torch.cuda.set_per_process_memory_fraction(cfg.max_gpu_memory_fraction, device)
 
+    # models/<run>/run.json: this folder is this config's, or the run stops here.
+    claim_run_folder(params, write=int(os.environ.get("LOCAL_RANK", "0")) == 0)
+
     if is_main:
+        print(f"Run: {params.run} (data {params.data_id})")
         print(f"World size: {world_size}, device: {device}")
         print(f"Base model: {cfg.base_model}")
         print(f"Precision: {cfg.precision}")
@@ -236,6 +254,11 @@ def train(
         print(f"Peak LR: {cfg.peak_lr}")
         print(f"Num clusters: {num_clusters}")
         print(f"Target batch seconds: {cfg.target_batch_seconds}")
+        if homogeneous:
+            print(
+                f"Language-homogeneous updates: {lb.mode}, languages={lb.languages}, "
+                f"p={lb.probabilities}, window={lb.window}, seed={lb.seed}"
+            )
 
     # ── Resume point ──
     output_dir = Path(cfg.output_dir)
@@ -316,24 +339,37 @@ def train(
         eps=cfg.adam_eps,
         weight_decay=cfg.weight_decay,
     )
+    state = None
     if resume:
         state = torch.load(resume[1] / STATE_FILE, map_location="cpu")
         optimizer.load_state_dict(state["optimizer"])
 
     # ── Data ──
-    dataloader = create_dataloader(
-        shar_dir=params.shard.output_dir,
-        per_device_max_seconds=cfg.per_device_max_seconds,
-        num_workers=cfg.num_workers,
-        # Seed with the resume step so a resumed run doesn't replay the exact shard order
-        # it already trained on (a fresh run is step 0, i.e. seed 0 as before). Matches
-        # the contrastive trainer.
-        seed=resume_step,
-        labels_path=cfg.labels_path,
-        normalize=normalize,
-        utterance_mix_prob=cfg.utterance_mix_prob,
-    )
-    data_iter = iter(dataloader)
+    # Seed with the resume step so a resumed run doesn't replay the exact shard order
+    # it already trained on (a fresh run is step 0, i.e. seed 0 as before). Matches
+    # the contrastive trainer.
+    loader_args = {
+        "shar_dir": params.shard.output_dir,
+        "per_device_max_seconds": cfg.per_device_max_seconds,
+        "num_workers": cfg.num_workers,
+        "seed": resume_step,
+        "labels_path": cfg.labels_path,
+        "normalize": normalize,
+        "utterance_mix_prob": cfg.utterance_mix_prob,
+    }
+    schedule = tracker = batch_source = data_iter = None
+    if homogeneous:
+        # One stream per language; each update draws all its micro-batches from the language
+        # the schedule (a pure function of seed and step) gives it.
+        schedule = LanguageSchedule(lb)
+        tracker = LanguageTracker(lb.languages)
+        batch_source = LanguageBatchSource(
+            create_language_dataloaders(languages=lb.languages, **loader_args)
+        )
+        tracker.load_state((state or {}).get("language_stats"), schedule.counts_before(resume_step))
+    else:
+        dataloader = create_dataloader(**loader_args)
+        data_iter = iter(dataloader)
 
     loss_fn = nn.CrossEntropyLoss(ignore_index=-100)
 
@@ -375,6 +411,7 @@ def train(
                 "utterance_mix_prob": cfg.utterance_mix_prob,
                 "normalize": normalize,
                 **nondefault_method_params(cfg),
+                **language_batching_params(lb),
             }
             mlflow_logger = start_training_run(params, config_path, resume_step, run_params)
         except Exception as e:  # noqa: BLE001 -- experiment tracking must never kill a training run
@@ -407,10 +444,13 @@ def train(
     last_logged_loss = None  # the accumulators reset at every log step, so keep the last value
     log_start_time = time.perf_counter()
 
-    # CSV for loss curves
-    curves_path = Path(f"reports/pretrain_curves{suffix}.csv")
+    # CSV for loss curves (and per-language curves for a homogeneous run)
+    curves_path = reports_dir / "pretrain_curves.csv"
+    lang_curves_path = reports_dir / "pretrain_language_curves.csv"
     if is_main:
         prepare_curves(curves_path, resume_step, CURVES_HEADER)
+        if homogeneous:
+            prepare_curves(lang_curves_path, resume_step, language_curves_header(lb.languages))
 
     if is_main:
         print(f"\n{'=' * 60}")
@@ -426,13 +466,24 @@ def train(
     while global_step < cfg.max_updates:
         optimizer.zero_grad()
 
+        # Homogeneous: one language for the whole update, the same on every rank.
+        update_language = None
+        if homogeneous:
+            update_language = schedule.language_at(global_step)
+            assert_ranks_agree(update_language, lb.languages, device, tracker)
+            tracker.begin_update()
+
         for accum_step in range(grad_accum_steps):
-            # Get batch (restart iterator if exhausted = new epoch)
-            try:
-                batch = next(data_iter)
-            except StopIteration:
-                data_iter = iter(dataloader)
-                batch = next(data_iter)
+            if homogeneous:
+                batch = batch_source.next(update_language)
+                tracker.check_microbatch(batch, update_language)
+            else:
+                # Get batch (restart iterator if exhausted = new epoch)
+                try:
+                    batch = next(data_iter)
+                except StopIteration:
+                    data_iter = iter(dataloader)
+                    batch = next(data_iter)
 
             input_values = batch["input_values"].to(device)
             attention_mask = batch["attention_mask"].to(device)
@@ -495,6 +546,13 @@ def train(
                 accum_loss += loss.item()
                 accum_num_losses += 1
                 accum_audio_seconds += attention_mask.sum().item() / 16000.0  # 16kHz
+                if homogeneous:
+                    tracker.add_microbatch(
+                        update_language, attention_mask.sum().item() / 16000.0, loss.item()
+                    )
+
+        if homogeneous:
+            tracker.end_update(update_language)
 
         # Gradient clipping
         if cfg.max_grad_norm > 0:
@@ -520,6 +578,13 @@ def train(
         # Optimizer step
         optimizer.step()
         global_step += 1
+
+        # Per-language audio totals are summed over ranks: a collective every rank joins,
+        # at the same (step-determined) moments.
+        if homogeneous and (
+            global_step % cfg.eval_every_updates == 0 or global_step % cfg.save_every_updates == 0
+        ):
+            tracker.reduce_seconds(device)
 
         # ── Logging ──
         if is_main and global_step % cfg.eval_every_updates == 0:
@@ -552,6 +617,11 @@ def train(
                 f"lr={lr:.2e} | "
                 f"{audio_throughput:.0f} aud-s/wall-s"
             )
+
+            if homogeneous:
+                metrics.update(
+                    log_languages(tracker, update_language, global_step, lang_curves_path)
+                )
 
             if mlflow_logger:
                 mlflow_logger.log_metrics(metrics, step=global_step)
@@ -594,7 +664,14 @@ def train(
         # ── Checkpointing ──
         if is_main and global_step % cfg.save_every_updates == 0:
             ckpt_dir = output_dir / f"checkpoint-{global_step}"
-            save_checkpoint(raw_model, feature_extractor, optimizer, global_step, ckpt_dir)
+            save_checkpoint(
+                raw_model,
+                feature_extractor,
+                optimizer,
+                global_step,
+                ckpt_dir,
+                **({"language_stats": tracker.state_dict()} if homogeneous else {}),
+            )
             print(f"  Saved checkpoint: {ckpt_dir}")
 
             prune_checkpoints(output_dir, cfg.milestone_checkpoints, cfg.keep_last_n_checkpoints)
@@ -612,7 +689,9 @@ def train(
             "final_loss": round(last_logged_loss, 4) if last_logged_loss is not None else None,
             "completed": global_step >= cfg.max_updates,
         }
-        metrics_path = Path(f"reports/pretrain_metrics{suffix}.json")
+        if homogeneous:
+            final_metrics.update(tracker.summary())
+        metrics_path = reports_dir / "pretrain_metrics.json"
         with open(metrics_path, "w") as f:
             json.dump(final_metrics, f, indent=2)
 
@@ -621,9 +700,11 @@ def train(
             config_path,
             completed=final_metrics["completed"],
             artifacts={
+                "params.yaml": reports_dir / CONFIG_FILE,
                 "pretrain_curves.csv": curves_path,
                 "pretrain_metrics.json": metrics_path,
-                "kmeans_stats.json": Path(f"reports/kmeans_stats{suffix}.json"),
+                "pretrain_language_curves.csv": lang_curves_path,
+                "kmeans_stats.json": params.kmeans_stats_path,
             },
         )
 
@@ -636,8 +717,7 @@ def train(
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="params-mhubert147.yaml")
-    parser.add_argument("--experiment", default=None, help="run name; overrides `experiment:`")
+    add_run_args(parser)
     resume = parser.add_mutually_exclusive_group()
     resume.add_argument(
         "--resume-from",
@@ -653,7 +733,9 @@ def main():
     )
     args = parser.parse_args()
 
-    params = Params.from_yaml(args.config, args.experiment)
+    raw, params = load_params(args.config, variants_arg(args.variant), args.tag)
+    if int(os.environ.get("RANK", "0")) == 0:
+        write_run_config(params, raw)
     train(
         params,
         config_path=args.config,

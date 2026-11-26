@@ -67,11 +67,18 @@ def main(argv: list[str] | None = None):
             end_active_run("KILLED")
         raise
     except BaseException:
-        end_active_run("FAILED")
+        # A SIGTERM reaches the DataLoader workers too, so the error that surfaces can be
+        # theirs ("worker killed by signal") rather than our SystemExit: still a kill.
+        end_active_run("KILLED" if _signalled else "FAILED")
         raise
 
 
+_signalled = False
+
+
 def _raise_on_sigterm(signum, frame):
+    global _signalled
+    _signalled = True
     raise SystemExit(128 + signum)
 
 

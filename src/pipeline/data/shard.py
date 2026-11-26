@@ -8,7 +8,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from pipeline.common.schema import DataParams
+from pipeline.common.schema import DataParams, add_data_args, variants_arg
 
 try:
     from lhotse import CutSet, MonoCut, Recording
@@ -173,6 +173,42 @@ def shard_cuts(cuts: "CutSet", output_dir: str, shard_size: int, audio_format: s
     print(f"Wrote {n_shards} shards, {len(cuts)} cuts, {total_dur / 3600:.1f}h total")
 
 
+def check_manifest_languages(manifest: Path, languages: list[str]) -> int:
+    """Raise if a clip in the manifest is in another language. Returns the clip count."""
+    n, foreign = 0, {}
+    with open(manifest, encoding="utf-8") as f:
+        for line in f:
+            if not line.strip():
+                continue
+            lang = str(json.loads(line).get("language", "unknown")).lower()
+            n += 1
+            if lang not in languages:
+                foreign[lang] = foreign.get(lang, 0) + 1
+    if foreign:
+        raise ValueError(f"{manifest}: expected only {languages} but found {foreign} of {n}")
+    return n
+
+
+def check_shard_languages(shar_dir: str, languages: list[str]) -> int:
+    """Raise if any cut in the shards (or none at all) is in another language."""
+    import gzip
+
+    n, foreign = 0, {}
+    for cuts_file in sorted(Path(shar_dir).glob("cuts.*.jsonl.gz")):
+        with gzip.open(cuts_file, "rt", encoding="utf-8") as f:
+            for line in f:
+                cut = json.loads(line)
+                lang = str((cut.get("custom") or {}).get("language", "unknown")).lower()
+                n += 1
+                if lang not in languages:
+                    foreign[lang] = foreign.get(lang, 0) + 1
+    if n == 0:
+        raise ValueError(f"{shar_dir}: no cuts found")
+    if foreign:
+        raise ValueError(f"{shar_dir}: expected only {languages} but found {foreign} of {n}")
+    return n
+
+
 def main():
     if not HAS_LHOTSE:
         print("ERROR: lhotse is not installed. Install with: pip install lhotse[webdataset]")
@@ -180,13 +216,17 @@ def main():
         sys.exit(1)
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="params-data.yaml")
+    add_data_args(parser)
     args = parser.parse_args()
 
-    params = DataParams.from_yaml(args.config)
+    params = DataParams.from_yaml(args.config, variants_arg(args.variant), args.tag)
     cfg = params.shard
+    languages = params.select.languages
+    manifest = Path(params.select.manifest_dir) / "train.jsonl"
+    print(f"Sharding {params.data_id}: {manifest} -> {cfg.output_dir}")
+    check_manifest_languages(manifest, languages)
 
-    cuts = load_manifest_as_cuts(str(Path(params.select.manifest_dir) / "train.jsonl"), "data/raw")
+    cuts = load_manifest_as_cuts(str(manifest), "data/raw")
     print(f"Loaded {len(cuts)} cuts")
 
     # Split long clips first, then concatenate short ones
@@ -206,6 +246,8 @@ def main():
     print(f"Longest cut: {longest:.1f}s")
 
     shard_cuts(cuts, cfg.output_dir, cfg.shard_size, cfg.format)
+    n = check_shard_languages(cfg.output_dir, languages)
+    print(f"Verified: all {n} cuts in {cfg.output_dir} are {'/'.join(languages)}")
 
 
 if __name__ == "__main__":

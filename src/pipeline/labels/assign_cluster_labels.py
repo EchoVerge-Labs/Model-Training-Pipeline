@@ -13,7 +13,7 @@ from pathlib import Path
 import joblib
 
 from pipeline.common.device import get_device
-from pipeline.common.schema import Params
+from pipeline.common.schema import Params, add_run_args, variants_arg
 from pipeline.labels.layer_features import (
     base_normalizes,
     layer_features,
@@ -33,11 +33,10 @@ def assign_cut(cut, km, extract) -> list[int]:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="params-mhubert147.yaml")
-    parser.add_argument("--experiment", default=None, help="run name; overrides `experiment:`")
+    add_run_args(parser)
     args = parser.parse_args()
 
-    params = Params.from_yaml(args.config, args.experiment)
+    params = Params.from_yaml(args.config, variants_arg(args.variant), args.tag)
     cfg = params.cluster
 
     km = joblib.load(cfg.kmeans_output)

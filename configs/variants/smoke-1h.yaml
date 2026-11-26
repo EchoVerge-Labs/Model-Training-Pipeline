@@ -1,0 +1,25 @@
+# 1 h smoke test of the whole procedure: its own 1 h selection (data id si-ta-1h-smoke),
+# 30 passes over it like the real runs (68 updates x 1600 s = 30.2 passes), and the ER
+# benchmark only (0.72 h). Masked-prediction models label it with the 200 h k-means, so
+# `make fit-kmeans` is not needed for it. Keep `NO_LOG=1` on `make bench` unless you want an
+# ER-only row on the leaderboard (its note says it is partial).
+tag: smoke
+select:
+  target_hours: 1.0
+  holdout_hours: 0.2
+  max_hours_per_channel: 0.25    # 12 h at 200 h; keeps 1 h from coming off a few channels
+shard:
+  shard_size: 25                 # ~10 shards of 1 h (1000 would make one): the trainers'
+                                 # 4 dataloader workers each need their own shard
+cluster:
+  kmeans_data: si-ta-200h        # ignored by the contrastive models (no k-means)
+pretrain:
+  max_updates: 68                # 30 passes over 1 h at 1600 s per update
+  warmup_updates: 5              # the 7.4% warmup share of the real runs
+  save_every_updates: 4
+  eval_every_updates: 4
+  keep_last_n_checkpoints: 3
+  milestone_checkpoints: [24, 44, 68]   # ~10, 20, 30 passes
+benchmark:
+  tasks: "er"
+  seeds: "0"

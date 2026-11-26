@@ -1,4 +1,4 @@
-"""report.py turns reports/bench/<run>/metrics.json into the results table."""
+"""report.py turns reports/<run>/bench/metrics.json into the results table."""
 
 import json
 
@@ -6,7 +6,7 @@ from pipeline.eval import report
 
 
 def _bench(tmp_path, name, entries):
-    d = tmp_path / "reports" / "bench" / name
+    d = tmp_path / "reports" / name / "bench"
     d.mkdir(parents=True)
     (d / "metrics.json").write_text(json.dumps({"results": entries}))
 

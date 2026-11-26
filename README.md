@@ -5,15 +5,16 @@ each **keeping its own native SSL objective**, followed by automatic checkpoint 
 and SLSB benchmarking. One codebase, one entry point, one config per model — pick the model
 with `MODEL=<key>`.
 
-| `MODEL` key  | Base checkpoint                     | Objective family              | Run prefix       |
-|--------------|-------------------------------------|-------------------------------|------------------|
-| `mhubert147` | `utter-project/mHuBERT-147`         | masked prediction (k-means)   | `mhubert147`     |
-| `hubert`     | `facebook/hubert-large-ll60k`       | masked prediction (k-means)   | `hubert-large`   |
-| `wavlm`      | `microsoft/wavlm-large`             | masked prediction + utterance mixing | `wavlm-large` |
-| `xlsr`       | `facebook/wav2vec2-xls-r-300m`      | wav2vec 2.0 contrastive       | `xlsr300m`       |
-| `wav2vec2`   | `facebook/wav2vec2-large-lv60`      | wav2vec 2.0 contrastive       | `wav2vec2-mono`  |
+| `MODEL` key  | Base checkpoint                     | Objective family              | Name (runs / frozen baseline) |
+|--------------|-------------------------------------|-------------------------------|-------------------------------|
+| `mhubert147` | `utter-project/mHuBERT-147`         | masked prediction (k-means)   | `mhubert147-…` / `mhubert147-frozen` |
+| `hubert`     | `facebook/hubert-large-ll60k`       | masked prediction (k-means)   | `hubert-large-…` / `hubert-large-frozen` |
+| `wavlm`      | `microsoft/wavlm-large`             | masked prediction + utterance mixing | `wavlm-large-…` / `wavlm-large-frozen` |
+| `xlsr`       | `facebook/wav2vec2-xls-r-300m`      | wav2vec 2.0 contrastive       | `xlsr300m-…` / `xlsr300m-frozen` |
+| `wav2vec2`   | `facebook/wav2vec2-large-lv60`      | wav2vec 2.0 contrastive       | `wav2vec2-large-lv60-…` / `wav2vec2-large-lv60-frozen` |
 
-`mhubert147` is the default when `MODEL` is omitted.
+`mhubert147` is the default when `MODEL` is omitted. A run's full name is derived from its
+config, e.g. `wavlm-large-copt-si-ta-200h` (see [Run names](#run-names)).
 
 ## Pipeline DAG
 
@@ -46,6 +47,10 @@ Both families: reset optimizer/schedule, a low peak LR (CoPT, not from scratch),
 quantizer/head, tri-stage LR (warmup → hold → exp decay), gradient accumulation to a target
 seconds-of-audio batch, atomic checkpoints with auto-resume, a training-health detector
 (below), and MLflow logging to DagsHub (see [Where results go](#where-results-go-dagshub)).
+Both can also build every optimizer update from **one language** (language-homogeneous
+updates, `VARIANT=configs/variants/homog.yaml`, runs named `…-homog`): all of an update's
+gradient-accumulation micro-batches, on every rank, come from the same language, chosen by a
+seeded schedule that a resumed run continues exactly.
 
 ## Prerequisites
 
@@ -72,50 +77,77 @@ cp .env.example .env              # then fill DAGSHUB_TOKEN, GOOGLE_SHEET_ID,
                                   #           GOOGLE_CLIENT_SECRET_JSON, HF_TOKEN
 ```
 
-> **slsb:** install it from the sibling **`../SLSB-benchmark`** checkout (v0.5), which is what
-> `make ckpt`/`make bench` use for both the CLI and its benchmark data (`benchmark.slsb_data_dir`).
-> Do **not** use the `[benchmark]` extra in `pyproject.toml` — it still pins slsb v0.1.0, which
-> predates the `details` dev-score fields `select_checkpoint` ranks on.
+> **slsb:** install it from the sibling **`../SLSB-benchmark`** checkout at **v0.5.0**, which is
+> what `make ckpt`/`make bench` use for the CLI, its benchmark data (`benchmark.slsb_data_dir`)
+> and its leaderboard logger (`scripts/log_results.py`). `make bench` refuses any other slsb
+> version (`benchmark.slsb_version`); the `[benchmark]` extra in `pyproject.toml` pins the same tag.
 
 ## Configuration
 
 Config is split so the five models share one data definition:
 
 - **`params-data.yaml`** — data selection + sharding, **shared by all models** (they train on
-  the same shards). Read by the data stages (`index`, `select`, `materialise`, `shard`).
-- **`params-<model>.yaml`** — one per model: base checkpoint, objective settings, cluster/label
-  config, checkpoint selection, and benchmark upstreams. `Params.from_yaml` merges the shared
-  `select`/`shard` sections in automatically.
+  the same shards). Read by the data stages (`index`, `select`, `pull`, `shard`).
+- **`params-<model>.yaml`** — one per model: base checkpoint, objective settings, cluster
+  config, checkpoint selection, and benchmark settings (`benchmark.baselines`: the frozen
+  baselines in the results table). `Params.from_yaml` merges the shared `select`/`shard`
+  sections in automatically. No file holds an output path: every path is derived from the
+  run's name or its data id.
+- **`configs/variants/*.yaml`** — overlays holding only the keys a variant changes, deep-merged
+  over the params file with `VARIANT=` (see [Variants and tags](#variants-and-tags)).
 
 `src/pipeline/common/schema.py` validates every section with Pydantic before any stage runs
 (`make test` / CI run this too), so a bad config — a milestone past `max_updates`, warmup ≥
 `max_updates`, an inconsistent shard window — is caught before it wastes GPU hours.
 
-### Runs and experiment names
+### Run names
 
-A **run** is `<model>-<experiment>`, e.g. `wavlm-large-si-ta-200h`. The experiment name comes
-from `experiment:` in the model's params file, overridable with `EXPERIMENT=<name>` (make) or
-`--experiment <name>` (CLI). The run name replaces `{run}` throughout the params file and names
-**every output**, so two experiments on one model — or the same experiment on two models — never
-share a path:
+Every run has **one name, derived from its config** (`src/pipeline/common/naming.py`) — never
+typed by hand:
 
-| Output              | Path                                          |
-|---------------------|-----------------------------------------------|
-| Checkpoints         | `models/<run>/`                               |
-| Selected checkpoint | `models/selected-<run>/`                      |
-| Loss curves/metrics | `reports/pretrain_curves-<run>.csv`, `pretrain_metrics-<run>.json` |
-| k-means stats       | `reports/kmeans_stats-<run>.json`             |
-| Selection report    | `reports/checkpoint_selection-<run>.json`     |
-| Benchmark           | `reports/bench/<run>/metrics.json`            |
-| Results table       | `reports/results-<run>.md`                    |
-| Training log        | `logs/<run>.log`                              |
-| DagsHub (MLflow)    | `<model name>`, e.g. `wavlm-large-copt200h`: the ssl-pretraining run and the SLSB leaderboard row (`make model-name`) |
+```
+<model>-<method>-si-ta-<hours>h[-cnn][-p<N>][-homog][-<tag>]
+```
 
-> **`EXPERIMENT` only labels the outputs — it does not change what is trained.** The data,
-> language mix and number of updates come from `params-data.yaml` (`select.target_hours`,
-> `select.language_mix`) and the model's `pretrain.max_updates`/`milestone_checkpoints`. For a
-> genuinely different run (e.g. 100 h single-language), edit those values and give it a matching
-> `EXPERIMENT` name so the folders say what they contain.
+| Slot | Values | From |
+|---|---|---|
+| model | `wavlm-large`, `hubert-large`, `mhubert147`, `xlsr300m`, `wav2vec2-large-lv60` | `MODEL` |
+| method | `copt`, `adapter`, `lora`, `gclora` | `pretrain.pecopt.method` |
+| languages | `si-ta` | `select.language_mix` |
+| hours | `200h`, `1h`, `1000h`, … | `select.target_hours` |
+| `cnn` | the CNN feature encoder trains | `pretrain.freeze_feature_encoder: false` |
+| `p<N>` | passes over the data (whole passes), only when not the standard 30 | `max_updates` × `target_batch_seconds` ÷ hours |
+| `homog` | language-homogeneous updates | `pretrain.language_batching.enabled` |
+| tag | free text, e.g. `smoke` | `TAG=` (or `tag:` in an overlay) |
+
+e.g. `wavlm-large-copt-si-ta-200h`, `hubert-large-copt-si-ta-200h-cnn`,
+`xlsr300m-copt-si-ta-200h-homog`, `hubert-large-lora-si-ta-200h-cnn`,
+`wavlm-large-copt-si-ta-1h-smoke`. `make name MODEL=… VARIANT=… TAG=…` prints it. A model's
+un-adapted base is its **frozen baseline**, `<model>-frozen` (e.g. `wavlm-large-frozen`).
+
+The name is the run's folders, its tmux session, its DagsHub training run and its SLSB
+leaderboard row:
+
+| Output | Path |
+|---|---|
+| Checkpoints, final model, `run.json` | `models/<name>/` |
+| Selected checkpoint | `models/<name>/selected/` |
+| Merged config, curves, metrics, selection report | `reports/<name>/` (`config.yaml`, `pretrain_curves.csv`, `pretrain_metrics.json`, `checkpoint_selection.json`; homog: `pretrain_language_curves.csv`) |
+| Benchmark | `reports/<name>/bench/` (SLSB's files + `metrics.json`) |
+| Results table | `reports/<name>/results.md`, `results_table.csv` |
+| Logs | `logs/<name>/train.log`, `ckpt.log`, `bench.log` |
+| DagsHub | ssl-pretraining run `<name>` and leaderboard row `<name>` |
+
+Data shared between runs is named by its **data id**, `si-ta-<hours>h[-<tag>]`:
+`data/manifests/<data id>/`, `data/shars/<data id>/`, `reports/data/<data id>/` (selection and
+pull reports), `models/kmeans/<model>-L<layer>-k<k>-<data id>.joblib` and
+`data/labels/<model>-L<layer>-k<k>-<data id>.jsonl.gz`.
+
+**One name, one config.** `models/<name>/run.json` records the name's slots and a
+fingerprint of the config it stands for; `make train`, `ckpt` and `bench` stop if the folder
+belongs to a different config, or holds checkpoints without a `run.json`. `make select`
+refuses to overwrite a selection made with other settings (`data/manifests/<data id>/selection.json`),
+and `make fit-kmeans` an existing k-means model (`FORCE=1` refits on purpose).
 
 ### Why `make index` exists
 
@@ -124,7 +156,7 @@ recurs across different source videos with different audio. `select` therefore p
 row to a real file by `(language, genre, name, size)` against the index, records that path (not
 the bare name) in the manifests, and gives every clip a unique id. Repeated sheet rows are
 collapsed; rows that don't resolve to exactly one file are set aside in
-`reports/unresolved_clips.csv` rather than guessed.
+`reports/data/<data id>/unresolved_clips.csv` rather than guessed.
 
 ## Running — every new terminal
 
@@ -133,14 +165,14 @@ Run them in **`tmux`** (not `nohup`), and before launching either, check you're 
 running this pipeline as part of a larger session on the same GPU.
 
 **Always pass `MODEL=`.** Every per-model target defaults to `MODEL=mhubert147`, so a `make
-train` that loses its `MODEL=` trains mHuBERT-147 — silently, and for days. `make run-name
-MODEL=<key> EXPERIMENT=<name>` prints the run name; if it isn't the model you meant, nothing
-below will be either.
+train` that loses its `MODEL=` trains mHuBERT-147 — silently, and for days. `make name
+MODEL=<key> VARIANT=<overlays> TAG=<tag>` prints the run name; if it isn't the run you meant,
+nothing below will be either.
 
 ```bash
 cd ~/EchoVerge-LABS/Model-Training-Pipeline
 git branch --show-current        # confirm you are on the branch you mean to run
-source .venv/bin/activate        # the Makefile calls plain `python`
+source .venv/bin/activate        # make train needs `torchrun` from the venv
 set -a; source .env; set +a      # DagsHub login for MLflow + NNODES/NODE_RANK/MASTER_* (defaults NNODES=1)
 slsb --help | head -1            # slsb must resolve in THIS venv (installed from ../SLSB-benchmark)
 ```
@@ -151,78 +183,85 @@ slsb --help | head -1            # slsb must resolve in THIS venv (installed fro
 # --- data: shared across all models, run ONCE (needs the Drive mount) ---
 make snapshot                        # freeze the Google Sheet catalog -> data/catalog/catalog_latest.csv
 make index                           # list every wav on the mount (relpath + size) -> drive_index.tsv
-make select                          # dedupe, pin each clip to its file, split train/holdout -> data/manifests/
+make select                          # dedupe, pin each clip to its file, split train/holdout -> data/manifests/si-ta-200h/
 make pull                            # copy the selected clips off the mount -> data/raw/
-make shard                           # pack into Lhotse Shar tarballs -> data/shars/
+make shard                           # pack into Lhotse Shar tarballs -> data/shars/si-ta-200h/
 
-# --- per model: example WavLM (a HuBERT-family, masked-prediction model) ---
-# Pick the model with MODEL=, and name this run with EXPERIMENT= (omit it for the
-# params file's default). Every command below takes the SAME MODEL/EXPERIMENT pair.
-# `export`, not a plain assignment: tmux starts a fresh shell, and an unexported $M
-# would expand to nothing there -- `make train` alone falls back to MODEL=mhubert147
-# and trains the wrong model for days without complaining.
-export M="MODEL=wavlm EXPERIMENT=si-ta-200h"
+# --- per run: example WavLM (a HuBERT-family, masked-prediction model) ---
+# Every command below takes the SAME MODEL/VARIANT/TAG. `export`, not a plain assignment:
+# tmux starts a fresh shell, and an unexported $M would expand to nothing there --
+# `make train` alone falls back to MODEL=mhubert147 and trains the wrong model for days.
+export M="MODEL=wavlm"               # e.g. "MODEL=wavlm VARIANT=configs/variants/cnn.yaml"
 
 make phase0 MODEL=wavlm              # throughput + peak memory + wall-clock estimate (per model)
-make fit-kmeans $M                   # HuBERT family only: k-means on the base model's features
-make labels     $M                   # HuBERT family only: cluster id per frame -> data/labels/
+make fit-kmeans $M                   # HuBERT family only, once per model and data:
+make labels     $M                   #   -> models/kmeans/wavlm-large-L18-k500-si-ta-200h.joblib + data/labels/
 
 # name the tmux session after the run, so several runs are never confused
-RUN=$(make run-name $M)              # -> wavlm-large-si-ta-200h
+RUN=$(make -s name $M)               # -> wavlm-large-copt-si-ta-200h
 tmux new -s "$RUN" "make train $M"   # the command is expanded HERE, by this shell
 #   13,500 updates; checkpoints every 1,500; milestones 4500/9000/13500
-#   output: models/wavlm-large-si-ta-200h/ ; log: logs/wavlm-large-si-ta-200h.log
-#   detach: Ctrl-b d   |   re-attach: tmux attach -t wavlm-large-si-ta-200h
+#   output: models/$RUN/ ; log: logs/$RUN/train.log
+#   detach: Ctrl-b d   |   re-attach: tmux attach -t $RUN
 #   crashed after a checkpoint? re-run the same command -> auto-resumes from the newest one.
 
 # confirm you launched what you meant to, before walking away
-head -3 logs/$RUN.log                # names the model and its params file
+head -3 logs/$RUN/train.log          # names the run, its data and its model
 
-# watch progress (another terminal; do NOT trust pretrain_metrics-*.json until it finishes)
-tail -f reports/pretrain_curves-wavlm-large-si-ta-200h.csv   # live: step, loss, accuracy/perplexity
-#   also the DagsHub ssl-pretraining run "wavlm-large-copt200h" (`make model-name $M`)
+# watch progress (another terminal; do NOT trust pretrain_metrics.json until it finishes)
+tail -f reports/$RUN/pretrain_curves.csv   # live: step, loss, accuracy/perplexity
+#   also the DagsHub ssl-pretraining run named $RUN
 
 make ckpt   $M                       # proxy-eval the milestones, copy the best (ranked on dev score)
-#   -> models/selected-wavlm-large-si-ta-200h/ + reports/checkpoint_selection-<run>.json
+#   -> models/$RUN/selected/ + reports/$RUN/checkpoint_selection.json
 make bench  $M                       # SLSB benchmark of the selected checkpoint
-#   -> reports/bench/wavlm-large-si-ta-200h/metrics.json + leaderboard row wavlm-large-copt200h
-make report $M                       # aggregate -> reports/results-<run>.md + results_table-<run>.csv
+#   -> reports/$RUN/bench/ + leaderboard row $RUN on SLSB-benchmark
+make report $M                       # the run vs its frozen baselines -> reports/$RUN/results.md
 ```
 
 The contrastive models (`xlsr`, `wav2vec2`) are identical **minus** `fit-kmeans`/`labels`:
 
 ```bash
-export M="MODEL=xlsr EXPERIMENT=si-ta-200h-norm"
+export M="MODEL=xlsr"
 make phase0 MODEL=xlsr
-tmux new -s "$(make run-name $M)" "make train $M"   # -> xlsr300m-si-ta-200h-norm
-make ckpt $M && make bench $M && make report $M     # after it finishes
+tmux new -s "$(make -s name $M)" "make train $M"   # -> xlsr300m-copt-si-ta-200h
+make ckpt $M && make bench $M && make report $M    # after it finishes
 ```
 
-`make all MODEL=<key> EXPERIMENT=<name>` chains
+`make all MODEL=<key> VARIANT=… TAG=…` chains
 `shard → [fit-kmeans → labels →] train → ckpt → bench → report` (assumes `data/raw` is already
 selected and materialised). Still run it inside `tmux`.
 
-### Several experiments on one model
+### Variants and tags
 
-`EXPERIMENT=` is how you keep runs of the *same* model apart — e.g. a frozen-CNN run and a
-CNN-unfreeze run of HuBERT. Each gets its own checkpoints, reports, benchmark folder, log,
-ssl-pretraining run and leaderboard row, so nothing is overwritten and you can run them side by side on different servers:
+A **variant** is an overlay in `configs/variants/` holding only what it changes; pass one or
+more with `VARIANT=` (comma-separated), and the run's name follows:
+
+| Variant | Changes | Name |
+|---|---|---|
+| `cnn.yaml` | the CNN feature encoder trains (full CoPT) | `…-cnn` |
+| `homog.yaml` | language-homogeneous updates | `…-homog` |
+| `adapter.yaml`, `lora.yaml`, `gclora.yaml` | the PE-CoPT method (templates, not implemented yet) | method slot |
+| `smoke-1h.yaml` | 1 h selection, 30 passes (68 updates), ER-only benchmark, the 200 h k-means; tag `smoke` | `…-si-ta-1h-smoke` |
 
 ```bash
-make train MODEL=hubert EXPERIMENT=si-ta-200h       # -> models/hubert-large-si-ta-200h/
-make train MODEL=hubert EXPERIMENT=cnn-unfreeze     # -> models/hubert-large-cnn-unfreeze/
+make train MODEL=hubert                                          # -> hubert-large-copt-si-ta-200h
+make train MODEL=hubert VARIANT=configs/variants/cnn.yaml        # -> hubert-large-copt-si-ta-200h-cnn
+make train MODEL=xlsr VARIANT=configs/variants/cnn.yaml,configs/variants/homog.yaml
+                                                                 # -> xlsr300m-copt-si-ta-200h-cnn-homog
 ```
 
-Use the same `MODEL`/`EXPERIMENT` pair for every stage of that run (`make run-name` prints the
-resulting name, which is also the tmux session name to use).
+A variant may change any setting, but one the name does not show (a learning rate, a mask
+probability, …) needs a **tag** — `TAG=lr1e-4` — or the stage refuses to start, so two
+different runs can never share a name. A variant that changes the *selection* (like
+`smoke-1h`) also gives the data its own id (`si-ta-1h-smoke`), so it never overwrites the
+200 h manifests or shards. Use the same `MODEL`/`VARIANT`/`TAG` for every stage of the run.
 
-**k-means and labels are per *model*, not per experiment** — `cluster.kmeans_output` and
-`labels_path` have no `{run}` in them, so all experiments of a model share one set of cluster
-targets (`models/kmeans/<model>-L<layer>-k<k>.joblib`, `data/labels/<model>_train_labels.jsonl.gz`).
-That is correct while `EXPERIMENT` only relabels outputs and the training data is unchanged —
-you run `make fit-kmeans`/`make labels` **once per model**, not once per experiment. If you ever
-change the *data* for an experiment, give that run its own `cluster.*` paths too, or it will
-train against the other run's targets.
+**k-means and labels are per model and data**, not per run: every run of a model on
+`si-ta-200h` shares `models/kmeans/<model>-L<layer>-k<k>-si-ta-200h.joblib` and its labels, so
+`make fit-kmeans`/`make labels` run once per model and data. A run on other data labels its own
+shards; `cluster.kmeans_data` can point it at another selection's k-means (the smoke variant
+reuses the 200 h one).
 
 ## Training knobs
 
@@ -232,23 +271,29 @@ train against the other run's targets.
   accumulation keeps the effective batch the same). `PHASE0_ARGS=--no-freeze-cnn` measures the
   trainable-CNN case.
 - **CNN feature encoder** — frozen by default (`pretrain.freeze_feature_encoder: true`,
-  transformer-only CoPT). Set it `false` for full CoPT where the CNN trains too (more memory;
-  check `make phase0` first). Configurable for all five models.
+  transformer-only CoPT). `VARIANT=configs/variants/cnn.yaml` trains it too (full CoPT, the run
+  is named `…-cnn`; more memory, so check `make phase0` with `PHASE0_ARGS=--no-freeze-cnn`
+  first). Configurable for all five models.
 
 ## Resuming after a crash
 
 Checkpoints (model + optimizer state + step) are written every `pretrain.save_every_updates`,
 **atomically** — everything lands in a `.tmp` dir that is renamed into place, so a crash
 mid-save can never leave a checkpoint that looks valid. Relaunching the same `make train`
-command **resumes automatically** from the newest complete checkpoint in `pretrain.output_dir`
-(falling back to the previous one if the newest is unreadable), and the loss-curve CSV keeps its
-history. Relaunching a run that already reached `max_updates` does nothing.
+command **resumes automatically** from the newest complete checkpoint in `models/<name>/`
+(falling back to the previous one if the newest is unreadable), the loss-curve CSV keeps its
+history, and the DagsHub run continues. Relaunching a run that already reached `max_updates`
+does nothing. A run can only resume its own folder (`run.json`): training it longer or with
+other settings is a different run, with its own name — resume it from the old checkpoint with
+`--resume-from`. Steps logged between the last checkpoint and the crash are trained again,
+so on DagsHub they appear twice in the run's metric history (MLflow keeps every point it was
+sent); `reports/<name>/pretrain_curves.csv` keeps only the re-run values.
 
 To choose explicitly:
 
 ```bash
 bash scripts/launch_pretrain.sh --model wavlm \
-    --resume-from models/wavlm-large-si-ta-200h/checkpoint-9000   # a specific checkpoint
+    --resume-from models/wavlm-large-copt-si-ta-200h/checkpoint-9000   # a specific checkpoint
 bash scripts/launch_pretrain.sh --model wavlm --no-resume          # ignore checkpoints, start over
 ```
 
@@ -273,71 +318,71 @@ The trainer stops a run that is clearly going nowhere, counted once per
 `make ckpt` evaluates the milestone checkpoints with a fast SLSB proxy task
 (`checkpoint_selection.proxy_task`) and keeps the best, **ranked on the dev score** slsb records
 in each result's `details` (dev CER for ASR, dev accuracy for SID, …) — never the test metric,
-so the test set never influences selection. The winner is copied to `models/selected-<run>/`.
+so the test set never influences selection. The winner is copied to `models/<name>/selected/`,
+and the scores go to `reports/<name>/checkpoint_selection.json` and to the run on DagsHub.
 
 **Completion gate.** `make ckpt` and `make bench` refuse to run until the run's pre-training has
-**finished** (`reports/pretrain_metrics-<run>.json` with `completed: true`), so a half-trained
+**finished** (`reports/<name>/pretrain_metrics.json` with `completed: true`), so a half-trained
 checkpoint is never selected or scored. Override with `ALLOW_INCOMPLETE=1` (e.g. a smoke test);
-benchmarking an explicit `UPSTREAM=` baseline skips the gate. `make bench` also fails if `slsb`
+`FROZEN=1` and an explicit `UPSTREAM=` skip the gate. `make bench` also fails if `slsb`
 left any task unfinished (it exits 0 even on a partial run), so a partial benchmark is never
 recorded as complete.
 
 ## Baseline comparisons
 
-`make report` renders one row per upstream in the model's `benchmark.upstreams` (its adapted run
-plus the un-adapted baselines), showing `—` for any upstream it can't find a `metrics.json` for
-rather than fabricating a score. `make bench` only benchmarks the adapted checkpoint, so run the
-model's own base once with `FROZEN=1` (its leaderboard row is the frozen model, e.g.
-`wavlm-large`), and any other baseline with `UPSTREAM=`:
+`make report` writes `reports/<name>/results.md` (and `results_table.csv`): one row for the run
+and one per frozen baseline in the model's `benchmark.baselines` (model keys), showing `—` for
+any row it has no `metrics.json` for rather than fabricating a score. A frozen baseline is a
+model's un-adapted base, named `<model>-frozen`; benchmark each once with `FROZEN=1`:
 
 ```bash
-make bench MODEL=wavlm FROZEN=1                                 # microsoft/wavlm-large, row wavlm-large
-make bench MODEL=wavlm UPSTREAM=utter-project/mHuBERT-147       # results only (no NAME=, no row)
-# ... then:
+make bench MODEL=wavlm FROZEN=1        # microsoft/wavlm-large -> reports/wavlm-large-frozen/bench/
+make bench MODEL=xlsr FROZEN=1         #                       -> reports/xlsr300m-frozen/bench/
 make report MODEL=wavlm
 ```
 
-Baselines are shared across models and only need running once each. `report.py` looks a result
-up by its **`benchmark.upstreams` key**, so benchmarking a configured baseline by its path
-automatically writes to that key's folder (`FROZEN=1` for wavlm → `reports/bench/wavlm_large/`)
-and the table picks it up. Any other upstream gets a folder derived from its path
-(`…/checkpoint-9000` → `reports/bench/<run>-checkpoint-9000/`); `OUT=<folder>` overrides it. An
-`UPSTREAM=` is logged to the leaderboard only when you give it a row name with `NAME=`, so an
-ad-hoc checkpoint can never overwrite a model's row.
+Each also logs its leaderboard row (`wavlm-large-frozen`), and has no training run. Any other
+checkpoint or Hugging Face id can be benchmarked with `UPSTREAM=` (results in
+`reports/<OUT or its path>/bench/`); it is logged to the leaderboard only with a row name,
+`NAME=`, so an ad-hoc checkpoint can never overwrite a run's row.
 
 ## Where results go (DagsHub)
 
-Credentials: `DAGSHUB_USER` / `DAGSHUB_TOKEN` in `.env`. Every run has ONE name in DagsHub, its
-**model name** (`make model-name`): `<model>-copt<hours>h[-<language>][-<variant>]`, derived from
-`EXPERIMENT` (`si-ta-200h` → `wavlm-large-copt200h`, `si-100h-p30` → `wavlm-large-copt100h-si-p30`,
-`cnn-unfreeze` → `hubert-large-copt200h-cnn-unfreeze`). Set `model_name:` at the top of the params
-file when an experiment needs a different one. Checkpoints stay on the training server.
+Credentials: `DAGSHUB_USER` / `DAGSHUB_TOKEN` in `.env`. A run has the same name on both:
+its training run in Model-Training-Pipeline and its row on the SLSB leaderboard. Checkpoints
+stay on the training server, and the files in `reports/<name>/` stay there until someone
+commits them.
 
 **Training → `Model-Training-Pipeline.mlflow`, experiment `ssl-pretraining`** (`mlflow:` in the
-params file), one run per training run:
+params file), one run per training run, named `<name>`:
 
-- tags `kind=adapted`, `family`, `base_model`, `data=<experiment>`, `slsb.model=<model name>`, a note;
-- params: `experiment`, `output_dir`, `params_commit`, the training settings, `trained` (start to
-  end), and `selected_checkpoint` once `make ckpt` ran;
-- metrics: the `train/*` curves every `eval_every_updates`, and `checkpoint_selection/<checkpoint>`
-  (each milestone's dev score) from `make ckpt`;
-- artifacts: `params.yaml`, `pretrain_curves.csv`, `pretrain_metrics.json`, `kmeans_stats.json`
-  (HuBERT family), `checkpoint_selection.json`.
+- tags `kind=adapted`, `family`, `base_model`, `slsb.model=<name>`, the name's slots (`model`,
+  `method`, `languages`, `hours`, `cnn`, `passes`, `batching`, `data`, `tag`) and a note;
+- params: the training settings, `output_dir`, `params_commit`, `trained` (start to end),
+  `selected_checkpoint` once `make ckpt` ran, and `language_batching_*` for a homog run;
+- metrics: the `train/*` curves every `eval_every_updates`, `lang/<language>/*` for a homog
+  run, and `checkpoint_selection/<checkpoint>` (each milestone's dev score) from `make ckpt`;
+- files: `params.yaml` (the merged config), `pretrain_curves.csv`, `pretrain_metrics.json`,
+  `pretrain_language_curves.csv` (homog), `kmeans_stats.json` (HuBERT family), and
+  `checkpoint_selection.json` from `make ckpt`.
 
-A resumed run continues the same MLflow run (its id is in `models/<run>/mlflow_run_id.txt`, next to
-the checkpoints). A run ends **FINISHED** only when it reached `max_updates`; stopped early (stall /
-collapse detector, kill signal) it ends **KILLED**, crashed **FAILED**.
+A resumed run continues the same MLflow run (its id is in `models/<name>/mlflow_run_id.txt`). A
+run ends **FINISHED** only when it reached `max_updates`; stopped early (stall / collapse
+detector, kill signal) it ends **KILLED**, crashed **FAILED**. Frozen baselines have no
+training run.
 
-**Benchmark → `SLSB-benchmark.mlflow`, experiment `slsb-<protocol>`** (the leaderboard). `make bench`
-runs `slsb run` without live MLflow logging, copies the results to `reports/bench/<run>/`, then
-logs them once with SLSB's own `scripts/log_results.py` as one run per model: every task's metric
-(mean over seeds) and its `_std`, with `kind`, `family`, `base_model`, `checkpoint`,
-`pretrain_hours`, protocol and slsb version, and `per_seed.csv` plus the results folder as
-artifacts. `benchmark.slsb_version` pins the protocol (`make bench` refuses another slsb version);
-a row needs all six task families (`benchmark.tasks`). A model that already has a row is left
-alone unless `REPLACE=1`; after a protocol release that changed only some tasks, re-run those with
-`CARRY_OVER=1`. Without the credentials (or with `NO_LOG=1`) the results stay local and the logging
-command is printed. `DRY_RUN=1` prints the commands only.
+**Benchmark → `SLSB-benchmark.mlflow`, experiment `slsb-<protocol>`** (the leaderboard), written
+by `make bench` itself as **one row per run**: `slsb run` (without live MLflow logging) writes
+`reports/<name>/bench/`, and SLSB's own `scripts/log_results.py` logs it as the row `<name>`
+(or `<model>-frozen` with `FROZEN=1`): every task's metric (mean over seeds) and its `_std`,
+with `kind`, `family`, `base_model`, `checkpoint`, `pretrain_hours`, protocol and slsb version,
+and `per_seed.csv` plus the results folder as files. A run's row then gets the same name-slot
+tags as its training run. A full row covers all six task families (`benchmark.tasks`); a
+variant may benchmark fewer (the smoke variant: ER only), and the row's note then says which.
+A model that already has a row is left alone unless `REPLACE=1`; after a protocol release that
+changed only some tasks, re-run those with `CARRY_OVER=1`. Without the credentials (or with
+`NO_LOG=1`) the results stay local and the logging command is printed. `DRY_RUN=1` prints the
+commands only. `benchmark.slsb_version` pins the protocol (`make bench` refuses another slsb).
 
 ## Multi-node (DDP)
 
@@ -357,14 +402,15 @@ NNODES=2 NODE_RANK=0 MASTER_ADDR=10.8.100.40 make train MODEL=wavlm       # node
 NNODES=2 NODE_RANK=1 MASTER_ADDR=10.8.100.40 make train MODEL=wavlm       # node 1
 ```
 
-Copy the checkpoint directory to every node before resuming a multi-node run (each rank reads its
-own `output_dir`; a mismatch is detected and stops all ranks rather than letting their optimizers
-diverge).
+Copy the run folder (`models/<name>/`, including its `run.json`) to every node before resuming a
+multi-node run (each rank reads its own folder; a mismatch is detected and stops all ranks rather
+than letting their optimizers diverge).
 
 ## DVC
 
-`dvc.yaml` describes the data stages and the default **mHuBERT-147** run end to end (its `vars`
-come from `params-mhubert147.yaml`); `dvc repro` runs whatever is stale. The other four models
+`dvc.yaml` describes the data stages and the default **mHuBERT-147** run
+(`mhubert147-copt-si-ta-200h`, data `si-ta-200h`) end to end (its `vars` come from
+`params-mhubert147.yaml`); `dvc repro` runs whatever is stale. The other four models
 are driven by `make`, not DVC — there is no `dvc-<model>.yaml`. `pipeline.eval.benchmark` bridges
 slsb's real output filename (`results_<upstream-with-/-as-__>.json`) to the fixed `metrics.json`
 path `dvc.yaml` and `report.py` expect. `dvc.lock` may be stale after config renames — **don't
@@ -385,17 +431,20 @@ Code is grouped by concern; a model differs from another only by its registry sp
 ```
 params-data.yaml            shared data selection + sharding
 params-<model>.yaml         one per model: base, objective, cluster, selection, benchmark
+configs/variants/           overlays: cnn, homog, adapter / lora / gclora, smoke-1h
 src/pipeline/
   train.py                  CLI entry point; dispatches on objective family
   common/                   infra used everywhere (no model/family logic)
     schema.py  device.py  checkpoints.py  callbacks.py  datamodule.py
-    tracking.py               the run's DagsHub record (ssl-pretraining)
+    naming.py                 run names and data ids
+    tracking.py               the run's folder (run.json) and its DagsHub record (ssl-pretraining)
   models/                   one file per model (its ModelSpec) + the registry
     registry.py  spec.py  mhubert147.py  hubert.py  wavlm.py  xlsr.py  wav2vec2.py
   training/                 the engine: one trainer per objective family
     masked_prediction.py       HuBERT / mHuBERT-147 / WavLM
     contrastive.py             XLS-R / wav2vec2
     masked_model.py            backbone + linear cluster-id head
+    language_batching.py       language-homogeneous updates (homog)
   pecopt/                   full_copt (default) + PE-CoPT method templates
   data/                     snapshot_catalog / drive_index / select / materialise / shard
   labels/                   fit_kmeans / assign_cluster_labels / layer_features (k-means targets)

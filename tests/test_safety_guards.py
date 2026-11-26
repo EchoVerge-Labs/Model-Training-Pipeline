@@ -2,15 +2,22 @@
 don't log a partial SLSB run, and never silently drop a configured contamination blocklist."""
 
 import json
+from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from pipeline.eval import benchmark
 
 
+def _run(name):
+    """What require_complete_pretraining reads off a run: its name and reports folder."""
+    return SimpleNamespace(run=name, reports_dir=Path("reports") / name)
+
+
 def _metrics(tmp_path, run, completed):
-    (tmp_path / "reports").mkdir(exist_ok=True)
-    (tmp_path / "reports" / f"pretrain_metrics-{run}.json").write_text(
+    (tmp_path / "reports" / run).mkdir(parents=True, exist_ok=True)
+    (tmp_path / "reports" / run / "pretrain_metrics.json").write_text(
         json.dumps({"final_step": 9000, "completed": completed})
     )
 
@@ -19,21 +26,21 @@ def test_benchmark_refuses_an_unfinished_run(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     _metrics(tmp_path, "r", completed=False)
     with pytest.raises(SystemExit, match="incomplete"):
-        benchmark.require_complete_pretraining("r")
+        benchmark.require_complete_pretraining(_run("r"))
 
 
 def test_benchmark_refuses_when_no_metrics_exist(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     with pytest.raises(SystemExit, match="not found"):
-        benchmark.require_complete_pretraining("never-trained")
+        benchmark.require_complete_pretraining(_run("never-trained"))
 
 
 def test_a_finished_run_and_allow_incomplete_both_pass(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     _metrics(tmp_path, "r", completed=True)
-    benchmark.require_complete_pretraining("r")  # finished -> ok
+    benchmark.require_complete_pretraining(_run("r"))  # finished -> ok
     _metrics(tmp_path, "r", completed=False)
-    benchmark.require_complete_pretraining("r", allow_incomplete=True)  # override -> ok
+    benchmark.require_complete_pretraining(_run("r"), allow_incomplete=True)  # override -> ok
 
 
 def test_an_explicit_upstream_skips_the_completion_gate(monkeypatch):

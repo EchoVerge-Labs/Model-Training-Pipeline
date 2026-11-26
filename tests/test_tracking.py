@@ -51,10 +51,10 @@ def test_a_resumed_run_continues_the_same_mlflow_run(setup, tmp_path):
     tracking.finish_training_run(again, config, True, {"pretrain_curves.csv": curves})
 
     run = MlflowClient().get_run(run_id)
-    assert run.info.status == "FINISHED" and run.info.run_name == "wavlm-large-copt200h"
-    assert run.data.tags["slsb.model"] == "wavlm-large-copt200h"
+    assert run.info.status == "FINISHED" and run.info.run_name == "wavlm-large-copt-si-ta-200h"
+    assert run.data.tags["slsb.model"] == "wavlm-large-copt-si-ta-200h"
     assert run.data.tags["kind"] == "adapted" and run.data.tags["family"] == "wavlm"
-    assert run.data.params["experiment"] == "si-ta-200h" and "trained" in run.data.params
+    assert run.data.tags["data"] == "si-ta-200h" and "trained" in run.data.params
     steps = [m.step for m in MlflowClient().get_metric_history(run_id, "train/loss")]
     assert steps == [500, 1000]
     artifacts = {a.path for a in MlflowClient().list_artifacts(run_id)}
@@ -81,3 +81,18 @@ def test_an_unfinished_run_ends_killed_and_params_are_never_overwritten(setup):
     run = MlflowClient().get_run(logger.run_id)
     assert run.info.status == "KILLED" and run.data.params["max_updates"] == "13500"
     assert "trained" not in run.data.params
+
+
+def test_the_merged_config_decides_where_the_run_is_logged(setup, tmp_path):
+    """A VARIANT overlay's `mlflow:` settings count: make train writes the merged config to
+    reports/<run>/config.yaml first, and the run is logged where that says -- not where the
+    plain params file says (here: a URI that would fail)."""
+    params, config = setup
+    plain = tmp_path / "plain.yaml"
+    plain.write_text(yaml.safe_dump({"mlflow": {"tracking_uri": "https://example.invalid/x"}}))
+    merged = yaml.safe_load(Path(config).read_text())
+    tracking.write_run_config(params, merged)
+    logger = tracking.start_training_run(params, str(plain), 0, {})
+    assert logger is not None and logger.enabled
+    assert mlflow.get_tracking_uri() == merged["mlflow"]["tracking_uri"]
+    tracking.finish_training_run(logger, str(plain), True, {})

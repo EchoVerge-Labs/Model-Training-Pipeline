@@ -1,4 +1,8 @@
-"""Deterministic, stratified, channel-disjoint selection of training data."""
+"""Deterministic, stratified, channel-disjoint selection of training data.
+
+Writes data/manifests/<data id>/{train,dev}.jsonl and reports/data/<data id>/, where the
+data id is <languages>-<hours>h (pipeline.common.naming), e.g. si-ta-200h.
+"""
 
 import argparse
 import csv
@@ -10,7 +14,8 @@ from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 
-from pipeline.common.schema import DataParams
+from pipeline.common.naming import fingerprint
+from pipeline.common.schema import DataParams, add_data_args, variants_arg
 from pipeline.data.drive_index import load_index
 
 
@@ -249,6 +254,9 @@ def select(
     return train_segments, holdout_segments
 
 
+SELECTION_FILE = "selection.json"
+
+
 def write_manifest(segments: list[Segment], path: Path):
     """Write a simple JSONL manifest (Lhotse-compatible structure)."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -371,7 +379,7 @@ def write_report(
             f.write(f"- to_train=yes rows: {cleaning['to_train_rows']:,}\n")
             f.write(f"- exact repeats removed: {cleaning['exact_duplicates_removed']:,}\n")
             f.write(
-                f"- unresolvable, set aside (see reports/unresolved_clips.csv): "
+                f"- unresolvable, set aside (see unresolved_clips.csv): "
                 f"{sum(u.values())} (ambiguous {u['ambiguous']}, no_match {u['no_match']}, "
                 f"duplicate_path {u['duplicate_path']})\n"
             )
@@ -414,13 +422,38 @@ def write_report(
     return stats
 
 
+def selection_record(params: DataParams) -> dict:
+    """What a selection is: its data id and the settings that decide its clips."""
+    config = params.select.model_dump(
+        exclude={"manifest_dir", "catalog_path", "drive_root", "drive_index_path"}
+    )
+    return {"data_id": params.data_id, "fingerprint": fingerprint(config), "select": config}
+
+
+def claim_manifest_dir(params: DataParams) -> None:
+    """Refuse to overwrite a selection made with different settings under the same data id."""
+    path = Path(params.select.manifest_dir) / SELECTION_FILE
+    record = selection_record(params)
+    if path.exists():
+        found = json.loads(path.read_text())
+        if found.get("fingerprint") != record["fingerprint"]:
+            sys.exit(
+                f"ERROR: {path.parent} holds a selection made with other settings "
+                f"({found.get('select')}). A different selection needs its own data id: "
+                f"give the run a tag."
+            )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(record, indent=2) + "\n")
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="params-data.yaml")
+    add_data_args(parser)
     args = parser.parse_args()
 
-    params = DataParams.from_yaml(args.config)
+    params = DataParams.from_yaml(args.config, variants_arg(args.variant), args.tag)
     cfg = params.select
+    print(f"Selection {params.data_id} -> {cfg.manifest_dir}")
 
     segments = load_catalog(cfg.catalog_path)
     if not segments:
@@ -442,7 +475,7 @@ def main():
         build_path_lookup(drive_index),
         build_name_lookup(drive_index),
     )
-    write_unresolved(unresolved, Path("reports/unresolved_clips.csv"))
+    write_unresolved(unresolved, params.reports_dir / "unresolved_clips.csv")
     reasons = [reason for _, reason in unresolved]
     cleaning = {
         "to_train_rows": n_rows,
@@ -477,6 +510,7 @@ def main():
     train, holdout = select(segments, cfg, blocklist)
 
     manifest_dir = Path(cfg.manifest_dir)
+    claim_manifest_dir(params)
     write_manifest(train, manifest_dir / "train.jsonl")
     write_manifest(holdout, manifest_dir / "dev.jsonl")
     write_report(
@@ -484,8 +518,8 @@ def main():
         holdout,
         segments,
         cfg,
-        report_path=Path("reports/selection_report.md"),
-        stats_path=Path("reports/selection_stats.json"),
+        report_path=params.reports_dir / "selection_report.md",
+        stats_path=params.reports_dir / "selection_stats.json",
         cleaning=cleaning,
     )
 

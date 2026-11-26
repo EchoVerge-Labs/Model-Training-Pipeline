@@ -1,4 +1,6 @@
 # Data selection and sharding, shared by ALL models: they all train on the same shards.
+# A selection is named by its data id, <languages>-<hours>h (si-ta-200h): manifests in
+# data/manifests/<data id>/, shards in data/shars/<data id>/, reports in reports/data/<data id>/.
 # Read by the data stages (drive_index / select / materialise / shard) and merged into every
 # params-<model>.yaml when it is loaded (pipeline.common.schema.load_raw_params), so each model file
 # holds only what is specific to that model.
@@ -26,4 +28,3 @@ shard:
   min_cut_seconds: 5.0        # minimum after re-cutting
   target_cut_seconds: 15.0    # concatenate short segments to this
   max_cut_seconds: 30.0       # split longer clips into equal windows of at most this
-  output_dir: data/shars

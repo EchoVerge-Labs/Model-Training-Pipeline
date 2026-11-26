@@ -7,7 +7,8 @@ from pathlib import Path
 import pytest
 import yaml
 
-from pipeline.common.schema import load_raw_params
+from pipeline.common.schema import Params, load_raw_params
+from pipeline.common.tracking import claim_run_folder
 from pipeline.eval import select_checkpoint
 from pipeline.eval.select_checkpoint import find_milestone_checkpoints
 
@@ -34,34 +35,48 @@ def test_a_milestone_without_weights_is_skipped(tmp_path, capsys):
 
 
 @pytest.mark.parametrize(
-    ("config", "suffix_arg", "expected"),
+    ("config", "tag_arg", "run"),
     [
-        ("params-xlsr.yaml", [], "checkpoint_selection-xlsr300m-si-ta-200h-norm.json"),
-        ("params-wav2vec2.yaml", [], "checkpoint_selection-wav2vec2-mono-si-ta-200h.json"),
-        ("params-wavlm.yaml", [], "checkpoint_selection-wavlm-large-si-ta-200h.json"),
-        ("params-mhubert147.yaml", ["--report-suffix=-custom"], "checkpoint_selection-custom.json"),
+        ("params-xlsr.yaml", [], "xlsr300m-copt-si-ta-200h"),
+        ("params-wav2vec2.yaml", [], "wav2vec2-large-lv60-copt-si-ta-200h"),
+        ("params-wavlm.yaml", [], "wavlm-large-copt-si-ta-200h"),
+        ("params-mhubert147.yaml", ["--tag=custom"], "mhubert147-copt-si-ta-200h-custom"),
     ],
 )
-def test_report_suffix_defaults_to_the_run_name(
-    tmp_path, monkeypatch, config, suffix_arg, expected
-):
+def test_the_selection_lands_in_the_runs_own_folders(tmp_path, monkeypatch, config, tag_arg, run):
+    """reports/<run>/checkpoint_selection.json and <run folder>/selected/, named by the run."""
     raw = load_raw_params(config)
     raw["pretrain"]["output_dir"] = str(tmp_path / "model")
-    raw["checkpoint_selection"]["output_dir"] = str(tmp_path / "selected")
     cfg = tmp_path / "params-mhubert147.yaml"
     cfg.write_text(yaml.safe_dump(raw))
+    params = Params.from_yaml(str(cfg), tag=(tag_arg[0].split("=")[1] if tag_arg else None))
+    claim_run_folder(params)  # the folder is this run's (make train writes run.json first)
     for step in raw["pretrain"]["milestone_checkpoints"]:
         _backbone(tmp_path / "model" / f"checkpoint-{step}")
 
     scores = iter([3.0, 1.0, 2.0])
     monkeypatch.setattr(select_checkpoint, "evaluate_checkpoint", lambda *a, **k: next(scores))
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(sys, "argv", ["x", "--config", str(cfg), "--allow-incomplete", *suffix_arg])
+    monkeypatch.setattr(sys, "argv", ["x", "--config", str(cfg), "--allow-incomplete", *tag_arg])
     select_checkpoint.main()
 
-    report = json.loads((tmp_path / "reports" / expected).read_text())
+    report = json.loads((tmp_path / "reports" / run / "checkpoint_selection.json").read_text())
     assert report["best_checkpoint"] == "checkpoint-9000"
-    assert (tmp_path / "selected" / "config.json").exists()
+    assert (tmp_path / "model" / "selected" / "config.json").exists()
+
+
+def test_selection_refuses_a_folder_made_for_another_config(tmp_path, monkeypatch):
+    raw = load_raw_params("params-xlsr.yaml")
+    raw["pretrain"]["output_dir"] = str(tmp_path / "model")
+    cfg = tmp_path / "p.yaml"
+    cfg.write_text(yaml.safe_dump(raw))
+    other = Params.from_yaml(str(cfg)).model_copy(deep=True)
+    other.pretrain.peak_lr = 1e-3  # a different config claimed the folder first
+    claim_run_folder(other)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, "argv", ["x", "--config", str(cfg), "--allow-incomplete"])
+    with pytest.raises(SystemExit, match="different config"):
+        select_checkpoint.main()
 
 
 # ── ranking on the dev score, never the test metric ──────────────────────────────────────
@@ -173,9 +188,9 @@ def test_the_report_says_which_score_it_ranked_on(tmp_path, monkeypatch):
 
     raw = load_raw_params("params-wavlm.yaml")
     raw["pretrain"]["output_dir"] = str(tmp_path / "model")
-    raw["checkpoint_selection"]["output_dir"] = str(tmp_path / "selected")
     cfg = tmp_path / "params-mhubert147.yaml"
     cfg.write_text(yaml.safe_dump(raw))
+    claim_run_folder(Params.from_yaml(str(cfg)))
     for step in raw["pretrain"]["milestone_checkpoints"]:
         _backbone(tmp_path / "model" / f"checkpoint-{step}")
     monkeypatch.setattr(select_checkpoint, "evaluate_checkpoint", lambda *a, **k: 1.0)
@@ -183,7 +198,9 @@ def test_the_report_says_which_score_it_ranked_on(tmp_path, monkeypatch):
     monkeypatch.setattr(sys, "argv", ["x", "--config", str(cfg), "--allow-incomplete"])
     select_checkpoint.main()
     report = json.loads(
-        (tmp_path / "reports" / "checkpoint_selection-wavlm-large-si-ta-200h.json").read_text()
+        (
+            tmp_path / "reports" / "wavlm-large-copt-si-ta-200h" / "checkpoint_selection.json"
+        ).read_text()
     )
     assert report["ranked_on"] == "dev_cer"
 
