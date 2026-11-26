@@ -224,3 +224,74 @@ stages:
       hash: md5
       md5: 71c28eac33c7535f88917f019be4ec4b
       size: 13320
+  select_checkpoint_single@ta-100h:
+    cmd: python -m pipeline.select_checkpoint --config params.yaml --experiment 
+      ta-100h
+    deps:
+    - path: models/xlsr300m-ta-100h/
+      hash: md5
+      md5: 66fd00057d7981d2d792e79a233df949.dir
+      size: 3808855404
+      nfiles: 12
+    - path: src/pipeline/experiment.py
+      hash: md5
+      md5: 95edeab53853da2cfad9a8c2a0b66417
+      size: 12734
+    - path: src/pipeline/select_checkpoint.py
+      hash: md5
+      md5: 70e1070aead4544cf0395024bdaafc5b
+      size: 6608
+    params:
+      params.yaml:
+        checkpoint_selection:
+          proxy_task: asr
+          proxy_data_dir: ../SLSB-benchmark/data
+          proxy_seed: 0
+          output_dir: models/selected
+        experiments.runs.ta-100h:
+          language: tamil
+          target_hours: 100.0
+        pretrain.milestone_checkpoints:
+        - 4500
+        - 9000
+        - 13500
+    outs:
+    - path: models/selected_single/xlsr300m-ta-100h/
+      hash: md5
+      md5: e760a7cdd3a1423f369825fe0fb4659e.dir
+      size: 1269617652
+      nfiles: 3
+    - path: reports/ta-100h/checkpoint_selection.json
+      hash: md5
+      md5: f9bc79a19cbb9d05838e6b8faacd4e74
+      size: 271
+  benchmark_single@ta-100h:
+    cmd: "bash scripts/run_benchmark.sh models/selected_single/xlsr300m-ta-100h asr,sid,er,asv
+      0,1,2 reports/bench/xlsr300m-ta-100h https://dagshub.com/EchoVerge-LABS/Model-Training-Pipeline.mlflow
+      ../SLSB-benchmark/data xlsr300m-ta-100h-CoPT-norm model=xlsr300m,base_model=facebook/wav2vec2-xls-r-300m,stage=continued-pretraining,copt_data=ta-100h,copt_run=xlsr300m-ta-100h,train_language=tamil,train_normalize=true,variant=norm
+      reports/ta-100h/checkpoint_selection.json\n"
+    deps:
+    - path: models/selected_single/xlsr300m-ta-100h/
+      hash: md5
+      md5: e760a7cdd3a1423f369825fe0fb4659e.dir
+      size: 1269617652
+      nfiles: 3
+    - path: scripts/label_benchmark_runs.py
+      hash: md5
+      md5: 4e632bb3c5718e28ea9bf3b5ec40b1b3
+      size: 5623
+    - path: scripts/run_benchmark.sh
+      hash: md5
+      md5: 37eb83cdba5c591a69ab323475ccc4ca
+      size: 3173
+      isexec: true
+    params:
+      params.yaml:
+        benchmark.seeds: 0,1,2
+        benchmark.slsb_data_dir: ../SLSB-benchmark/data
+        benchmark.tasks: asr,sid,er,asv
+    outs:
+    - path: reports/bench/xlsr300m-ta-100h/metrics.json
+      hash: md5
+      md5: 1cb0247d42bfb26ddb682318bb303ba7
+      size: 13228
